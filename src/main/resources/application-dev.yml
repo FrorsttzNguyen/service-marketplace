@@ -1,0 +1,32 @@
+# Dev profile — connects to local Docker services
+# Activated by: spring.profiles.active=dev (or SPRING_PROFILES_ACTIVE env var)
+
+spring:
+  # PostgreSQL — matches docker-compose.yml
+  datasource:
+    url: jdbc:postgresql://localhost:5433/marketplace
+    username: marketplace
+    password: marketplace
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Connection pool settings — small for local dev
+      maximum-pool-size: 5
+      minimum-idle: 2
+
+  # Redis — matches docker-compose.yml
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+  # Show SQL in dev for learning
+  jpa:
+    show-sql: true
+
+# Logging
+logging:
+  level:
+    com.hien.marketplace: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

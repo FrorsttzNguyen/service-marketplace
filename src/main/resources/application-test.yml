@@ -1,0 +1,41 @@
+# Test profile — uses H2 in-memory database for fast tests
+# No Docker needed for running tests
+
+spring:
+  # H2 in-memory database — auto-created, destroyed after tests
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  # H2 console available at /h2-console during tests (debugging)
+  h2:
+    console:
+      enabled: true
+
+  # In tests, let Hibernate create tables from entities
+  # (no Flyway migrations needed for unit/integration tests)
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+  # Disable Flyway in test profile
+  flyway:
+    enabled: false
+
+  # Disable Redis in tests
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# Disable security during tests
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+
+logging:
+  level:
+    com.hien.marketplace: DEBUG

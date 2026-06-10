@@ -1,0 +1,42 @@
+# Common configuration — shared across all profiles
+# Profile-specific config overrides these values
+
+spring:
+  application:
+    name: service-marketplace
+
+  # JPA / Hibernate settings
+  jpa:
+    # "validate" means Spring checks that entities match the DB schema
+    # but NEVER auto-creates or alters tables. Flyway manages all schema changes.
+    hibernate:
+      ddl-auto: validate
+    # Show SQL in logs during development (disable in production)
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Flyway — database migration tool
+  # Manages versioned SQL scripts in src/main/resources/db/migration/
+  flyway:
+    enabled: true
+    # baseline-on-migrate allows Flyway to start on an existing database
+    baseline-on-migrate: true
+
+# Server
+server:
+  port: 8080
+
+# Actuator — production-ready monitoring endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only expose health and info (not all actuator endpoints)
+        include: health, info
+  endpoint:
+    health:
+      # Show component details (db, redis status) only to authenticated users
+      show-details: when-authorized
