@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>01 - Java &amp; Spring Boot Fundamentals — Service Marketplace</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="navbar">
+  <span class="navbar-brand">Service Marketplace</span>
+  <ul class="navbar-links">
+    <li><a href="01-java-spring-fundamentals.html" class="active">01 Fundamentals</a></li>
+    <li><a href="02-jpa-and-database.html">02 JPA &amp; DB</a></li>
+    <li><a href="03-rest-api.html">03 REST API</a></li>
+    <li><a href="04-security-auth.html">04 Security</a></li>
+    <li><a href="05-testing.html">05 Testing</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+
+<h1>Java &amp; Spring Boot Fundamentals</h1>
+
+<p>Tai lieu nay giai thich tat ca cac khai niem Java va Spring Boot can thiet de hieu duoc code trong du an <strong>Service Marketplace</strong>. Moi khai niem deu duoc lien ket voi code thuc te trong project.</p>
+
+<!-- ============================================ -->
+<h2 id="java-la-gi">1. Java la gi?</h2>
+<!-- ============================================ -->
+
+<h3>JVM, JDK, JRE</h3>
+
+<table>
+  <tr>
+    <th>Khai niem</th>
+    <th>Viet tat</th>
+    <th>Giai thich don gian</th>
+  </tr>
+  <tr>
+    <td><strong>JVM</strong></td>
+    <td>Java Virtual Machine</td>
+    <td>May ao chay Java bytecode. Day la ly do Java co the chay tren moi he dieu hanh &mdash; &quot;Write once, run anywhere&quot;. Khi Hien compile <code>.java</code> thanh <code>.class</code>, JVM doc bytecode va thuc thi.</td>
+  </tr>
+  <tr>
+    <td><strong>JRE</strong></td>
+    <td>Java Runtime Environment</td>
+    <td>Moi truong de <em>chay</em> Java application. Gom JVM + thu vien co ban. Du de chay app, nhung khong du de phat trien.</td>
+  </tr>
+  <tr>
+    <td><strong>JDK</strong></td>
+    <td>Java Development Kit</td>
+    <td>Bo cong cu phat trien. Gom JRE + compiler (<code>javac</code>) + cac tool khac. Day la thu Hien cai dat de code Java. Project nay dung JDK 21.</td>
+  </tr>
+</table>
+
+<div class="diagram">
+  <div class="diagram-title">Quan he JVM / JRE / JDK</div>
+  <div class="flow-container">
+    <div class="box">JVM<br><small>(May ao)</small></div>
+    <div class="arrow">&larr;</div>
+    <div class="box highlight">JRE<br><small>(JVM + Libraries)</small></div>
+    <div class="arrow">&larr;</div>
+    <div class="box">JDK<br><small>(JRE + Compiler + Tools)</small></div>
+  </div>
+</div>
+
+<div class="image-placeholder">
+  <div class="placeholder-icon">&#128248;</div>
+  <div class="placeholder-text">Screenshot placeholder: JDK/JRE/JVM architecture diagram</div>
+</div>
+
+<h3>Tai sao chon Java cho backend?</h3>
+
+<ul>
+  <li><strong>Strong typing</strong> &mdash; Loi type bi bat tai compile-time, khong phai luc runtime. Giam bug.</li>
+  <li><strong>Ecosystem lon</strong> &mdash; Spring Boot, Hibernate, Maven, lib cho moi thu da co san va kien dinh.</li>
+  <li><strong>Enterprise standard</strong> &mdash; Phan lon cong ty lon dung Java backend. Hoc Spring Boot = co hieu nhieu viec.</li>
+  <li><strong>Performance</strong> &mdash; JVM toi uu code luc runtime (JIT compilation), nhanh hon nhieu so voi interpreter thuan.</li>
+</ul>
+
+<h3>Java 21 &mdash; cac tinh nang dung trong project</h3>
+
+<p>Project nay dung Java 21 (xem <code>pom.xml</code>: <code>&lt;java.version&gt;21&lt;/java.version&gt;</code>). Mot so tinh nang moi se gap:</p>
+
+<ul>
+  <li><strong>Records</strong> (Java 16+) &mdash; Cach tao data class bat bien (immutable) ngan gon. Se gap khi dinh nghia DTO.</li>
+  <li><strong>Sealed classes</strong> (Java 17+) &mdash; Gioi han class nao duoc ke thua. Co the dung cho domain events.</li>
+  <li><strong>Pattern matching for switch</strong> (Java 21) &mdash; Viet ngan hon khi kiem tra type.</li>
+</ul>
+
+<div class="callout tip">
+  <p class="callout-title">Tip</p>
+  <p>Khong can hieu ngay tat ca tinh nang moi. Khi gap trong code, tai lieu nay se giai thich.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="java-basics">2. Java Basics dung trong Project</h2>
+<!-- ============================================ -->
+
+<h3>Classes &amp; Objects</h3>
+
+<p><strong>Class</strong> la ban thiet ke (blueprint). <strong>Object</strong> la the hien cu the cua class do. Moi file Java deu co it nhat mot class.</p>
+
+<p>Vi du tu project &mdash; file <code>ServiceMarketplaceApplication.java</code>:</p>
+
+<span class="code-label">src/main/java/com/hien/marketplace/ServiceMarketplaceApplication.java</span>
+<pre><code><span class="comment">// package = thu muc chua file nay. Tat ca class trong project nam trong com.hien.marketplace</span>
+<span class="keyword">package</span> com.hien.marketplace;
+
+<span class="comment">// import = lay class tu package khac de dung</span>
+<span class="keyword">import</span> org.springframework.boot.SpringApplication;
+<span class="keyword">import</span> org.springframework.boot.autoconfigure.SpringBootApplication;
+
+<span class="annotation">@SpringBootApplication</span>  <span class="comment">// &larr; Annotation: bao cho Spring biet day la main app class</span>
+<span class="keyword">public class</span> <span class="type">ServiceMarketplaceApplication</span> {
+
+    <span class="comment">// public static void main = diem bat dau (entry point) cua moi Java application</span>
+    <span class="comment">// public  = bat ky ai cung co the goi method nay</span>
+    <span class="comment">// static  = khong can tao object de goi method nay</span>
+    <span class="comment">// void    = method khong tra ve gia tri</span>
+    <span class="comment">// String[] args = tham so dong lenh (command-line arguments)</span>
+    <span class="keyword">public static void</span> <span class="type">void</span> main(<span class="type">String</span>[] args) {
+        <span class="comment">// SpringApplication.run() = khoi dong Spring Boot application</span>
+        SpringApplication.run(<span class="type">ServiceMarketplaceApplication</span>.<span class="keyword">class</span>, args);
+    }
+}</code></pre>
+
+<h3>Enums</h3>
+
+<p><strong>Enum</strong> (enumeration) la mot cach dinh nghia tap hop cac gia tri co dinh. Trong project se dung de dinh nghia vai tro nguoi dung:</p>
+
+<pre><code><span class="keyword">public enum</span> <span class="type">UserRole</span> {
+    CUSTOMER,   <span class="comment">// Nguoi dat dich vu</span>
+    VENDOR,     <span class="comment">// Nguoi cung cap dich vu</span>
+    ADMIN       <span class="comment">// Quan tri vien</span>
+}
+
+<span class="comment">// Cach dung:</span>
+<span class="type">UserRole</span> role = UserRole.CUSTOMER;
+
+<span class="comment">// Kiem tra gia tri:</span>
+<span class="keyword">if</span> (role == UserRole.VENDOR) {
+    <span class="comment">// hien thi dashboard cua vendor</span>
+}</code></pre>
+
+<div class="callout note">
+  <p class="callout-title">Note</p>
+  <p>Enum khac voi String o cho: chi nhan dung cac gia tri da dinh nghia. Compiler se bat loi neu go sai. Dung String thi co the go sai ma khong ai bao den luc runtime.</p>
+</div>
+
+<h3>Annotations (Phu chu / Chu thich)</h3>
+
+<p><strong>Annotation</strong> la mot cach them thong tin vao code, ma Java hoac framework (nhu Spring) co the doc va xu ly. Luon bat dau bang dau <code>@</code>.</p>
+
+<table>
+  <tr>
+    <th>Annotation</th>
+    <th>Ai xu ly?</th>
+    <th>Y nghia</th>
+  </tr>
+  <tr>
+    <td><code>@Override</code></td>
+    <td>Java compiler</td>
+    <td>Bao rang method nay ghi de method cua class cha. Neu ghi sai ten, compiler bao loi.</td>
+  </tr>
+  <tr>
+    <td><code>@Entity</code></td>
+    <td>Hibernate/JPA</td>
+    <td>Class nay tuong ung voi mot bang trong database.</td>
+  </tr>
+  <tr>
+    <td><code>@RestController</code></td>
+    <td>Spring</td>
+    <td>Class nay xu ly HTTP request va tra ve JSON.</td>
+  </tr>
+  <tr>
+    <td><code>@Bean</code></td>
+    <td>Spring</td>
+    <td>Object tra ve tu method nay se duoc Spring quan ly.</td>
+  </tr>
+  <tr>
+    <td><code>@Configuration</code></td>
+    <td>Spring</td>
+    <td>Class nay chua cac dinh nghia bean (cac <code>@Bean</code> method).</td>
+  </tr>
+</table>
+
+<h3>Generics (Kieu tong quat)</h3>
+
+<p><strong>Generics</strong> cho phep viet code hoat dong voi nhieu kieu du lieu khac nhau, nhung van dam bao type safety tai compile-time.</p>
+
+<pre><code><span class="comment">// Khong dung generics &mdash; khong biet trong List co gi, phai ep type (cast)</span>
+<span class="type">List</span> users = <span class="keyword">new</span> <span class="type">ArrayList</span>();
+users.add(<span class="string">"hello"</span>);  <span class="comment">// String? User? Khong ai kiem tra!</span>
+
+<span class="comment">// Dung generics &mdash; compiler dam bao chi chua User</span>
+<span class="type">List</span>&lt;<span class="type">User</span>&gt; users = <span class="keyword">new</span> <span class="type">ArrayList</span>&lt;&gt;();
+users.add(<span class="keyword">new</span> <span class="type">User</span>());  <span class="comment">// OK</span>
+<span class="comment">// users.add("hello");  // Compile error!</span>
+
+<span class="comment">// Optional &lt;T&gt; = co the co hoac khong co gia tri</span>
+<span class="type">Optional</span>&lt;<span class="type">Booking</span>&gt; booking = bookingRepository.findById(<span class="numeric">1</span>L);
+<span class="comment">// booking co the chua Booking hoac chua nothing (empty)</span>
+<span class="comment">// Tranh duoc NullPointerException</span></code></pre>
+
+<div class="callout warning">
+  <p class="callout-title">Can than</p>
+  <p><code>Optional</code> khong phai la cach tranh null hoan toan. Chi dung <code>Optional</code> cho kieu tra ve cua method, khong dung cho field cua class hoac parameter cua method.</p>
+</div>
+
+<h3>Records (Java 16+)</h3>
+
+<p><strong>Record</strong> la cach tao data carrier class ngan gon. Tu dong tao constructor, getter, equals, hashCode, toString.</p>
+
+<pre><code><span class="comment">// Truoc Java 16: phai viet nhieu boilerplate</span>
+<span class="keyword">public class</span> <span class="type">UserDto</span> {
+    <span class="keyword">private final</span> <span class="type">String</span> name;
+    <span class="keyword">private final</span> <span class="type">String</span> email;
+    <span class="comment">// + constructor + getters + equals + hashCode + toString...</span>
+}
+
+<span class="comment">// Java 16+: dung record, 1 dong</span>
+<span class="keyword">public record</span> <span class="type">UserDto</span>(<span class="type">String</span> name, <span class="type">String</span> email) {}
+
+<span class="comment">// Cach dung:</span>
+<span class="type">UserDto</span> dto = <span class="keyword">new</span> <span class="type">UserDto</span>(<span class="string">"Hien"</span>, <span class="string">"hien@example.com"</span>);
+dto.name();  <span class="comment">// "Hien" (khong phai getName(), ma la name())</span></code></pre>
+
+<p>Records la <strong>immutable</strong> &mdash; khong the thay doi gia tri sau khi tao. Dieu nay an toan cho multi-threading va don gian cho reasoning.</p>
+
+<!-- ============================================ -->
+<h2 id="spring-framework">3. Spring Framework la gi?</h2>
+<!-- ============================================ -->
+
+<h3>Van de khi khong co Spring</h3>
+
+<p>Trong Java thuan, Hien phai tu tao va quan ly moi object:</p>
+
+<pre><code><span class="comment">// Khong co Spring: phai tu tao moi thu</span>
+<span class="keyword">public class</span> <span class="type">BookingController</span> {
+    <span class="comment">// Phai tu tao dependency &mdash; tight coupling!</span>
+    <span class="keyword">private</span> <span class="type">BookingService</span> bookingService = <span class="keyword">new</span> <span class="type">BookingService</span>();
+    <span class="keyword">private</span> <span class="type">BookingRepository</span> repo = <span class="keyword">new</span> <span class="type">BookingRepository</span>();
+}
+
+<span class="comment">// Van de:</span>
+<span class="comment">// 1. BookingService duoc tao o day, thay doi BookingService anh huong controller</span>
+<span class="comment">// 2. Khong de test (khong the mock dependency)</span>
+<span class="comment">// 3. Moi class phai tu quan ly vong doi cua dependency</span></code></pre>
+
+<h3>Inversion of Control (IoC) &mdash; Dao nguoc dieu khien</h3>
+
+<p>Thay vi code cua Hien tao object, <strong>Spring</strong> tao va quan ly object. Object duoc Spring quan ly goi la <strong>Bean</strong>.</p>
+
+<p><strong>Dependency Injection (DI)</strong> &mdash; Thay vi class tu tao dependency, Spring <em>inject</em> (truyen vao) dependency do.</p>
+
+<pre><code><span class="comment">// Co Spring: Spring inject dependency qua constructor</span>
+<span class="annotation">@RestController</span>
+<span class="keyword">public class</span> <span class="type">BookingController</span> {
+    <span class="keyword">private final</span> <span class="type">BookingService</span> bookingService;
+
+    <span class="comment">// Spring tu dong truyen BookingService vao (inject)</span>
+    <span class="comment">// Khong can = new BookingService() nua!</span>
+    <span class="keyword">public</span> BookingController(<span class="type">BookingService</span> bookingService) {
+        <span class="keyword">this</span>.bookingService = bookingService;
+    }
+}</code></pre>
+
+<div class="diagram">
+  <div class="diagram-title">Spring Container quan ly Beans</div>
+  <div class="container-box">
+    <span class="container-label">Spring Container (ApplicationContext)</span>
+    <p style="text-align:center; margin-bottom:1rem; font-size:0.85rem; color:var(--color-text-muted);">manages lifecycle, injection, configuration</p>
+    <div class="flow-container">
+      <div class="box highlight">Controller</div>
+      <div class="arrow">&rarr;</div>
+      <div class="box">Service</div>
+      <div class="arrow">&rarr;</div>
+      <div class="box">Repository</div>
+      <div class="arrow">&rarr;</div>
+      <div class="box">Database</div>
+    </div>
+    <p style="text-align:center; margin-top:1rem; font-size:0.85rem;">Spring tu dong inject moi phu thuoc. Controller khong can biet Service duoc tao nhu the nao.</p>
+  </div>
+</div>
+
+<h3>Cac annotation quan trong</h3>
+
+<table>
+  <tr>
+    <th>Annotation</th>
+    <th>Vai tro</th>
+    <th>Giai thich</th>
+  </tr>
+  <tr>
+    <td><code>@Component</code></td>
+    <td>Bean co ban</td>
+    <td>Danh dau class la bean. Spring scan va dang ky tu dong.</td>
+  </tr>
+  <tr>
+    <td><code>@Service</code></td>
+    <td>Business logic</td>
+    <td>Giong <code>@Component</code> nhung the hien rang class nay chua logic nghiep vu. De doc hon.</td>
+  </tr>
+  <tr>
+    <td><code>@Repository</code></td>
+    <td>Data access</td>
+    <td>Danh dau class truy cap database. Tu dong chuyen exception cua DB thanh Spring exception.</td>
+  </tr>
+  <tr>
+    <td><code>@Controller</code></td>
+    <td>Web layer</td>
+    <td>Xu ly HTTP request, tra ve HTML view. It dung trong REST API.</td>
+  </tr>
+  <tr>
+    <td><code>@RestController</code></td>
+    <td>REST API layer</td>
+    <td>= <code>@Controller</code> + <code>@ResponseBody</code>. Tra ve JSON/XML thay vi HTML.</td>
+  </tr>
+  <tr>
+    <td><code>@Configuration</code></td>
+    <td>Config</td>
+    <td>Class chua cac <code>@Bean</code> method dinh nghia bean.</td>
+  </tr>
+  <tr>
+    <td><code>@Bean</code></td>
+    <td>Tao bean</td>
+    <td>Method nay tra ve mot object duoc Spring quan ly.</td>
+  </tr>
+</table>
+
+<div class="callout tip">
+  <p class="callout-title">Tip</p>
+  <p><code>@Service</code>, <code>@Repository</code>, <code>@Controller</code> deu la <code>@Component</code>. Ve mat ky thuat chung giong nhau. Su dung dung annotation giup code doc duoc de hieu hon &mdash; thay <code>@Service</code> la biet class nay chua business logic.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="spring-boot-magic">4. Spring Boot Magic</h2>
+<!-- ============================================ -->
+
+<h3>Spring Boot them gi vao Spring?</h3>
+
+<p>Spring Framework cung co IoC va DI, nhung cau hinh rat nhieu. Spring Boot them 3 dieu chinh:</p>
+
+<ul>
+  <li><strong>Auto-configuration</strong> &mdash; Tu dong cau hinh dua tren dependencies co trong classpath. Co JPA? Tu cau hinh datasource. Co Security? Tu bat security.</li>
+  <li><strong>Embedded server</strong> &mdash; Tomcat duoc built-in. Khong can cai dat server rieng. Chay <code>main()</code> la duoc web server.</li>
+  <li><strong>Starter dependencies</strong> &mdash; Mot dependency keo theo tat ca thu can thiet. Vi du <code>spring-boot-starter-web</code> bao gom: Spring MVC + Tomcat + Jackson (JSON).</li>
+</ul>
+
+<h3>@SpringBootApplication &mdash; ba-in-mot</h3>
+
+<p>Khi Hien thay <code>@SpringBootApplication</code> tren class chinh, no thuc chat la 3 annotation gop lai:</p>
+
+<div class="diagram">
+  <div class="diagram-title">@SpringBootApplication = 3 annotations</div>
+  <div class="flow-container">
+    <div class="box highlight">@SpringBoot<br>Configuration</div>
+    <div class="box small">+</div>
+    <div class="box highlight">@EnableAuto<br>Configuration</div>
+    <div class="box small">+</div>
+    <div class="box highlight">@Component<br>Scan</div>
+  </div>
+  <p style="text-align:center; margin-top:0.75rem; font-size:0.85rem;">
+    <strong>@SpringBootConfiguration</strong>: Day la configuration class<br>
+    <strong>@EnableAutoConfiguration</strong>: Bat auto-config dua tren classpath<br>
+    <strong>@ComponentScan</strong>: Quet package hien tai tim cac <code>@Component</code>, <code>@Service</code>, v.v.
+  </p>
+</div>
+
+<h3>Starter Dependencies</h3>
+
+<table>
+  <tr>
+    <th>Starter</th>
+    <th>Mang theo</th>
+    <th>Dung de</th>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-web</code></td>
+    <td>Spring MVC + Tomcat + Jackson</td>
+    <td>Xay dung REST API (HTTP + JSON)</td>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-data-jpa</code></td>
+    <td>Hibernate + Spring Data</td>
+    <td>Lam viec voi database (ORM)</td>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-security</code></td>
+    <td>Spring Security</td>
+    <td>Xac thuc va phan quyen</td>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-validation</code></td>
+    <td>Hibernate Validator</td>
+    <td>Kiem tra du lieu dau vao (<code>@NotNull</code>, <code>@Size</code>...)</td>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-actuator</code></td>
+    <td>Monitoring endpoints</td>
+    <td>Health check, metrics, info</td>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-data-redis</code></td>
+    <td>Lettuce + Spring Data Redis</td>
+    <td>Caching voi Redis</td>
+  </tr>
+  <tr>
+    <td><code>spring-boot-starter-test</code></td>
+    <td>JUnit 5 + Mockito + AssertJ</td>
+    <td>Viet test (chi active trong scope test)</td>
+  </tr>
+</table>
+
+<h3>Quy trinh khoi dong</h3>
+
+<div class="diagram">
+  <div class="diagram-title">Spring Boot Startup Flow</div>
+  <div class="flow-container">
+    <div class="box">main()</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">SpringApplication<br>.run()</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box highlight">Create<br>ApplicationContext</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Auto-<br>configuration</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Start<br>Tomcat</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box highlight">Ready!</div>
+  </div>
+</div>
+
+<div class="image-placeholder">
+  <div class="placeholder-icon">&#128248;</div>
+  <div class="placeholder-text">Screenshot placeholder: Spring Boot startup log output trong terminal</div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="maven">5. Maven la gi?</h2>
+<!-- ============================================ -->
+
+<h3>Maven &mdash; cong cu quan ly du an</h3>
+
+<p><strong>Maven</strong> la build tool cho Java. No lam 3 viec chinh:</p>
+<ol>
+  <li><strong>Quan ly dependencies</strong> &mdash; Tu tai ve cac thu vien can thiet (JAR files).</li>
+  <li><strong>Build</strong> &mdash; Compile code, chay test, dong goi thanh JAR/WAR.</li>
+  <li><strong>Chuan hoa cau truc project</strong> &mdash; Moi project Maven co cung cau truc thu muc.</li>
+</ol>
+
+<h3>pom.xml &mdash; Project Object Model</h3>
+
+<p>File <code>pom.xml</code> nam o goc project. No mo ta toan bo project. Phan tich tung phan:</p>
+
+<span class="code-label">pom.xml &mdash; phan 1: thong tin co ban</span>
+<pre><code><span class="comment">&lt;!--parent: ke thua cau hinh tu Spring Boot. Khong can khai bao version cho moi dependency --&gt;</span>
+&lt;<span class="keyword">parent</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;org.springframework.boot&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;spring-boot-starter-parent&lt;/<span class="type">artifactId</span>&gt;
+    &lt;<span class="type">version</span>&gt;<span class="numeric">3.5.0</span>&lt;/<span class="type">version</span>&gt;
+&lt;/<span class="keyword">parent</span>&gt;
+
+<span class="comment">&lt;!-- Toan bo thong tin cua project --&gt;</span>
+&lt;<span class="type">groupId</span>&gt;com.hien&lt;/<span class="type">groupId</span>&gt;           <span class="comment">&lt;!-- Nhom: thuong la ten to chuc / tac gia --&gt;</span>
+&lt;<span class="type">artifactId</span>&gt;marketplace&lt;/<span class="type">artifactId</span>&gt;  <span class="comment">&lt;!-- Ten project --&gt;</span>
+&lt;<span class="type">version</span>&gt;<span class="numeric">0.0.1-SNAPSHOT</span>&lt;/<span class="type">version</span>&gt; <span class="comment">&lt;!-- Version (SNAPSHOT = dang phat trien) --&gt;</span>
+
+<span class="comment">&lt;!-- Java version --&gt;</span>
+&lt;<span class="type">properties</span>&gt;
+    &lt;<span class="type">java.version</span>&gt;<span class="numeric">21</span>&lt;/<span class="type">java.version</span>&gt;
+&lt;/<span class="type">properties</span>&gt;</code></pre>
+
+<span class="code-label">pom.xml &mdash; phan 2: dependencies (thu vien)</span>
+<pre><code><span class="comment">&lt;!-- spring-boot-starter-web: REST API --&gt;</span>
+&lt;<span class="keyword">dependency</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;org.springframework.boot&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;spring-boot-starter-web&lt;/<span class="type">artifactId</span>&gt;
+    <span class="comment">&lt;!-- Khong can version vi da co parent --&gt;</span>
+&lt;/<span class="keyword">dependency</span>&gt;
+
+<span class="comment">&lt;!-- spring-boot-starter-data-jpa: Database ORM --&gt;</span>
+<span class="comment">&lt;!-- Mang theo Hibernate, Spring Data JPA --&gt;</span>
+&lt;<span class="keyword">dependency</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;org.springframework.boot&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;spring-boot-starter-data-jpa&lt;/<span class="type">artifactId</span>&gt;
+&lt;/<span class="keyword">dependency</span>&gt;
+
+<span class="comment">&lt;!-- PostgreSQL driver: ket noi toi PostgreSQL --&gt;</span>
+&lt;<span class="keyword">dependency</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;org.postgresql&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;postgresql&lt;/<span class="type">artifactId</span>&gt;
+    &lt;<span class="type">scope</span>&gt;runtime&lt;/<span class="type">scope</span>&gt;  <span class="comment">&lt;!-- Chi can luc chay app, khong can luc compile --&gt;</span>
+&lt;/<span class="keyword">dependency</span>&gt;
+
+<span class="comment">&lt;!-- H2: in-memory database cho test --&gt;</span>
+<span class="comment">&lt;!-- Chay test khong can Docker --&gt;</span>
+&lt;<span class="keyword">dependency</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;com.h2database&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;h2&lt;/<span class="type">artifactId</span>&gt;
+    &lt;<span class="type">scope</span>&gt;test&lt;/<span class="type">scope</span>&gt;  <span class="comment">&lt;!-- Chi dung cho test --&gt;</span>
+&lt;/<span class="keyword">dependency</span>&gt;
+
+<span class="comment">&lt;!-- Lombok: giam boilerplate code (getter, setter, constructor) --&gt;</span>
+&lt;<span class="keyword">dependency</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;org.projectlombok&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;lombok&lt;/<span class="type">artifactId</span>&gt;
+    &lt;<span class="type">optional</span>&gt;<span class="keyword">true</span>&lt;/<span class="type">optional</span>&gt;  <span class="comment">&lt;!-- Khong ke thua vao JAR cuoi --&gt;</span>
+&lt;/<span class="keyword">dependency</span>&gt;
+
+<span class="comment">&lt;!-- Flyway: quan ly database migration --&gt;</span>
+<span class="comment">&lt;!-- Moi thay doi schema = mot SQL file co version --&gt;</span>
+&lt;<span class="keyword">dependency</span>&gt;
+    &lt;<span class="type">groupId</span>&gt;org.flywaydb&lt;/<span class="type">groupId</span>&gt;
+    &lt;<span class="type">artifactId</span>&gt;flyway-core&lt;/<span class="type">artifactId</span>&gt;
+&lt;/<span class="keyword">dependency</span>&gt;</code></pre>
+
+<h3>Maven Wrapper (mvnw)</h3>
+
+<p>Project co file <code>mvnw</code> (Linux/Mac) va <code>mvnw.cmd</code> (Windows). Day la Maven Wrapper &mdash; khong can cai dat Maven toan cau. Nhung ai clone project deu co the build ngay.</p>
+
+<div class="callout note">
+  <p class="callout-title">Note</p>
+  <p>Luon dung <code>./mvnw</code> thay vi <code>mvn</code> de dam bao dung version Maven ma project yeu cau.</p>
+</div>
+
+<h3>Cac lenh Maven thuong dung</h3>
+
+<table>
+  <tr>
+    <th>Lenh</th>
+    <th>Chuc nang</th>
+  </tr>
+  <tr>
+    <td><code>./mvnw compile</code></td>
+    <td>Compile source code. Kiem tra loi cu phap.</td>
+  </tr>
+  <tr>
+    <td><code>./mvnw test</code></td>
+    <td>Chay tat ca test. Tu dong compile truoc.</td>
+  </tr>
+  <tr>
+    <td><code>./mvnw spring-boot:run</code></td>
+    <td>Khoi dong ung dung. Day la cach chay project trong dev.</td>
+  </tr>
+  <tr>
+    <td><code>./mvnw clean</code></td>
+    <td>Xoa thu muc <code>target/</code> (build artifacts).</td>
+  </tr>
+  <tr>
+    <td><code>./mvnw clean package</code></td>
+    <td>Clean + build JAR. JAR o trong <code>target/</code>.</td>
+  </tr>
+  <tr>
+    <td><code>./mvnw dependency:tree</code></td>
+    <td>Hien thi cay phu thuoc. Deu khi can debug conflict.</td>
+  </tr>
+</table>
+
+<div class="diagram">
+  <div class="diagram-title">Maven Dependency Resolution</div>
+  <div class="flow-container">
+    <div class="box">pom.xml</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Maven<br>Repository<br>(local ~/.m2)</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box highlight">Download<br>missing JARs</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Resolve<br>transitive deps</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Build<br>classpath</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="security-config">6. Code Walkthrough: SecurityConfig.java</h2>
+<!-- ============================================ -->
+
+<p>Phan tich tung dong trong file cau hinh bao mat cua project.</p>
+
+<span class="code-label">src/main/java/com/hien/marketplace/config/SecurityConfig.java</span>
+<pre><code><span class="keyword">package</span> com.hien.marketplace.config;
+
+<span class="comment">// import: lay cac class can dung tu Spring Security</span>
+<span class="keyword">import</span> org.springframework.context.annotation.Bean;
+<span class="keyword">import</span> org.springframework.context.annotation.Configuration;
+<span class="keyword">import</span> org.springframework.security.config.annotation.web.builders.HttpSecurity;
+<span class="keyword">import</span> org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+<span class="keyword">import</span> org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+<span class="keyword">import</span> org.springframework.security.config.http.SessionCreationPolicy;
+<span class="keyword">import</span> org.springframework.security.web.SecurityFilterChain;
+
+<span class="annotation">@Configuration</span>   <span class="comment">// Bao Spring: class nay dinh nghia beans</span>
+<span class="annotation">@EnableWebSecurity</span>  <span class="comment">// Bat Spring Security features</span>
+<span class="keyword">public class</span> <span class="type">SecurityConfig</span> {
+
+    <span class="annotation">@Bean</span>  <span class="comment">// Object tra ve duoc Spring quan ly (bean)</span>
+    <span class="keyword">public</span> <span class="type">SecurityFilterChain</span> securityFilterChain(<span class="type">HttpSecurity</span> http) <span class="keyword">throws</span> <span class="type">Exception</span> {
+        http
+            <span class="comment">// Quan ly session: STATELESS = khong tao HTTP session</span>
+            <span class="comment">// Nghia la moi request phai tu chung thuc (JWT token)</span>
+            .sessionManagement(session -&gt;
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+            <span class="comment">// CSRF (Cross-Site Request Forgery): Tat vi day la REST API</span>
+            <span class="comment">// CSRF bao ve form submission trong browser. REST API dung JWT, khong can.</span>
+            .csrf(AbstractHttpConfigurer::disable)
+            <span class="comment">// Cho phep tat ca request (Phase 0). Phase 2 se gioi han theo role.</span>
+            .authorizeHttpRequests(auth -&gt;
+                auth.anyRequest().permitAll()
+            );
+
+        <span class="keyword">return</span> http.build();  <span class="comment">// Xay dung va tra ve SecurityFilterChain</span>
+    }
+}</code></pre>
+
+<h3>Tai sao tat CSRF?</h3>
+
+<p>CSRF la tan cong loi dung browser tu dong gui request den trang web da xac thuc. Nhung tan cong nay chi hoat dong khi dung <strong>cookie-based session</strong>.</p>
+
+<p>Project nay dung <strong>JWT token</strong> trong <code>Authorization</code> header, khong dung cookie de xac thuc. Vi vay CSRF khong la moi de va nen tat de API don gian hon.</p>
+
+<h3>STATELESS session nghia la gi?</h3>
+
+<p>Mac dinh Spring Security tao <code>HttpSession</code> de luu thong tin dang nhap. Khi set <code>STATELESS</code>, Spring khong tao session. Moi request phai mang thong tin xac thuc rieng (JWT token trong header).</p>
+
+<div class="callout note">
+  <p class="callout-title">Note &mdash; Phase 0</p>
+  <p><code>permitAll()</code> cho phep moi nguoi goi bat ky endpoint nao ma khong can dang nhap. Day la cau hinh tam thoi. Khi den Phase 2, se thay bang phan quyen theo role (CUSTOMER, VENDOR, ADMIN).</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="health-controller">7. Code Walkthrough: HealthController.java</h2>
+<!-- ============================================ -->
+
+<span class="code-label">src/main/java/com/hien/marketplace/interfaces/rest/HealthController.java</span>
+<pre><code><span class="keyword">package</span> com.hien.marketplace.interfaces.rest;
+
+<span class="keyword">import</span> org.springframework.web.bind.annotation.GetMapping;
+<span class="keyword">import</span> org.springframework.web.bind.annotation.RestController;
+<span class="keyword">import</span> java.util.Map;
+
+<span class="annotation">@RestController</span>  <span class="comment">// = @Controller + @ResponseBody</span>
+<span class="comment">// @Controller: class nay xu ly HTTP request</span>
+<span class="comment">// @ResponseBody: gia tri tra ve duoc ghi truc tiep vao response body (JSON)</span>
+<span class="comment">// Khi ket hop lai: class nay nhan HTTP request va tra ve JSON</span>
+<span class="keyword">public class</span> <span class="type">HealthController</span> {
+
+    <span class="annotation">@GetMapping</span>(<span class="string">"/api/health"</span>)  <span class="comment">// Map HTTP GET /api/health &rarr; method health()</span>
+    <span class="keyword">public</span> <span class="type">Map</span>&lt;<span class="type">String</span>, <span class="type">String</span>&gt; health() {
+        <span class="comment">// Map.of() = tao immutable map (khong the thay doi sau khi tao)</span>
+        <span class="comment">// Java tu dong chuyen Map &rarr; JSON nho Jackson library</span>
+        <span class="keyword">return</span> Map.of(
+            <span class="string">"status"</span>, <span class="string">"UP"</span>,
+            <span class="string">"service"</span>, <span class="string">"service-marketplace"</span>
+        );
+    }
+}</code></pre>
+
+<h3>Request &rarr; Response flow</h3>
+
+<p>Khi Hien mo trinh duyet va truy cap <code>http://localhost:8080/api/health</code>, day la nhung gi xay ra:</p>
+
+<div class="diagram">
+  <div class="diagram-title">HTTP Request &rarr; Response Flow</div>
+  <div class="flow-container">
+    <div class="box">Browser<br><small>GET /api/health</small></div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Tomcat<br><small>(Web Server)</small></div>
+    <div class="arrow">&rarr;</div>
+    <div class="box highlight">Dispatcher<br>Servlet</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">HealthController<br>.health()</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Map.of(...)</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box">Jackson<br><small>(JSON)</small></div>
+    <div class="arrow">&rarr;</div>
+    <div class="box highlight">HTTP 200<br><small>{"status":"UP"}</small></div>
+  </div>
+</div>
+
+<p>Giai thich tung buoc:</p>
+<ol>
+  <li><strong>Browser</strong> gui HTTP GET request den <code>/api/health</code>.</li>
+  <li><strong>Tomcat</strong> (embedded web server) nhan request.</li>
+  <li><strong>DispatcherServlet</strong> (Spring MVC) tim xem method nao map voi URL nay. Tim thay <code>@GetMapping("/api/health")</code>.</li>
+  <li><strong>HealthController.health()</strong> duoc goi. Tra ve <code>Map.of("status", "UP", "service", "service-marketplace")</code>.</li>
+  <li><strong>Jackson</strong> (JSON library) chuyen Map thanh JSON string.</li>
+  <li>Response tra ve browser voi status 200 va body JSON.</li>
+</ol>
+
+<div class="image-placeholder">
+  <div class="placeholder-icon">&#128248;</div>
+  <div class="placeholder-text">Screenshot placeholder: browser hien thi JSON response tai localhost:8080/api/health</div>
+</div>
+
+<div class="callout tip">
+  <p class="callout-title">Tip</p>
+  <p>Thu mo <code>http://localhost:8080/api/health</code> trong browser khi app dang chay. Hoac dung <code>curl localhost:8080/api/health</code> trong terminal.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="application-yml">8. Code Walkthrough: application.yml</h2>
+<!-- ============================================ -->
+
+<h3>YAML co ban</h3>
+
+<p><strong>YAML</strong> la dinh dang cau hinh. Luat don gian:</p>
+<ul>
+  <li>Dung <code>key: value</code> (luon co dau cach sau dau hai cham).</li>
+  <li><strong>Indentation</strong> (thut le) the hien cap cha-con. Luon dung space, khong dung tab.</li>
+  <li>Cung cap indentation = cung cap.</li>
+</ul>
+
+<pre><code><span class="comment"># Day la comment</span>
+<span class="type">spring</span>:
+  <span class="type">application</span>:
+    <span class="type">name</span>: <span class="string">service-marketplace</span>  <span class="comment"># &larr; value cua spring.application.name</span></code></pre>
+
+<h3>application.yml &mdash; cau hinh chung</h3>
+
+<span class="code-label">src/main/resources/application.yml</span>
+<pre><code><span class="type">spring</span>:
+  <span class="type">application</span>:
+    <span class="type">name</span>: <span class="string">service-marketplace</span>   <span class="comment"># Ten ung dung, hien thi trong logs va Actuator</span>
+
+  <span class="comment"># JPA / Hibernate: ORM &mdash; anh xa Java object &rarr; database table</span>
+  <span class="type">jpa</span>:
+    <span class="type">hibernate</span>:
+      <span class="type">ddl-auto</span>: <span class="string">validate</span>   <span class="comment"># Kiem tra entity khop voi DB, KHONG tu tao/doi table</span>
+                               <span class="comment"># Flyway lo phan schema change</span>
+    <span class="type">show-sql</span>: <span class="keyword">false</span>         <span class="comment"># Hien SQL trong log (tat o default, bat o dev profile)</span>
+    <span class="type">open-in-view</span>: <span class="keyword">false</span>     <span class="comment"># Tat Open EntityManager In View pattern</span>
+                               <span class="comment"># De tranh lazy-loading bug trong controller layer</span>
+
+  <span class="comment"># Flyway: database migration tool</span>
+  <span class="type">flyway</span>:
+    <span class="type">enabled</span>: <span class="keyword">true</span>              <span class="comment"># Bat Flyway</span>
+    <span class="type">baseline-on-migrate</span>: <span class="keyword">true</span> <span class="comment"># Cho phep Flyway bat dau tren DB co san</span>
+
+<span class="comment"># Server</span>
+<span class="type">server</span>:
+  <span class="type">port</span>: <span class="numeric">8080</span>                <span class="comment"># Port mac dinh cua Tomcat</span>
+
+<span class="comment"># Actuator: monitoring endpoints</span>
+<span class="type">management</span>:
+  <span class="type">endpoints</span>:
+    <span class="type">web</span>:
+      <span class="type">exposure</span>:
+        <span class="type">include</span>: <span class="string">health, info</span>  <span class="comment"># Chi expose health + info, khong expose tat ca</span></code></pre>
+
+<h3>Profiles: dev vs test</h3>
+
+<p>Spring cho phep nhieu <strong>profile</strong> &mdash; moi profile co cau hinh rieng. File <code>application-dev.yml</code> chi active khi profile la <code>dev</code>.</p>
+
+<div class="diagram">
+  <div class="diagram-title">Profile Override Mechanism</div>
+  <div class="flow-container">
+    <div class="box">application.yml<br><small>(base config)</small></div>
+    <div class="arrow">+</div>
+    <div class="box highlight">application-dev.yml<br><small>(overrides)</small></div>
+    <div class="arrow">=</div>
+    <div class="box">Final Config<br><small>(dev profile)</small></div>
+  </div>
+</div>
+
+<table>
+  <tr>
+    <th>Profile</th>
+    <th>File</th>
+    <th>Database</th>
+    <th>Muc dich</th>
+  </tr>
+  <tr>
+    <td><span class="badge badge-green">dev</span></td>
+    <td><code>application-dev.yml</code></td>
+    <td>PostgreSQL (Docker)<br><code>localhost:5433</code></td>
+    <td>Phat trien local. Ket noi PostgreSQL va Redis trong Docker. Show SQL logs.</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-yellow">test</span></td>
+    <td><code>application-test.yml</code></td>
+    <td>H2 in-memory<br><code>jdbc:h2:mem:testdb</code></td>
+    <td>Chay test. Khong can Docker. H2 tao va xoa DB tu dong. Tat security.</td>
+  </tr>
+</table>
+
+<div class="callout note">
+  <p class="callout-title">Note &mdash; Tai sao dung H2 cho test?</p>
+  <p>De chay test, khong muon phu thuoc vao PostgreSQL dang chay. H2 la in-memory database &mdash; ton tai trong RAM, duoc tao khi test bat dau va bi huy khi test ket thuc. Rat nhanh, khong can Docker, nhung van cho phep dung SQL va JPA binh thuong.</p>
+</div>
+
+<span class="code-label">application-dev.yml &mdash; cau hinh dev profile</span>
+<pre><code><span class="type">spring</span>:
+  <span class="type">datasource</span>:
+    <span class="type">url</span>: <span class="string">jdbc:postgresql://localhost:5433/marketplace</span>  <span class="comment"># Ket noi PostgreSQL qua Docker</span>
+    <span class="type">username</span>: <span class="string">marketplace</span>
+    <span class="type">password</span>: <span class="string">marketplace</span>
+    <span class="type">hikari</span>:                                 <span class="comment"># Connection pool settings</span>
+      <span class="type">maximum-pool-size</span>: <span class="numeric">5</span>                  <span class="comment"># Toi da 5 connection (nho cho local dev)</span>
+      <span class="type">minimum-idle</span>: <span class="numeric">2</span>                       <span class="comment"># Toi thieu 2 connection san sang</span>
+
+  <span class="type">data</span>:
+    <span class="type">redis</span>:
+      <span class="type">host</span>: <span class="string">localhost</span>
+      <span class="type">port</span>: <span class="numeric">6379</span>                            <span class="comment"># Redis trong Docker</span>
+
+  <span class="type">jpa</span>:
+    <span class="type">show-sql</span>: <span class="keyword">true</span>                          <span class="comment"># Hien SQL trong console (de hoc)</span>
+
+<span class="type">logging</span>:
+  <span class="type">level</span>:
+    <span class="type">com.hien.marketplace</span>: <span class="string">DEBUG</span>               <span class="comment"># Log chi tiet cho code cua Hien</span>
+    <span class="type">org.hibernate.SQL</span>: <span class="string">DEBUG</span>                 <span class="comment"># Hien cau SQL Hibernate generate</span></code></pre>
+
+<!-- ============================================ -->
+<h2 id="review-checklist">9. Kien thuc can on tap truoc Phase 1</h2>
+<!-- ============================================ -->
+
+<p>Truoc khi chuyen sang Phase 1, Hien nen dam bao hieu cac khai niem sau. Khong can hieu sau, nhung can biet duoc y nghia cua tung thu.</p>
+
+<h3>Java core</h3>
+<ul class="checklist">
+  <li>Class va Object la gi? Khac nhau nhu the nao?</li>
+  <li><code>public</code>, <code>private</code>, <code>protected</code> &mdash; access modifier lam gi?</li>
+  <li><code>static</code> method khac gi instance method?</li>
+  <li><code>final</code> keyword &mdash; khi nao dung (variable, method, class)?</li>
+  <li>Interface vs abstract class &mdash; khac nhau?</li>
+  <li>Enum &mdash; tai sao dung thay vi String constant?</li>
+  <li>Generics &mdash; List&lt;User&gt; khac gi List (raw type)?</li>
+  <li>Optional &mdash; tai sao tot hon null?</li>
+</ul>
+
+<h3>Spring core</h3>
+<ul class="checklist">
+  <li>IoC Container &mdash; Spring quan ly object nhu the nao?</li>
+  <li>Dependency Injection &mdash; constructor injection vs field injection?</li>
+  <li>@Component, @Service, @Repository, @Controller &mdash; khi nao dung cai nao?</li>
+  <li>@Bean va @Configuration &mdash; dung de lam gi?</li>
+  <li>Spring Boot auto-configuration &mdash; no tu lam gi cho Hien?</li>
+  <li>Profiles &mdash; tai sao can nhieu cau hinh (dev, test)?</li>
+</ul>
+
+<h3>Build &amp; Tools</h3>
+<ul class="checklist">
+  <li>Maven &mdash; pom.xml lam gi? Dependency la gi?</li>
+  <li>mvnw &mdash; tai sao dung thay vi mvn?</li>
+  <li>compile &rarr; test &rarr; package &mdash; quy trinh build</li>
+</ul>
+
+<h3>Tai lieu tham khao</h3>
+
+<table>
+  <tr>
+    <th>Tai lieu</th>
+    <th>Noi dung</th>
+    <th>Link</th>
+  </tr>
+  <tr>
+    <td>Baeldung</td>
+    <td>Spring Boot tutorials chat luong cao. Giai thich ro rang, co vi du code.</td>
+    <td><a href="https://www.baeldung.com/spring-boot" target="_blank">baeldung.com/spring-boot</a></td>
+  </tr>
+  <tr>
+    <td>Spring Reference</td>
+    <td>Tai lieu chinh thuc cua Spring. Chi tiet nhung dai.</td>
+    <td><a href="https://docs.spring.io/spring-boot/reference/" target="_blank">docs.spring.io</a></td>
+  </tr>
+  <tr>
+    <td>Spring Guides</td>
+    <td>Bai huong dan ngan (15-30 phut) cho moi chu de.</td>
+    <td><a href="https://spring.io/guides" target="_blank">spring.io/guides</a></td>
+  </tr>
+  <tr>
+    <td>Java Tutorial</td>
+    <td>Java co ban cua Oracle.</td>
+    <td><a href="https://docs.oracle.com/javase/tutorial/" target="_blank">docs.oracle.com</a></td>
+  </tr>
+</table>
+
+<div class="callout tip">
+  <p class="callout-title">Loi khuyen</p>
+  <p>Khong can doc het tat ca tai lieu truoc khi bat dau Phase 1. On tap checklist o tren, roi hoc them trong luc code. Hoc qua vi du thuc te (code trong project nay) hieu hon doc ly thuyet don thu.</p>
+</div>
+
+<hr>
+
+<p style="text-align:center; color:var(--color-text-muted); font-size:0.85rem;">
+  Service Marketplace Learning Docs &mdash; Phase 0: Java &amp; Spring Boot Fundamentals<br>
+  <a href="02-jpa-and-database.html">Next: 02 - JPA &amp; Database &rarr;</a>
+</p>
+
+</div>
+
+</body>
+</html>
