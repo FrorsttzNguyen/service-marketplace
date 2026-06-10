@@ -10,24 +10,24 @@
 **Git branch:** `feat/phase0-foundation`
 
 ### Learn
-- [ ] Java 17 syntax, records, sealed classes
-- [ ] Spring Boot project structure
-- [ ] Spring IoC / Dependency Injection
-- [ ] Maven/Gradle basics
+- [x] Java 17 syntax, records, sealed classes
+- [x] Spring Boot project structure
+- [x] Spring IoC / Dependency Injection
+- [x] Maven/Gradle basics
 
 ### Build
-- [ ] Initialize Spring Boot project via Spring Initializr (Spring Web, Spring Data JPA, PostgreSQL Driver, Flyway, Validation, Lombok)
-- [ ] Set up `docker-compose.yml` with PostgreSQL + Redis
-- [ ] Configure `application.yml` (profiles: dev, test)
-- [ ] Configure `application-dev.yml` and `application-test.yml`
-- [ ] Health check REST endpoint (`GET /api/health`)
-- [ ] Push to GitHub repo
+- [x] Initialize Spring Boot project via Spring Initializr (Spring Web, Spring Data JPA, PostgreSQL Driver, Flyway, Validation, Lombok)
+- [x] Set up `docker-compose.yml` with PostgreSQL + Redis
+- [x] Configure `application.yml` (profiles: dev, test)
+- [x] Configure `application-dev.yml` and `application-test.yml`
+- [x] Health check REST endpoint (`GET /api/health`)
+- [x] Push to GitHub repo
 
 ### Verify
-- [ ] `docker-compose up -d` starts PostgreSQL + Redis
-- [ ] `./mvnw spring-boot:run` starts app without errors
-- [ ] `GET /api/health` returns 200
-- [ ] GitHub repo visible at `github.com/FrorsttzNguyen/service-marketplace`
+- [x] `docker-compose up -d` starts PostgreSQL + Redis
+- [x] `./mvnw spring-boot:run` starts app without errors
+- [x] `GET /api/health` returns 200
+- [x] GitHub repo visible at `github.com/FrorsttzNguyen/service-marketplace`
 
 ---
 
@@ -288,10 +288,10 @@
 *(Fill in after each phase completion)*
 
 ### Phase 0 Review
-- **Completed date:**
-- **What went well:**
-- **What to improve:**
-- **Lessons learned:**
+- **Completed date:** 2026-06-11
+- **What went well:** Clean Spring Boot setup, Docker Alpine images lightweight, health endpoints working
+- **What to improve:** Discovered port conflict with local Homebrew PostgreSQL — should check existing services before choosing ports
+- **Lessons learned:** Always check `lsof -i :<port>` before mapping Docker ports. Used port 5433 instead of 5432.
 
 ### Phase 1 Review
 - **Completed date:**
