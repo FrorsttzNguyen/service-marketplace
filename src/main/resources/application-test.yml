@@ -39,3 +39,10 @@ spring:
 logging:
   level:
     com.hien.marketplace: DEBUG
+
+# JWT Configuration for tests
+app:
+  jwt:
+    secret: test-secret-key-for-jwt-signing-must-be-at-least-256-bits-long
+    access-expiration-minutes: 15
+    refresh-expiration-days: 7

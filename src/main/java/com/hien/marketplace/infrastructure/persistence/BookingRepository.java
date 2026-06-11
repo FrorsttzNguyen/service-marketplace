@@ -2,6 +2,8 @@ package com.hien.marketplace.infrastructure.persistence;
 
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
@@ -17,6 +19,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByVendorIdAndBookingDate(Long vendorId, LocalDate bookingDate);
 
     List<Booking> findByCustomerId(Long customerId);
+
+    Page<Booking> findByCustomerId(Long customerId, Pageable pageable);
+
+    List<Booking> findByVendorId(Long vendorId);
+
+    Page<Booking> findByVendorId(Long vendorId, Pageable pageable);
 
     List<Booking> findByServiceIdAndBookingDate(Long serviceId, LocalDate bookingDate);
 
