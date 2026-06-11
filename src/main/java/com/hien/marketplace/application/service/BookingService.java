@@ -1,11 +1,13 @@
 package com.hien.marketplace.application.service;
 
+import com.hien.marketplace.application.exception.BookingConflictException;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.application.mapper.BookingMapper;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
+import com.hien.marketplace.domain.common.TimeSlot;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
@@ -22,6 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 /**
  * Service for booking operations.
@@ -52,11 +57,10 @@ public class BookingService {
      * Flow:
      * 1. Validate service exists and is active
      * 2. Validate customer exists
-     * 3. Calculate total price based on PricingType
-     * 4. Create Booking entity
-     * 5. Save and return response
-     *
-     * Note: Time slot conflict detection comes in Phase 3
+     * 3. Check time slot availability (Phase 3 - conflict detection)
+     * 4. Calculate total price based on PricingType
+     * 5. Create Booking entity
+     * 6. Save and return response
      */
     @Transactional
     public BookingResponse createBooking(Long customerId, BookingCreateRequest request) {
@@ -75,26 +79,76 @@ public class BookingService {
         User customer = userRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", customerId));
 
-        // Step 3: Calculate total price
+        // Step 3: Check time slot availability
+        LocalDate bookingDate = request.startTime().toLocalDate();
+        LocalTime startTime = request.startTime().toLocalTime();
+        LocalTime endTime = request.endTime().toLocalTime();
+
+        checkTimeSlotAvailability(service.getId(), bookingDate, startTime, endTime);
+
+        // Step 4: Calculate total price
         Money totalPrice = calculateTotalPrice(service, request.quantity());
 
-        // Step 4: Create Booking
+        // Step 5: Create Booking
         Booking booking = new Booking(
                 service,
                 customer,
                 service.getVendor(),
-                request.startTime().toLocalDate(),
-                request.startTime().toLocalTime(),
-                request.endTime().toLocalTime(),
+                bookingDate,
+                startTime,
+                endTime,
                 totalPrice
         );
 
-        // Notes field would need setter - skip for Phase 2
+        // Set notes if provided
+        if (request.notes() != null) {
+            booking.setNotes(request.notes());
+        }
 
-        // Step 5: Save
+        // Step 6: Save
         booking = bookingRepository.save(booking);
 
         return enrichBookingResponse(booking);
+    }
+
+    /**
+     * Check if time slot is available for booking.
+     *
+     * WHY: Prevent double-booking - same service can't have overlapping bookings.
+     *
+     * Algorithm:
+     * 1. Get all non-cancelled bookings for this service on this date
+     * 2. Check if requested time slot overlaps with any existing booking
+     * 3. Throw BookingConflictException if overlap found
+     *
+     * @param serviceId the service ID
+     * @param bookingDate the booking date
+     * @param startTime requested start time
+     * @param endTime requested end time
+     * @throws BookingConflictException if time slot conflicts with existing booking
+     */
+    private void checkTimeSlotAvailability(Long serviceId, LocalDate bookingDate,
+                                            LocalTime startTime, LocalTime endTime) {
+        // Get all non-cancelled bookings for this service on this date
+        List<Booking> existingBookings = bookingRepository
+                .findByServiceIdAndBookingDateAndStatusNot(serviceId, bookingDate, BookingStatus.CANCELLED);
+
+        // Create time slot for requested booking
+        TimeSlot requestedSlot = new TimeSlot(startTime, endTime);
+
+        // Check overlap with each existing booking
+        for (Booking existing : existingBookings) {
+            TimeSlot existingSlot = new TimeSlot(existing.getStartTime(), existing.getEndTime());
+
+            if (requestedSlot.overlaps(existingSlot)) {
+                throw new BookingConflictException(
+                        serviceId,
+                        bookingDate.atTime(startTime),
+                        String.format("Time slot %s - %s is already booked for service %d on %s",
+                                startTime, endTime, serviceId, bookingDate)
+                );
+            }
+        }
     }
 
     /**

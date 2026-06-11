@@ -48,6 +48,36 @@ public class TimeSlot {
         return java.time.Duration.between(startTime, endTime).toMinutes();
     }
 
+    /**
+     * Check if this time slot overlaps with another.
+     *
+     * Overlap algorithm: Two time slots overlap if:
+     * this.start < other.end AND this.end > other.start
+     *
+     * Visual examples:
+     * this:     |------|
+     * other:        |------|  → overlaps (this.end > other.start AND this.start < other.end)
+     *
+     * this:     |------|
+     * other:           |---|  → no overlap (this.end == other.start, not strictly less)
+     *
+     * this:     |------|
+     * other: |---|           → no overlap (this.start >= other.end)
+     *
+     * WHY: Used to prevent double-booking - two bookings for same service at overlapping times.
+     *
+     * @param other the other time slot to check
+     * @return true if time slots overlap, false otherwise
+     */
+    public boolean overlaps(TimeSlot other) {
+        if (other == null) {
+            return false;
+        }
+        // Overlap condition: start1 < end2 AND end1 > start2
+        // Using !isBefore for inclusive comparison at boundaries
+        return this.startTime.isBefore(other.endTime) && this.endTime.isAfter(other.startTime);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

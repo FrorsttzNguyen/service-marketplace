@@ -7,13 +7,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     // Kiểm tra double-booking: có booking nào trùng slot chưa?
     boolean existsByServiceIdAndBookingDateAndTimeSlotStartTime(
-        Long serviceId, LocalDate bookingDate, java.time.LocalTime startTime
+        Long serviceId, LocalDate bookingDate, LocalTime startTime
     );
 
     List<Booking> findByVendorIdAndBookingDate(Long vendorId, LocalDate bookingDate);
@@ -29,4 +30,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByServiceIdAndBookingDate(Long serviceId, LocalDate bookingDate);
 
     List<Booking> findByStatus(BookingStatus status);
+
+    /**
+     * Find bookings for a service on a specific date that are not cancelled.
+     * Used for time slot overlap checking.
+     *
+     * WHY: We only check non-cancelled bookings because cancelled slots are free.
+     *
+     * @param serviceId the service ID
+     * @param bookingDate the booking date
+     * @return list of non-cancelled bookings for the service on that date
+     */
+    List<Booking> findByServiceIdAndBookingDateAndStatusNot(
+        Long serviceId, LocalDate bookingDate, BookingStatus status
+    );
 }
