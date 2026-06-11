@@ -22,9 +22,20 @@ import java.util.List;
  *
  * State Machine: status chỉ chuyển đổi theo BookingStatus rules.
  * Không thể chuyển COMPLETED → PENDING — BookingStatus.throwIfInvalidTransition() sẽ reject.
+ *
+ * NamedEntityGraph: Defines which relationships to eager-fetch in a single query.
+ * Used with @EntityGraph in repository to prevent N+1 queries.
  */
 @Entity
 @Table(name = "bookings")
+@NamedEntityGraph(
+    name = "booking-with-details",
+    attributeNodes = {
+        @NamedAttributeNode("service"),
+        @NamedAttributeNode("customer"),
+        @NamedAttributeNode("vendor")
+    }
+)
 public class Booking {
 
     @Id

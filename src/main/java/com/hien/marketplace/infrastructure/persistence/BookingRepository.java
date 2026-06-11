@@ -4,6 +4,7 @@ import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
@@ -21,10 +22,26 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByCustomerId(Long customerId);
 
+    /**
+     * Find bookings for customer with eager loading of relationships.
+     *
+     * WHY @EntityGraph: Prevents N+1 query problem.
+     * Without EntityGraph: 1 query for bookings + N queries for service/customer/vendor.
+     * With EntityGraph: 1 query with JOINs to fetch all relationships.
+     *
+     * The "booking-with-details" graph is defined in Booking entity via @NamedEntityGraph.
+     */
+    @EntityGraph(value = "booking-with-details", type = EntityGraph.EntityGraphType.LOAD)
     Page<Booking> findByCustomerId(Long customerId, Pageable pageable);
 
     List<Booking> findByVendorId(Long vendorId);
 
+    /**
+     * Find bookings for vendor with eager loading of relationships.
+     *
+     * WHY @EntityGraph: Same N+1 prevention as findByCustomerId.
+     */
+    @EntityGraph(value = "booking-with-details", type = EntityGraph.EntityGraphType.LOAD)
     Page<Booking> findByVendorId(Long vendorId, Pageable pageable);
 
     List<Booking> findByServiceIdAndBookingDate(Long serviceId, LocalDate bookingDate);
