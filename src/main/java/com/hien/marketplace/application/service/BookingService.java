@@ -12,14 +12,18 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
 import com.hien.marketplace.domain.user.User;
+import com.hien.marketplace.domain.vendor.Vendor;
 import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
 import com.hien.marketplace.infrastructure.persistence.UserRepository;
+import com.hien.marketplace.infrastructure.persistence.VendorRepository;
 import com.hien.marketplace.interfaces.dto.request.BookingCreateRequest;
 import com.hien.marketplace.interfaces.dto.response.BookingResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +46,7 @@ import java.util.List;
  * - Optimistic locking retry
  * - Full state machine implementation
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BookingService {
@@ -49,7 +54,13 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final ServiceRepository serviceRepository;
     private final UserRepository userRepository;
+    private final VendorRepository vendorRepository;
     private final BookingMapper bookingMapper;
+
+    // Maximum retries for optimistic locking conflicts
+    private static final int MAX_RETRIES = 3;
+    // Initial delay in milliseconds for retry
+    private static final long INITIAL_RETRY_DELAY_MS = 100;
 
     /**
      * Create new booking.
@@ -195,6 +206,153 @@ public class BookingService {
 
         booking = bookingRepository.save(booking);
 
+        return enrichBookingResponse(booking);
+    }
+
+    /**
+     * Confirm booking (Vendor action).
+     *
+     * WHY: Vendor confirms a pending booking, changing status to CONFIRMED.
+     * Uses optimistic locking with retry to handle concurrent updates.
+     *
+     * Optimistic Locking Scenario:
+     * 1. Vendor A and Vendor B both try to confirm same booking simultaneously
+     * 2. Both read booking with version=1
+     * 3. Vendor A saves first → version becomes 2
+     * 4. Vendor B tries to save → fails because version mismatch (expected 1, found 2)
+     * 5. Retry: Vendor B re-reads booking with version=2, retries confirm
+     *
+     * @param userId the vendor's user ID (from JWT)
+     * @param bookingId the booking to confirm
+     * @return updated booking response
+     * @throws BusinessRuleViolationException if booking doesn't belong to vendor
+     */
+    @Transactional
+    public BookingResponse confirmBooking(Long userId, Long bookingId) {
+        // Get vendor from userId
+        Vendor vendor = vendorRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                        "Vendor profile",
+                        "Vendor profile not found"
+                ));
+
+        // Retry loop for optimistic locking
+        int attempts = 0;
+        while (attempts < MAX_RETRIES) {
+            try {
+                Booking booking = bookingRepository.findById(bookingId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+                // Authorization: only vendor who owns the service can confirm
+                if (!booking.getVendor().getId().equals(vendor.getId())) {
+                    throw new BusinessRuleViolationException(
+                            "Booking ownership",
+                            "You can only confirm bookings for your own services"
+                    );
+                }
+
+                // Domain method handles state machine validation
+                User vendorUser = userRepository.findById(userId)
+                        .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+                booking.confirm(vendorUser);
+
+                booking = bookingRepository.save(booking);
+                return enrichBookingResponse(booking);
+
+            } catch (ObjectOptimisticLockingFailureException e) {
+                attempts++;
+                log.warn("Optimistic lock conflict on booking {} (attempt {}/{}), retrying...",
+                        bookingId, attempts, MAX_RETRIES);
+
+                if (attempts >= MAX_RETRIES) {
+                    log.error("Max retries ({}) reached for booking {}", MAX_RETRIES, bookingId);
+                    throw new BusinessRuleViolationException(
+                            "Concurrent modification",
+                            "This booking was modified by another user. Please refresh and try again."
+                    );
+                }
+
+                // Exponential backoff: 100ms, 200ms, 400ms...
+                try {
+                    long delay = INITIAL_RETRY_DELAY_MS * (1L << (attempts - 1));
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new BusinessRuleViolationException(
+                            "Operation interrupted",
+                            "Please try again"
+                    );
+                }
+                // Transaction will retry - Spring @Transactional handles this
+            }
+        }
+
+        // Should never reach here, but compiler needs it
+        throw new BusinessRuleViolationException(
+                "Unexpected error",
+                "Please try again"
+        );
+    }
+
+    /**
+     * Start service (Vendor action).
+     *
+     * WHY: Vendor marks a confirmed booking as IN_PROGRESS when service starts.
+     */
+    @Transactional
+    public BookingResponse startService(Long userId, Long bookingId) {
+        Vendor vendor = vendorRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                        "Vendor profile",
+                        "Vendor profile not found"
+                ));
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+        if (!booking.getVendor().getId().equals(vendor.getId())) {
+            throw new BusinessRuleViolationException(
+                    "Booking ownership",
+                    "You can only start services for your own bookings"
+            );
+        }
+
+        User vendorUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        booking.start(vendorUser);
+
+        booking = bookingRepository.save(booking);
+        return enrichBookingResponse(booking);
+    }
+
+    /**
+     * Complete service (Vendor action).
+     *
+     * WHY: Vendor marks an IN_PROGRESS booking as COMPLETED after service is done.
+     */
+    @Transactional
+    public BookingResponse completeService(Long userId, Long bookingId) {
+        Vendor vendor = vendorRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                        "Vendor profile",
+                        "Vendor profile not found"
+                ));
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+        if (!booking.getVendor().getId().equals(vendor.getId())) {
+            throw new BusinessRuleViolationException(
+                    "Booking ownership",
+                    "You can only complete services for your own bookings"
+            );
+        }
+
+        User vendorUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        booking.complete(vendorUser);
+
+        booking = bookingRepository.save(booking);
         return enrichBookingResponse(booking);
     }
 
