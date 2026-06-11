@@ -30,3 +30,14 @@ logging:
     com.hien.marketplace: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# JWT Configuration
+app:
+  jwt:
+    # Secret key for signing JWT tokens - MUST be 256+ bits (32+ chars) for HS256
+    # In production, use environment variable: JWT_SECRET
+    secret: dev-secret-key-change-in-production-must-be-at-least-256-bits
+    # Access token expiration: 15 minutes (short-lived for security)
+    access-expiration-minutes: 15
+    # Refresh token expiration: 7 days (long-lived for user convenience)
+    refresh-expiration-days: 7
