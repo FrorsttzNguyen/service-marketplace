@@ -19,7 +19,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * SecurityFilterChain = the main security rule chain in Spring Security 6+.
  *
  * Why disable CSRF? This is a REST API (stateless), not a server-rendered web app.
- * CSRF protection is for browser-based form submissions. With JWT, it's not needed.
+ * CSRF mainly protects browser auto-attached credentials such as cookies.
+ * Phase 2 will use JWT/Bearer tokens in the Authorization header instead.
  */
 @Configuration
 @EnableWebSecurity
@@ -28,11 +29,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // Stateless session — no HTTP sessions, each request carries JWT
+            // Stateless session — no HTTP sessions; Phase 2 JWT will authenticate each request.
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-            // Disable CSRF for REST API (we'll use JWT tokens, not cookies)
+            // Disable CSRF for stateless REST API; Phase 2 auth will not rely on cookie sessions.
             .csrf(AbstractHttpConfigurer::disable)
             // Phase 0: permit all requests. Phase 2 will restrict this.
             .authorizeHttpRequests(auth ->
