@@ -206,4 +206,73 @@ From `docs/todo.md`, Phase 3 will cover:
 
 ---
 
-**Session completed. PR ready for review.**
+## 🚨 CRITICAL: Phase 2 Learning Docs MISSING
+
+**Status:** Phase 2 code complete, but learning docs NOT written.
+
+**Why this is critical:**
+- Hien's goal: "understand every single line of code"
+- Project rule: "Learning docs (`docs/html/`) — HTML files for Hien to learn"
+- Phase 2 introduces many new concepts that Hien needs to learn
+
+**Missing topics:**
+| Topic | Concepts to Cover |
+|-------|-------------------|
+| REST Controllers | @RestController, HTTP methods (@GetMapping, @PostMapping), RequestBody, PathVariable, ResponseEntity |
+| DTOs & Validation | DTO pattern (why isolate API from domain), Jakarta Validation (@NotBlank, @Email, @Size), request vs response DTOs |
+| MapStruct Mappers | Why MapStruct over manual mapping, @Mapper annotation, compile-time code generation, @Mapping for field mapping |
+| JWT Authentication | JWT structure (header.payload.signature), token generation/validation, JwtUtils, filter chain, SecurityContext |
+| Exception Handling | @ControllerAdvice, custom exceptions, HTTP status codes (400-500), ErrorResponse format |
+| Swagger/OpenAPI | @Operation, @ApiResponse, @Tag, Swagger UI, Bearer auth scheme |
+
+**Learning docs format requirements (based on Phase 0-1):**
+1. **HTML format** with shared `styles.css`
+2. **Navigation** between docs (01-06 links)
+3. **Language switcher** (VI/EN versions)
+4. **Diagrams** — flow charts, visual boxes, architecture diagrams
+5. **Callout boxes** — note, warning, tip sections
+6. **Code snippets** — syntax highlighted, with line-by-line explanations
+7. **Tables** — comparing approaches, explaining fields
+8. **"Tại sao" sections** — not just "what", but "why" each decision was made
+9. **Code references** — link to actual files in project
+10. **From basic to advanced** — start with concept, then implementation, then edge cases
+
+**File structure needed:**
+```
+docs/html/vi/phase2/
+├── 01-rest-controllers.html
+├── 02-dtos-validation.html
+├── 03-mapstruct-mappers.html
+├── 04-jwt-authentication.html
+├── 05-exception-handling.html
+├── 06-swagger-documentation.html
+└── styles.css (copy from phase1)
+
+docs/html/en/phase2/
+├── (same 6 files, English versions)
+└── styles.css
+```
+
+---
+
+## 📋 NEXT SESSION INSTRUCTIONS
+
+**Priority 1: Write Phase 2 Learning Docs**
+
+Session 007 should:
+1. Create `docs/html/vi/phase2/` and `docs/html/en/phase2/` directories
+2. Write 6 HTML learning docs (VI + EN = 12 files total)
+3. Copy `styles.css` from phase1 to phase2
+4. Follow Phase 1 format: diagrams, code snippets, tables, callouts, "tại sao" explanations
+5. Each doc should teach the concept AND show actual code implementation
+
+**Estimated effort:** 1 full session (3-4 hours for 12 files)
+
+**After docs complete:**
+- Merge PR #3
+- Update `docs/todo.md` Phase 2 review section
+- Then proceed to Phase 3
+
+---
+
+**Session completed. PR ready for review. Learning docs pending.**
