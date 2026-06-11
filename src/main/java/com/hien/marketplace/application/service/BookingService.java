@@ -1,5 +1,7 @@
 package com.hien.marketplace.application.service;
 
+import com.hien.marketplace.application.event.BookingCancelledEvent;
+import com.hien.marketplace.application.event.BookingConfirmedEvent;
 import com.hien.marketplace.application.exception.BookingConflictException;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
@@ -21,6 +23,7 @@ import com.hien.marketplace.interfaces.dto.request.BookingCreateRequest;
 import com.hien.marketplace.interfaces.dto.response.BookingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -56,6 +59,7 @@ public class BookingService {
     private final UserRepository userRepository;
     private final VendorRepository vendorRepository;
     private final BookingMapper bookingMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Maximum retries for optimistic locking conflicts
     private static final int MAX_RETRIES = 3;
@@ -202,9 +206,13 @@ public class BookingService {
         // Domain method handles state machine validation
         // For customer cancellation, pass customer as changedBy and reason
         User customer = booking.getCustomer();
-        booking.cancel(customer, "Cancelled by customer");
+        String reason = "Cancelled by customer";
+        booking.cancel(customer, reason);
 
         booking = bookingRepository.save(booking);
+
+        // Publish domain event for notifications
+        eventPublisher.publishEvent(BookingCancelledEvent.from(booking, reason));
 
         return enrichBookingResponse(booking);
     }
@@ -257,6 +265,10 @@ public class BookingService {
                 booking.confirm(vendorUser);
 
                 booking = bookingRepository.save(booking);
+
+                // Publish domain event for notifications
+                eventPublisher.publishEvent(BookingConfirmedEvent.from(booking));
+
                 return enrichBookingResponse(booking);
 
             } catch (ObjectOptimisticLockingFailureException e) {
