@@ -1,4 +1,4 @@
-package com.hien.nguyen.marketplace.interfaces.dto.request;
+package com.hien.marketplace.interfaces.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 
