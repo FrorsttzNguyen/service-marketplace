@@ -10,6 +10,8 @@ import java.util.List;
 
 public interface ServiceRepository extends JpaRepository<ServiceEntity, Long> {
 
+    Page<ServiceEntity> findByVendorId(Long vendorId, Pageable pageable);
+
     List<ServiceEntity> findByVendorId(Long vendorId);
 
     List<ServiceEntity> findByCategoryId(Long categoryId);
