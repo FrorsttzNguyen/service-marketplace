@@ -1,18 +1,38 @@
 # Session Handoff Note — Session 004
 
 **Date:** 2026-06-11
-**Phase:** Phase 1 verification complete — ready for Phase 2
-**Status:** All Phase 1 verification items passed; code ready to commit and proceed
+**Phase:** Phase 1 COMPLETE — committed, PR #2 open, ready for Phase 2
+**Status:** 93 tests, 0 failures. PR: https://github.com/FrorsttzNguyen/service-marketplace/pull/2
 
 ## What This Session Did
 
-Verified all remaining Phase 1 checklist items from `docs/todo.md`:
+### 1. Verification
+- **Flyway migrations** — started Docker PostgreSQL, ran all 6 migrations, all applied cleanly
+- **Spring Boot startup** — app starts with `dev` profile, Hibernate validates schema, 9 JPA repositories bootstrapped
+- **N+1 analysis** — all JPA relationships use LAZY fetch (correct); @EntityGraph deferred to Phase 2/3
+- **Updated `docs/todo.md`** — marked all Phase 1 verification items as [x], filled in Phase 1 Review section
 
-1. **Flyway migrations** — ran all 6 against fresh PostgreSQL container, all applied cleanly
-2. **Spring Boot startup** — app starts with `dev` profile, Hibernate validates schema against Flyway tables, Flyway confirms schema is up-to-date, 9 JPA repositories bootstrapped
-3. **Tests** — 61 tests pass (0 failures): 1 Spring context + 60 domain unit tests
-4. **N+1 analysis** — all JPA relationships use LAZY fetch (correct); no @EntityGraph yet because there is no service layer to trigger N+1 queries; deferred to Phase 2/3 when queries are built
-5. **Updated `docs/todo.md`** — marked all Phase 1 verification items as [x], filled in Phase 1 Review section
+### 2. Integration Tests Added
+- **RepositoryIntegrationTest** — `@DataJpaTest` with H2, 30 tests across 7 nested classes:
+  - UserRepository (5 tests: CRUD, findByEmail, existsByEmail, findByRole)
+  - VendorRepository (4 tests: composition, findByUserId, existsByUserId, findByStatus)
+  - ServiceRepository (4 tests: embedded Money, findByVendorId, findByStatus, PricingType strategy)
+  - BookingRepository (7 tests: embedded TimeSlot+Money, double-booking check, findByVendorDate, status transitions, history)
+  - OrderPaymentRepository (6 tests: embedded Money arithmetic, findByBookingId, Stripe ID lookups, Refund cascade)
+  - CategoryRepository (1 test: self-referencing parent)
+  - ReviewRepository (2 tests: persist with rating, reject invalid rating)
+  - NotificationRepository (1 test: persist + markAsRead)
+
+- **BookingConcurrencyTest** — optimistic locking with raw EntityManager:
+  - `shouldThrowOptimisticLockExceptionOnConcurrentUpdate` — 2 concurrent EMs, version conflict → RollbackException wrapping OptimisticLockException
+  - `shouldAllowSequentialUpdatesWithoutConflict` — sequential version increments: 0→1→2
+
+### 3. Bug Fix
+- `AuditLog.columnDefinition = "jsonb"` → `"text"` — H2 doesn't support PostgreSQL's jsonb type. Production schema uses Flyway migration which creates real jsonb columns; columnDefinition only affects `ddl-auto=create-drop` in tests.
+
+### 4. Commit + PR
+- Commit: `d03c634` on branch `feat/phase1-domain-model`
+- PR #2: already open, updated with new commit + body
 
 ## Phase 1 Implementation Summary (for learning reference)
 
@@ -45,7 +65,7 @@ Verified all remaining Phase 1 checklist items from `docs/todo.md`:
 - **4** value objects (Money, TimeSlot, PhoneNumber, Address)
 - **6** Flyway migrations (V1–V6)
 - **9** Spring Data JPA repositories
-- **61** tests passing (60 domain + 1 Spring context)
+- **93** tests passing (60 domain unit + 1 Spring context + 30 repository integration + 2 concurrency)
 - **6** ADR documents
 - **17** database tables in ERD
 

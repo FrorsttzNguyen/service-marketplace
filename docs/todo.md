@@ -82,7 +82,7 @@
 - [x] `Money` value object rejects negative amounts
 - [x] `BookingStatus` rejects invalid transitions (e.g., COMPLETED → PENDING)
 - [x] `Booking` entity rejects invalid current-state transitions
-- [x] `./mvnw test` passes for Phase 1 domain model — 61 tests, 0 failures
+- [x] `./mvnw test` passes for Phase 1 domain model — 93 tests, 0 failures
 - [x] No N+1 query issues — all relationships are LAZY; @EntityGraph deferred to Phase 2/3 (no service layer yet)
 
 ---
