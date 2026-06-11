@@ -20,8 +20,9 @@ public class Refund {
     @JoinColumn(name = "payment_id", nullable = false)
     private Payment payment;
 
-    @Column(name = "amount_cents", nullable = false)
-    private long amountCents;
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "amount_cents", nullable = false))
+    private Money amount;
 
     @Column(columnDefinition = "TEXT")
     private String reason;
@@ -41,7 +42,7 @@ public class Refund {
 
     public Refund(Payment payment, Money amount, String reason) {
         this.payment = payment;
-        this.amountCents = amount.getAmountCents();
+        this.amount = amount;
         this.reason = reason;
         this.status = RefundStatus.PENDING;
         this.createdAt = LocalDateTime.now();
@@ -55,7 +56,7 @@ public class Refund {
     public void markAsSucceeded() { this.status = RefundStatus.SUCCEEDED; }
     public void markAsFailed() { this.status = RefundStatus.FAILED; }
 
-    public Money getAmount() { return Money.of(amountCents); }
+    public Money getAmount() { return amount; }
 
     // Getters
     public Long getId() { return id; }

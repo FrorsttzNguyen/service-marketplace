@@ -1,5 +1,6 @@
 package com.hien.marketplace.domain.user;
 
+import com.hien.marketplace.domain.common.PhoneNumber;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.*;
@@ -44,5 +45,15 @@ class UserTest {
 
         assertThat(user.getStatus()).isEqualTo(UserStatus.SUSPENDED);
         assertThat(user.isActive()).isFalse();
+    }
+
+    @Test
+    void shouldChangePhoneWithPhoneNumberValueObject() {
+        User user = new User("test@email.com", "hash", "Test", UserRole.CUSTOMER);
+
+        user.changePhone(new PhoneNumber("(+84) 912-345-678"));
+
+        assertThat(user.getPhone()).isEqualTo(new PhoneNumber("+84912345678"));
+        assertThat(user.getPhone().getValue()).isEqualTo("+84912345678");
     }
 }

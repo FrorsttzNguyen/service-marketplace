@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * Entity đại diện cho nhà cung cấp dịch vụ.
  *
  * COMPOSITION (không phải Inheritance): Vendor HAS-A User.
- * - @ManyToOne User = vendor "có" một user, không "là" user
+ * - @OneToOne User = mỗi user có tối đa một vendor profile theo unique index trong DB
  * - User có thể vừa CUSTOMER vừa VENDOR (nếu mở vendor profile)
  * - Xóa vendor profile không ảnh hưởng user account
  *
@@ -27,9 +27,10 @@ public class Vendor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Composition: Vendor HAS-A User (không extends User)
-    @ManyToOne(fetch = FetchType.LAZY) // LAZY = không load User mỗi khi load Vendor
-    @JoinColumn(name = "user_id", nullable = false)
+    // Composition: Vendor HAS-A User (không extends User).
+    // @OneToOne khớp với unique index vendors.user_id: một user chỉ có một vendor profile.
+    @OneToOne(fetch = FetchType.LAZY) // LAZY = không load User mỗi khi load Vendor
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
     @Column(name = "business_name", nullable = false)

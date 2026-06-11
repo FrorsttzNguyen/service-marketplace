@@ -1,6 +1,7 @@
 package com.hien.marketplace.domain.booking;
 
 import com.hien.marketplace.domain.common.Money;
+import com.hien.marketplace.domain.common.TimeSlot;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.vendor.Vendor;
@@ -15,9 +16,9 @@ import java.util.List;
 /**
  * Entity cho đặt lịch — bảng quan trọng nhất trong hệ thống.
  *
- * Double-booking prevention (2 lớp):
- *   Layer 1: @Version (optimistic locking) — application level
- *   Layer 2: UNIQUE(service_id, booking_date, start_time) — database level
+ * Double-booking prevention khi TẠO booking:
+ *   - UNIQUE(service_id, booking_date, start_time) là lớp chặn cuối cùng ở database.
+ *   - @Version dùng cho concurrent UPDATE trên cùng booking row sau khi booking đã tồn tại.
  *
  * State Machine: status chỉ chuyển đổi theo BookingStatus rules.
  * Không thể chuyển COMPLETED → PENDING — BookingStatus.throwIfInvalidTransition() sẽ reject.
@@ -45,18 +46,21 @@ public class Booking {
     @Column(name = "booking_date", nullable = false)
     private LocalDate bookingDate;
 
-    @Column(name = "start_time", nullable = false)
-    private LocalTime startTime;
-
-    @Column(name = "end_time", nullable = false)
-    private LocalTime endTime;
+    // TimeSlot gom start/end thành một domain concept để constructor luôn validate start < end.
+    @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "startTime", column = @Column(name = "start_time", nullable = false)),
+        @AttributeOverride(name = "endTime", column = @Column(name = "end_time", nullable = false))
+    })
+    private TimeSlot timeSlot;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private BookingStatus status;
 
-    @Column(name = "total_price_cents", nullable = false)
-    private long totalPriceCents;
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "total_price_cents", nullable = false))
+    private Money totalPrice;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
@@ -86,9 +90,8 @@ public class Booking {
         this.customer = customer;
         this.vendor = vendor;
         this.bookingDate = bookingDate;
-        this.startTime = startTime;
-        this.endTime = endTime;
-        this.totalPriceCents = totalPrice.getAmountCents();
+        this.timeSlot = new TimeSlot(startTime, endTime);
+        this.totalPrice = totalPrice;
         this.status = BookingStatus.PENDING;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -106,32 +109,29 @@ public class Booking {
     }
 
     // === State Machine transitions ===
-    // Mỗi method check xem chuyển đổi có hợp lệ không trước khi thực hiện.
-    // BookingStatus enum chứa rules — entity chỉ gọi validate.
+    // Tất cả method đều đi qua changeStatus() để không method nào quên validate current status.
+    // BookingStatus enum chứa rules — entity truyền trạng thái hiện tại vào rules đó.
 
     public void confirm(User changedBy) {
-        BookingStatus.PENDING.throwIfInvalidTransition(BookingStatus.CONFIRMED);
         changeStatus(BookingStatus.CONFIRMED, changedBy, "Vendor confirmed booking");
     }
 
     public void start(User changedBy) {
-        BookingStatus.CONFIRMED.throwIfInvalidTransition(BookingStatus.IN_PROGRESS);
         changeStatus(BookingStatus.IN_PROGRESS, changedBy, "Service started");
     }
 
     public void complete(User changedBy) {
-        BookingStatus.IN_PROGRESS.throwIfInvalidTransition(BookingStatus.COMPLETED);
         changeStatus(BookingStatus.COMPLETED, changedBy, "Service completed");
     }
 
     public void cancel(User changedBy, String reason) {
-        // Cancel có thể từ PENDING hoặc CONFIRMED
-        status.throwIfInvalidTransition(BookingStatus.CANCELLED);
         changeStatus(BookingStatus.CANCELLED, changedBy, reason);
     }
 
     private void changeStatus(BookingStatus newStatus, User changedBy, String reason) {
         BookingStatus oldStatus = this.status;
+        // Validate từ trạng thái THẬT của entity, không hard-code trạng thái mong muốn.
+        oldStatus.throwIfInvalidTransition(newStatus);
         this.status = newStatus;
         this.statusHistory.add(new BookingStatusHistory(this, oldStatus, newStatus, changedBy, reason));
     }
@@ -143,10 +143,11 @@ public class Booking {
     public User getCustomer() { return customer; }
     public Vendor getVendor() { return vendor; }
     public LocalDate getBookingDate() { return bookingDate; }
-    public LocalTime getStartTime() { return startTime; }
-    public LocalTime getEndTime() { return endTime; }
+    public LocalTime getStartTime() { return timeSlot.getStartTime(); }
+    public LocalTime getEndTime() { return timeSlot.getEndTime(); }
+    public TimeSlot getTimeSlot() { return timeSlot; }
     public BookingStatus getStatus() { return status; }
-    public Money getTotalPrice() { return Money.of(totalPriceCents); }
+    public Money getTotalPrice() { return totalPrice; }
     public String getNotes() { return notes; }
     public Long getVersion() { return version; }
     public LocalDateTime getCreatedAt() { return createdAt; }

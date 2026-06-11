@@ -11,8 +11,8 @@ import java.util.List;
 /**
  * Entity cho thanh toán. Liên kết với Stripe PaymentIntent.
  *
- * stripe_payment_intent_id = UNIQUE để webhook idempotent:
- * Stripe gửi cùng event nhiều lần → chỉ process 1 lần (check unique constraint).
+ * stripe_payment_intent_id = UNIQUE để không tạo trùng local payment cho cùng PaymentIntent.
+ * Webhook idempotency theo event id sẽ dùng bảng stripe_event_log ở tầng integration sau này.
  */
 @Entity
 @Table(name = "payments")
@@ -29,8 +29,9 @@ public class Payment {
     @Column(name = "stripe_payment_intent_id", unique = true, length = 255)
     private String stripePaymentIntentId;
 
-    @Column(name = "amount_cents", nullable = false)
-    private long amountCents;
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "amount_cents", nullable = false))
+    private Money amount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -53,7 +54,7 @@ public class Payment {
 
     public Payment(Order order, Money amount) {
         this.order = order;
-        this.amountCents = amount.getAmountCents();
+        this.amount = amount;
         this.status = PaymentStatus.PENDING;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -75,7 +76,7 @@ public class Payment {
     public void markAsSucceeded() { this.status = PaymentStatus.SUCCEEDED; }
     public void markAsFailed() { this.status = PaymentStatus.FAILED; }
 
-    public Money getAmount() { return Money.of(amountCents); }
+    public Money getAmount() { return amount; }
 
     // Getters
     public Long getId() { return id; }

@@ -7,7 +7,9 @@ import java.time.LocalDateTime;
 
 /**
  * Entity cho audit log. Ghi lại mọi thay đổi quan trọng trên data.
- * JSONB old_values/new_values cho phép lưu flexible data mà không cần thay đổi schema.
+ * Flyway migration tạo cột old_values/new_values kiểu jsonb (PostgreSQL-specific).
+ * columnDefinition = "text" để H2-compatible trong tests (ddl-auto=create-drop).
+ * Production schema: Flyway migration V6 tạo real jsonb columns.
  *
  * Không bao giờ DELETE audit log — đây là yêu cầu compliance cho financial data.
  */
@@ -28,11 +30,11 @@ public class AuditLog {
     @Column(nullable = false, length = 20)
     private String action; // "INSERT", "UPDATE", "DELETE"
 
-    @Column(name = "old_values", columnDefinition = "jsonb")
-    private String oldValues; // JSON string của giá trị trước khi thay đổi
+    @Column(name = "old_values", columnDefinition = "text")
+    private String oldValues; // JSON string — Flyway migration creates real jsonb in production
 
-    @Column(name = "new_values", columnDefinition = "jsonb")
-    private String newValues; // JSON string của giá trị sau khi thay đổi
+    @Column(name = "new_values", columnDefinition = "text")
+    private String newValues; // JSON string — Flyway migration creates real jsonb in production
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "performed_by")

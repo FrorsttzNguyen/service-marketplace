@@ -10,7 +10,7 @@ import java.util.List;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     // Kiểm tra double-booking: có booking nào trùng slot chưa?
-    boolean existsByServiceIdAndBookingDateAndStartTime(
+    boolean existsByServiceIdAndBookingDateAndTimeSlotStartTime(
         Long serviceId, LocalDate bookingDate, java.time.LocalTime startTime
     );
 

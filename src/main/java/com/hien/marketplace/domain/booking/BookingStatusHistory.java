@@ -21,9 +21,11 @@ public class BookingStatusHistory {
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "from_status", length = 20)
     private BookingStatus fromStatus;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "to_status", nullable = false, length = 20)
     private BookingStatus toStatus;
 

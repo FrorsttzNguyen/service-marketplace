@@ -36,14 +36,17 @@ public class Order {
     @Column(nullable = false, length = 20)
     private OrderStatus status;
 
-    @Column(name = "subtotal_cents", nullable = false)
-    private long subtotalCents;
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "subtotal_cents", nullable = false))
+    private Money subtotal;
 
-    @Column(name = "commission_cents", nullable = false)
-    private long commissionCents;
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "commission_cents", nullable = false))
+    private Money commission;
 
-    @Column(name = "total_cents", nullable = false)
-    private long totalCents;
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "total_cents", nullable = false))
+    private Money total;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -57,9 +60,9 @@ public class Order {
     public Order(User customer, Booking booking, Money subtotal, Money commission) {
         this.customer = customer;
         this.booking = booking;
-        this.subtotalCents = subtotal.getAmountCents();
-        this.commissionCents = commission.getAmountCents();
-        this.totalCents = subtotal.add(commission).getAmountCents();
+        this.subtotal = subtotal;
+        this.commission = commission;
+        this.total = subtotal.add(commission);
         this.status = OrderStatus.CREATED;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -82,9 +85,9 @@ public class Order {
     public void cancel() { this.status = OrderStatus.CANCELLED; }
     public void refund() { this.status = OrderStatus.REFUNDED; }
 
-    public Money getSubtotal() { return Money.of(subtotalCents); }
-    public Money getCommission() { return Money.of(commissionCents); }
-    public Money getTotal() { return Money.of(totalCents); }
+    public Money getSubtotal() { return subtotal; }
+    public Money getCommission() { return commission; }
+    public Money getTotal() { return total; }
 
     // Getters
     public Long getId() { return id; }

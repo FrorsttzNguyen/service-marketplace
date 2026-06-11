@@ -1,5 +1,6 @@
 package com.hien.marketplace.domain.user;
 
+import com.hien.marketplace.domain.common.PhoneNumber;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -32,8 +33,9 @@ public class User {
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
-    @Column(length = 20)
-    private String phone;
+    // PhoneNumber giữ normalization/validation ở domain layer thay vì rải String phone khắp code.
+    @Embedded
+    private PhoneNumber phone;
 
     @Enumerated(EnumType.STRING) // STRING = lưu tên enum ("CUSTOMER"), không phải số (0,1,2)
     @Column(nullable = false, length = 20)
@@ -92,13 +94,17 @@ public class User {
         return this.status == UserStatus.ACTIVE;
     }
 
+    public void changePhone(PhoneNumber phone) {
+        this.phone = phone;
+    }
+
     // === Getters ===
 
     public Long getId() { return id; }
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public String getFullName() { return fullName; }
-    public String getPhone() { return phone; }
+    public PhoneNumber getPhone() { return phone; }
     public UserRole getRole() { return role; }
     public UserStatus getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }

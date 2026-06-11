@@ -16,7 +16,7 @@ import java.util.List;
  * Tên class là ServiceEntity (không phải Service) vì Spring có sẵn interface
  * org.springframework.stereotype.Service — trùng tên sẽ gây ambiguous import.
  *
- * Money stored as cents (BIGINT). Dùng @Embedded Money cho basePrice.
+ * Money được embed vào column base_price_cents để domain không dùng primitive cho khái niệm tiền.
  * PricingType enum implements Strategy Pattern cho việc tính giá.
  */
 @Entity
@@ -41,8 +41,9 @@ public class ServiceEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "base_price_cents", nullable = false)
-    private long basePriceCents; // Stored as cents, accessed via Money value object
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "base_price_cents", nullable = false))
+    private Money basePrice;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "pricing_type", nullable = false, length = 20)
@@ -77,7 +78,7 @@ public class ServiceEntity {
     public ServiceEntity(Vendor vendor, String name, Money basePrice, PricingType pricingType, int durationMinutes) {
         this.vendor = vendor;
         this.name = name;
-        this.basePriceCents = basePrice.getAmountCents();
+        this.basePrice = basePrice;
         this.pricingType = pricingType;
         this.durationMinutes = durationMinutes;
         this.status = ServiceStatus.DRAFT;
@@ -103,7 +104,6 @@ public class ServiceEntity {
      * Caller không cần biết loại giá — chỉ gọi method này.
      */
     public Money calculatePrice() {
-        Money basePrice = Money.of(basePriceCents);
         return pricingType.calculatePrice(basePrice, durationMinutes);
     }
 
@@ -134,7 +134,7 @@ public class ServiceEntity {
     public Category getCategory() { return category; }
     public String getName() { return name; }
     public String getDescription() { return description; }
-    public Money getBasePrice() { return Money.of(basePriceCents); }
+    public Money getBasePrice() { return basePrice; }
     public PricingType getPricingType() { return pricingType; }
     public int getDurationMinutes() { return durationMinutes; }
     public ServiceStatus getStatus() { return status; }
@@ -147,6 +147,6 @@ public class ServiceEntity {
 
     public void setDescription(String description) { this.description = description; }
     public void setCategory(Category category) { this.category = category; }
-    public void setBasePrice(Money basePrice) { this.basePriceCents = basePrice.getAmountCents(); }
+    public void setBasePrice(Money basePrice) { this.basePrice = basePrice; }
     public void setDurationMinutes(int durationMinutes) { this.durationMinutes = durationMinutes; }
 }

@@ -1,5 +1,6 @@
 package com.hien.marketplace.domain.service;
 
+import com.hien.marketplace.domain.common.TimeSlot;
 import jakarta.persistence.*;
 
 import java.time.LocalTime;
@@ -25,11 +26,13 @@ public class ServiceAvailability {
     @Column(name = "day_of_week", nullable = false)
     private short dayOfWeek; // 0=Sunday, 1=Monday, ..., 6=Saturday
 
-    @Column(name = "start_time", nullable = false)
-    private LocalTime startTime;
-
-    @Column(name = "end_time", nullable = false)
-    private LocalTime endTime;
+    // TimeSlot gom start/end để rule "start phải trước end" chỉ nằm ở một chỗ.
+    @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "startTime", column = @Column(name = "start_time", nullable = false)),
+        @AttributeOverride(name = "endTime", column = @Column(name = "end_time", nullable = false))
+    })
+    private TimeSlot timeSlot;
 
     protected ServiceAvailability() {
     }
@@ -38,19 +41,16 @@ public class ServiceAvailability {
         if (dayOfWeek < 0 || dayOfWeek > 6) {
             throw new IllegalArgumentException("dayOfWeek must be 0-6, got: " + dayOfWeek);
         }
-        if (!startTime.isBefore(endTime)) {
-            throw new IllegalArgumentException("Start time must be before end time");
-        }
         this.service = service;
         this.dayOfWeek = dayOfWeek;
-        this.startTime = startTime;
-        this.endTime = endTime;
+        this.timeSlot = new TimeSlot(startTime, endTime);
     }
 
     // Getters
     public Long getId() { return id; }
     public ServiceEntity getService() { return service; }
     public short getDayOfWeek() { return dayOfWeek; }
-    public LocalTime getStartTime() { return startTime; }
-    public LocalTime getEndTime() { return endTime; }
+    public LocalTime getStartTime() { return timeSlot.getStartTime(); }
+    public LocalTime getEndTime() { return timeSlot.getEndTime(); }
+    public TimeSlot getTimeSlot() { return timeSlot; }
 }
