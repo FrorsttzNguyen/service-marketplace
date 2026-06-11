@@ -177,10 +177,20 @@ public class BookingService {
 
     /**
      * Get bookings for vendor.
+     *
+     * WHY: Vendor sees all bookings for their services.
+     * Uses userId (from JWT) and looks up Vendor profile.
      */
     @Transactional(readOnly = true)
-    public Page<BookingResponse> getVendorBookings(Long vendorId, Pageable pageable) {
-        return bookingRepository.findByVendorId(vendorId, pageable)
+    public Page<BookingResponse> getVendorBookings(Long userId, Pageable pageable) {
+        // Lookup vendor by userId
+        Vendor vendor = vendorRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                        "Vendor profile",
+                        "Vendor profile not found. Please complete vendor registration."
+                ));
+
+        return bookingRepository.findByVendorId(vendor.getId(), pageable)
                 .map(this::enrichBookingResponse);
     }
 

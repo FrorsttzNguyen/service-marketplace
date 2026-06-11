@@ -334,14 +334,12 @@ class BookingControllerIntegrationTest {
             createTestBooking();
 
             // Vendor views their bookings
-            // Note: Phase 2 bug - getVendorBookings uses userId but should use vendorId
-            // This test documents the current behavior (will be fixed in Phase 3)
+            // Fixed: getVendorBookings now correctly uses userId and looks up vendorId
             mockMvc.perform(get("/api/bookings/vendor")
                             .header("Authorization", "Bearer " + vendorToken))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.content").isArray());
-                    // Cannot check vendorId because repository.findByVendorId(userId) returns empty
-                    // (userId != vendorId)
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content[0].vendorId").value(vendor.getId()));
         }
 
         @Test

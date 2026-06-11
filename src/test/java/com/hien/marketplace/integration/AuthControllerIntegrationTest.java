@@ -98,11 +98,23 @@ class AuthControllerIntegrationTest {
                     true  // Registering as vendor
             );
 
-            mockMvc.perform(post("/api/auth/register")
+            MvcResult result = mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.role").value("VENDOR"));
+                    .andExpect(jsonPath("$.role").value("VENDOR"))
+                    .andReturn();
+
+            // Verify vendor profile was created (check by trying to access vendor endpoints)
+            AuthResponse response = objectMapper.readValue(
+                    result.getResponse().getContentAsString(),
+                    AuthResponse.class
+            );
+
+            // Vendor can now access /api/bookings/vendor endpoint
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/bookings/vendor")
+                            .header("Authorization", "Bearer " + response.accessToken()))
+                    .andExpect(status().isOk());  // Not 422 (vendor profile not found)
         }
 
         @Test
