@@ -46,3 +46,9 @@ app:
     secret: test-secret-key-for-jwt-signing-must-be-at-least-256-bits-long
     access-expiration-minutes: 15
     refresh-expiration-days: 7
+
+# Stripe Configuration for tests (Phase 4)
+# Use test mode keys for integration tests
+stripe:
+  api-key: sk_test_test_key_for_unit_tests
+  webhook-secret: whsec_test_webhook_secret_for_unit_tests
