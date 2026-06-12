@@ -7,6 +7,8 @@ import com.hien.marketplace.domain.order.Order;
 import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.payment.Payment;
 import com.hien.marketplace.domain.payment.PaymentStatus;
+import com.hien.marketplace.domain.payment.events.PaymentFailedEvent;
+import com.hien.marketplace.domain.payment.events.PaymentSucceededEvent;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
@@ -209,6 +211,7 @@ class PaymentServiceTest {
             order.markAsPendingPayment();
             // Payment in PROCESSING status
             payment.markAsProcessing();
+            payment.setStripePaymentIntentId("pi_test123");
             when(paymentRepository.findByStripePaymentIntentId("pi_test123"))
                     .thenReturn(Optional.of(payment));
             when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
@@ -220,7 +223,7 @@ class PaymentServiceTest {
             // Verify
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCEEDED);
             assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
-            verify(eventPublisher).publishEvent(any());
+            verify(eventPublisher).publishEvent(any(PaymentSucceededEvent.class));
         }
 
         @Test
@@ -254,6 +257,7 @@ class PaymentServiceTest {
         @Test
         void shouldSucceedForProcessingPayment() {
             payment.markAsProcessing();
+            payment.setStripePaymentIntentId("pi_test123");
             when(paymentRepository.findByStripePaymentIntentId("pi_test123"))
                     .thenReturn(Optional.of(payment));
             when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
@@ -261,7 +265,7 @@ class PaymentServiceTest {
             paymentService.handlePaymentFailed("pi_test123", "card_declined", "declined");
 
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
-            verify(eventPublisher).publishEvent(any());
+            verify(eventPublisher).publishEvent(any(PaymentFailedEvent.class));
         }
 
         @Test
