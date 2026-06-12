@@ -25,9 +25,12 @@ public interface ServiceMapper {
     @Mapping(source = "name", target = "title")
     @Mapping(target = "basePrice", expression = "java(toDecimal(service.getBasePrice()))")
     @Mapping(source = "durationMinutes", target = "durationHours")
+    @Mapping(source = "vendor.address.street", target = "address")
+    @Mapping(source = "city", target = "city")
     @Mapping(target = "vendorName", ignore = true)
     @Mapping(target = "categoryName", ignore = true)
-    @Mapping(target = "averageRating", constant = "0.0")
+    @Mapping(target = "imageUrl", ignore = true)
+    @Mapping(source = "averageRating", target = "averageRating")
     @Mapping(target = "totalReviews", constant = "0")
     @Mapping(target = "totalBookings", constant = "0")
     ServiceResponse toResponse(ServiceEntity service);

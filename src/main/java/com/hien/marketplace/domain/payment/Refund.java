@@ -53,8 +53,24 @@ public class Refund {
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 
-    public void markAsSucceeded() { this.status = RefundStatus.SUCCEEDED; }
-    public void markAsFailed() { this.status = RefundStatus.FAILED; }
+    public void markAsSucceeded() {
+        status.throwIfInvalidTransition(RefundStatus.SUCCEEDED);
+        this.status = RefundStatus.SUCCEEDED;
+    }
+
+    public void markAsFailed() {
+        status.throwIfInvalidTransition(RefundStatus.FAILED);
+        this.status = RefundStatus.FAILED;
+    }
+
+    /**
+     * Mark refund as processing (sent to Stripe).
+     * Used when refund request is submitted to Stripe.
+     */
+    public void markAsProcessing() {
+        status.throwIfInvalidTransition(RefundStatus.PROCESSING);
+        this.status = RefundStatus.PROCESSING;
+    }
 
     public Money getAmount() { return amount; }
 

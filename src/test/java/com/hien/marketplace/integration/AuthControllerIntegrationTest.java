@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * WHY @SpringBootTest: Load full Spring context (all beans, config, security).
  * WHY @AutoConfigureMockMvc: Setup MockMvc for HTTP requests without real server.
- * WHY @ActiveProfiles("test"): Use H2 in-memory database, not PostgreSQL.
+ * WHY @ActiveProfiles("test"): Use H2 in-memory database for fast tests.
  *
  * Test scenarios:
  * 1. Register → Login → Protected endpoint flow

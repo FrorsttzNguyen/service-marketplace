@@ -98,6 +98,26 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- TestContainers: Real database for integration tests -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
+			<version>1.20.6</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>1.20.6</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>1.20.6</version>
+			<scope>test</scope>
+		</dependency>
+
 		<!-- MapStruct: Entity-DTO mapping automation -->
 		<dependency>
 			<groupId>org.mapstruct</groupId>
@@ -136,6 +156,13 @@
 			<groupId>com.stripe</groupId>
 			<artifactId>stripe-java</artifactId>
 			<version>24.0.0</version>
+		</dependency>
+
+		<!-- Hibernate Types: JSON/JSONB type support for PostgreSQL -->
+		<dependency>
+			<groupId>io.hypersistence</groupId>
+			<artifactId>hypersistence-utils-hibernate-63</artifactId>
+			<version>3.9.2</version>
 		</dependency>
 	</dependencies>
 

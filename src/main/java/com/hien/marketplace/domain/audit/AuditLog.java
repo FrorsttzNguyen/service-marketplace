@@ -1,15 +1,20 @@
 package com.hien.marketplace.domain.audit;
 
 import com.hien.marketplace.domain.user.User;
+import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Entity cho audit log. Ghi lại mọi thay đổi quan trọng trên data.
- * Flyway migration tạo cột old_values/new_values kiểu jsonb (PostgreSQL-specific).
- * columnDefinition = "text" để H2-compatible trong tests (ddl-auto=create-drop).
- * Production schema: Flyway migration V6 tạo real jsonb columns.
+ *
+ * WHY jsonb type:
+ * - PostgreSQL's jsonb allows querying JSON content directly in SQL
+ * - Hypersistence Utils provides cross-database compatibility
+ * - Works with both PostgreSQL (jsonb) and H2 (text/varchar) for tests
  *
  * Không bao giờ DELETE audit log — đây là yêu cầu compliance cho financial data.
  */
@@ -30,11 +35,29 @@ public class AuditLog {
     @Column(nullable = false, length = 20)
     private String action; // "INSERT", "UPDATE", "DELETE"
 
-    @Column(name = "old_values", columnDefinition = "text")
-    private String oldValues; // JSON string — Flyway migration creates real jsonb in production
+    /**
+     * Old values before change, stored as JSON.
+     *
+     * WHY Map<String, Object>:
+     * - More flexible than String - can query individual fields
+     * - JsonType handles serialization/deserialization automatically
+     * - Works with PostgreSQL jsonb and H2 text
+     */
+    @Type(JsonType.class)
+    @Column(name = "old_values", columnDefinition = "jsonb")
+    private Map<String, Object> oldValues;
 
-    @Column(name = "new_values", columnDefinition = "text")
-    private String newValues; // JSON string — Flyway migration creates real jsonb in production
+    /**
+     * New values after change, stored as JSON.
+     *
+     * WHY Map<String, Object>:
+     * - More flexible than String - can query individual fields
+     * - JsonType handles serialization/deserialization automatically
+     * - Works with PostgreSQL jsonb and H2 text
+     */
+    @Type(JsonType.class)
+    @Column(name = "new_values", columnDefinition = "jsonb")
+    private Map<String, Object> newValues;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "performed_by")
@@ -47,7 +70,7 @@ public class AuditLog {
     }
 
     public AuditLog(String entityType, Long entityId, String action,
-                     String oldValues, String newValues, User performedBy) {
+                     Map<String, Object> oldValues, Map<String, Object> newValues, User performedBy) {
         this.entityType = entityType;
         this.entityId = entityId;
         this.action = action;
@@ -62,8 +85,8 @@ public class AuditLog {
     public String getEntityType() { return entityType; }
     public Long getEntityId() { return entityId; }
     public String getAction() { return action; }
-    public String getOldValues() { return oldValues; }
-    public String getNewValues() { return newValues; }
+    public Map<String, Object> getOldValues() { return oldValues; }
+    public Map<String, Object> getNewValues() { return newValues; }
     public User getPerformedBy() { return performedBy; }
     public LocalDateTime getPerformedAt() { return performedAt; }
 }

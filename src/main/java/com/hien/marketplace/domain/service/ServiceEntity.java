@@ -6,6 +6,7 @@ import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.vendor.Vendor;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,9 +19,19 @@ import java.util.List;
  *
  * Money được embed vào column base_price_cents để domain không dùng primitive cho khái niệm tiền.
  * PricingType enum implements Strategy Pattern cho việc tính giá.
+ *
+ * @NamedEntityGraph: Prevents N+1 queries when fetching services with vendor/category.
+ * Used in ServiceRepository for paginated queries.
  */
 @Entity
 @Table(name = "services")
+@NamedEntityGraph(
+    name = "service-with-vendor-category",
+    attributeNodes = {
+        @NamedAttributeNode("vendor"),
+        @NamedAttributeNode("category")
+    }
+)
 public class ServiceEntity {
 
     @Id
@@ -56,6 +67,27 @@ public class ServiceEntity {
     @Column(nullable = false, length = 20)
     private ServiceStatus status;
 
+    // === Denormalized fields for search/filter performance ===
+
+    /**
+     * City denormalized from vendor.address.city.
+     *
+     * WHY: Allows efficient filtering by city without joining through vendor.
+     * Kept in sync when vendor's address changes (handled by domain events or service layer).
+     */
+    @Column(length = 100)
+    private String city;
+
+    /**
+     * Average rating calculated from reviews.
+     *
+     * WHY: Allows efficient sorting/filtering by rating without subquery.
+     * Updated when reviews are added/modified/deleted.
+     * NULL means no reviews yet (different from 0.00 which would be an actual average).
+     */
+    @Column(name = "average_rating", precision = 3, scale = 2)
+    private BigDecimal averageRating;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -82,6 +114,11 @@ public class ServiceEntity {
         this.pricingType = pricingType;
         this.durationMinutes = durationMinutes;
         this.status = ServiceStatus.DRAFT;
+        // Denormalize city from vendor's address for efficient filtering
+        if (vendor.getAddress() != null) {
+            this.city = vendor.getAddress().getCity();
+        }
+        this.averageRating = null; // No reviews initially
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -127,6 +164,28 @@ public class ServiceEntity {
         this.images.remove(image);
     }
 
+    /**
+     * Update city when vendor's address changes.
+     *
+     * WHY: City is denormalized for efficient filtering.
+     * Called when vendor moves to a different city.
+     */
+    public void updateCity(String newCity) {
+        this.city = newCity;
+    }
+
+    /**
+     * Update average rating when reviews change.
+     *
+     * WHY: Average rating is denormalized for efficient sorting/filtering.
+     * Called when reviews are added/modified/deleted.
+     *
+     * @param newRatingAvg New average rating (null if no reviews, BigDecimal if has reviews)
+     */
+    public void updateAverageRating(BigDecimal newRatingAvg) {
+        this.averageRating = newRatingAvg;
+    }
+
     // === Getters ===
 
     public Long getId() { return id; }
@@ -138,6 +197,8 @@ public class ServiceEntity {
     public PricingType getPricingType() { return pricingType; }
     public int getDurationMinutes() { return durationMinutes; }
     public ServiceStatus getStatus() { return status; }
+    public String getCity() { return city; }
+    public BigDecimal getAverageRating() { return averageRating; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public List<ServiceImage> getImages() { return images; }

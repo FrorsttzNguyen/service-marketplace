@@ -70,10 +70,13 @@ public class ServiceCatalogService {
      *
      * WHY: ServiceResponse needs vendorName and categoryName
      * but ServiceEntity only has references (vendor, category).
-     * This method fetches those names after mapping.
+     * This method extracts those names after mapping.
      *
-     * Note: In production, this would cause N+1 queries.
-     * Phase 3 will add @EntityGraph or custom JOIN query.
+     * N+1 FIXED: ServiceRepository methods now use @EntityGraph
+     * to eagerly fetch vendor and category in ONE query.
+     *
+     * NOTE: city and averageRating are now directly mapped from ServiceEntity
+     * (denormalized fields added in V8 migration).
      */
     private ServiceResponse enrichServiceResponse(ServiceEntity service) {
         ServiceResponse response = serviceMapper.toResponse(service);
