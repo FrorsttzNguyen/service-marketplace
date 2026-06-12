@@ -4,9 +4,7 @@ import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.payment.Payment;
-import com.hien.marketplace.domain.payment.PaymentStatus;
 import com.hien.marketplace.domain.payment.RefundStatus;
-import com.hien.marketplace.domain.payment.events.RefundProcessedEvent;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.persistence.RefundRepository;
 import com.hien.marketplace.infrastructure.stripe.StripeClient;
@@ -37,10 +35,10 @@ import java.math.BigDecimal;
  *
  * TRANSACTION SEMANTICS:
  * - Self-invocation of @Transactional methods doesn't work (Spring proxy limitation)
- * - DB mutations moved to RefundTransactionService for proper transaction boundary
+ * - DB mutations AND transactional reads moved to RefundTransactionService
  *
  * LAZY LOADING SAFE PATTERN:
- * - RefundContext snapshot loaded transactionally (loadRefundContext)
+ * - RefundContext snapshot loaded transactionally via RefundTransactionService
  * - Snapshot used for validation and Stripe call (no lazy loading outside tx)
  * - Final write via RefundTransactionService with locking
  */
@@ -56,38 +54,10 @@ public class RefundService {
     private final RefundTransactionService refundTransactionService;
 
     /**
-     * Load refund context with all needed data.
-     *
-     * WHY SEPARATE METHOD?
-     * - RefundService.createRefund is NOT @Transactional (Stripe call outside)
-     * - Accessing lazy relationships outside transaction throws LazyInitializationException
-     * - This method loads all needed data in ONE transaction with JOIN FETCH
-     *
-     * @param paymentId Payment ID
-     * @param userId User ID for authorization
-     * @return RefundContext snapshot
-     */
-    @Transactional(readOnly = true)
-    public RefundContext loadRefundContext(Long paymentId, Long userId) {
-        Payment payment = paymentRepository.findByIdWithOrderAndRefunds(paymentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
-
-        return new RefundContext(
-                payment.getId(),
-                payment.getStripePaymentIntentId(),
-                payment.getAmount(),
-                payment.getOrder().getId(),
-                payment.getOrder().getStatus(),
-                payment.getOrder().getCustomer().getId(),
-                calculateTotalRefunded(payment)
-        );
-    }
-
-    /**
      * Create a refund for a payment.
      *
      * FLOW:
-     * 1. Load context (transactional read with all needed data)
+     * 1. Load context (transactional read via RefundTransactionService)
      * 2. Validate ownership and status from snapshot
      * 3. Validate refund amount from snapshot
      * 4. Create Stripe Refund (OUTSIDE transaction)
@@ -96,8 +66,8 @@ public class RefundService {
      * 7. Publish RefundProcessedEvent
      *
      * IMPORTANT: Uses RefundContext snapshot to avoid LazyInitializationException.
-     * All lazy relationships are loaded in loadRefundContext(), which runs in a
-     * separate @Transactional(readOnly = true) method.
+     * loadRefundContext is called on RefundTransactionService (separate bean),
+     * so the @Transactional proxy intercepts the call properly.
      *
      * @param userId Current user ID (for authorization)
      * @param paymentId Payment to refund
@@ -109,20 +79,23 @@ public class RefundService {
         log.info("Creating refund for payment {} by user {}, amount={}",
                 paymentId, userId, amountCents != null ? amountCents : "full");
 
-        // Step 1: Load context transactionally (all lazy data loaded here)
-        RefundContext context = loadRefundContext(paymentId, userId);
+        // Step 1: Load context transactionally via separate bean (proxy intercepts)
+        // IMPORTANT: Call refundTransactionService, not this.loadRefundContext()
+        // Self-invocation bypasses Spring proxy and @Transactional is ignored
+        RefundContext context = refundTransactionService.loadRefundContext(paymentId, userId);
 
         // Step 2: Validate ownership from snapshot (no lazy loading)
         if (!context.isOwnedBy(userId)) {
             throw new BusinessRuleViolationException("Refund", "You can only refund your own payments");
         }
 
-        // Business rule: only PAID orders can be refunded
+        // Business rule: only PAID orders with SUCCEEDED payments can be refunded
         if (!context.isRefundable()) {
             throw new PaymentException(
-                    "Order status",
-                    "Only paid orders can be refunded. Current status: " + context.orderStatus(),
-                    null
+                    "Payment status",
+                    String.format("Only succeeded payments on paid orders can be refunded. " +
+                            "Payment: %s, Order: %s", context.paymentStatus(), context.orderStatus()),
+                    context.paymentStatus()
             );
         }
 

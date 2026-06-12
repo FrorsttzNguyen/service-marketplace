@@ -1,6 +1,8 @@
 package com.hien.marketplace.application.service;
 
+import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
+import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.order.Order;
 import com.hien.marketplace.domain.payment.Payment;
@@ -31,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * ARCHITECTURE:
  * - RefundService: orchestrates flow, Stripe API calls (non-transactional)
- * - RefundTransactionService: DB mutations only (transactional)
+ * - RefundTransactionService: DB mutations and reads (transactional)
  *
  * CONCURRENT SAFETY:
  * - Uses pessimistic locking (SELECT FOR UPDATE) on Payment
@@ -47,6 +49,36 @@ public class RefundTransactionService {
     private final RefundRepository refundRepository;
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * Load refund context with all needed data transactionally.
+     *
+     * WHY IN THIS SERVICE (not RefundService)?
+     * - Spring @Transactional uses proxy-based AOP
+     * - Self-invocation (this.method()) bypasses the proxy
+     * - If RefundService calls its own @Transactional method, it's ignored
+     * - By moving here, RefundService calls another bean → proxy intercepts → transaction works
+     *
+     * @param paymentId Payment ID
+     * @param userId User ID for authorization
+     * @return RefundContext snapshot with all needed data
+     */
+    @Transactional(readOnly = true)
+    public RefundContext loadRefundContext(Long paymentId, Long userId) {
+        Payment payment = paymentRepository.findByIdWithOrderAndRefunds(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
+
+        return new RefundContext(
+                payment.getId(),
+                payment.getStripePaymentIntentId(),
+                payment.getStatus(),
+                payment.getAmount(),
+                payment.getOrder().getId(),
+                payment.getOrder().getStatus(),
+                payment.getOrder().getCustomer().getId(),
+                calculateAlreadyRefunded(payment)
+        );
+    }
 
     /**
      * Create Refund and update Order if full refund, atomically.
@@ -104,12 +136,15 @@ public class RefundTransactionService {
         refund = refundRepository.save(refund);
 
         // Update order status if full refund
-        boolean isFullRefund = refundAmount.equals(payment.getAmount());
+        // IMPORTANT: Check cumulative total, not just this refund amount
+        // Two partial refunds summing to full should also trigger order.refund()
+        Money totalAfterRefund = alreadyRefunded.add(refundAmount);
+        boolean isFullRefund = totalAfterRefund.equals(payment.getAmount());
         if (isFullRefund) {
             Order order = payment.getOrder();
             order.refund();
             orderRepository.save(order); // EXPLICIT save - Payment.order has NO cascade
-            log.info("Order {} marked as REFUNDED (full refund)", order.getId());
+            log.info("Order {} marked as REFUNDED (full refund - total: {})", order.getId(), totalAfterRefund);
         }
 
         // Publish domain event (within transaction)

@@ -136,6 +136,7 @@ class RefundServiceTest {
         return new RefundContext(
                 payment.getId(),
                 payment.getStripePaymentIntentId(),
+                payment.getStatus(),
                 payment.getAmount(),
                 payment.getOrder().getId(),
                 payment.getOrder().getStatus(),
@@ -152,9 +153,9 @@ class RefundServiceTest {
 
         @Test
         void shouldSucceedForFullRefund() throws StripeException {
-            // Setup - mock loadRefundContext
+            // Setup - mock loadRefundContext via RefundTransactionService
             RefundContext context = createRefundContext(payment, Money.of(0));
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
@@ -180,8 +181,9 @@ class RefundServiceTest {
 
         @Test
         void shouldSucceedForPartialRefund() throws StripeException {
-            // Setup - mock loadRefundContext
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
@@ -207,8 +209,9 @@ class RefundServiceTest {
 
         @Test
         void shouldUpdateOrderStatusOnFullRefund() throws StripeException {
-            // Setup - mock loadRefundContext
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
@@ -233,8 +236,9 @@ class RefundServiceTest {
 
         @Test
         void shouldNotUpdateOrderStatusOnPartialRefund() throws StripeException {
-            // Setup - mock loadRefundContext
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
@@ -257,7 +261,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenPaymentNotFound() {
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.empty());
+            when(refundTransactionService.loadRefundContext(1L, 1L))
+                    .thenThrow(new ResourceNotFoundException("Payment", 1L));
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, null, "Refund"))
                     .isInstanceOf(ResourceNotFoundException.class)
@@ -266,8 +271,10 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenNotPaymentOwner() {
-            // Load context with customer ID 1
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            // Load context with customer ID 1 (payment belongs to customer 1)
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            // When user 2 tries to refund, loadRefundContext is called with (paymentId=1L, userId=2L)
+            when(refundTransactionService.loadRefundContext(1L, 2L)).thenReturn(context);
 
             // Try to refund as user 2 (not owner)
             assertThatThrownBy(() -> refundService.createRefund(2L, 1L, null, "Refund"))
@@ -284,24 +291,30 @@ class RefundServiceTest {
             when(unpaidOrder.getStatus()).thenReturn(OrderStatus.CREATED);
             when(unpaidOrder.getCustomer()).thenReturn(customer);
 
-            // Create payment for this order
+            // Create payment for this order (SUCCEEDED status)
             Payment paymentForUnpaidOrder = spy(new Payment(unpaidOrder, Money.of(11000)));
             when(paymentForUnpaidOrder.getId()).thenReturn(1L);
+            when(paymentForUnpaidOrder.getStatus()).thenReturn(PaymentStatus.SUCCEEDED);
             when(paymentForUnpaidOrder.getAmount()).thenReturn(Money.of(11000));
             when(paymentForUnpaidOrder.getStripePaymentIntentId()).thenReturn("pi_test123");
             when(paymentForUnpaidOrder.getOrder()).thenReturn(unpaidOrder);
             when(paymentForUnpaidOrder.getRefunds()).thenReturn(new ArrayList<>());
 
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(paymentForUnpaidOrder));
+            RefundContext context = new RefundContext(
+                    1L, "pi_test123", PaymentStatus.SUCCEEDED, Money.of(11000),
+                    2L, OrderStatus.CREATED, 1L, Money.of(0)
+            );
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, null, "Refund"))
                     .isInstanceOf(PaymentException.class)
-                    .hasMessageContaining("Only paid orders can be refunded");
+                    .hasMessageContaining("Only succeeded payments on paid orders can be refunded");
         }
 
         @Test
         void shouldThrowWhenRefundAmountExceedsPayment() throws StripeException {
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             // Payment amount is 11000, try to refund 15000
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, 15000L, "Too much"))
@@ -311,7 +324,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenRefundAmountIsZero() {
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, 0L, "Zero amount"))
                     .isInstanceOf(PaymentException.class)
@@ -320,7 +334,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenRefundAmountIsNegative() {
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             // Money.of() throws IllegalArgumentException for negative amounts
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, -100L, "Negative amount"))
@@ -330,7 +345,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenStripeApiFails() throws StripeException {
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             StripeException stripeException = mock(StripeException.class);
             when(stripeException.getMessage()).thenReturn("API error");
@@ -349,7 +365,8 @@ class RefundServiceTest {
             existingRefund.markAsSucceeded();
             when(payment.getRefunds()).thenReturn(new ArrayList<>(java.util.List.of(existingRefund)));
 
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(5000));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             // Try to refund another 7000 (5000 + 7000 = 12000 > 11000)
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, 7000L, "Second refund"))
@@ -364,7 +381,8 @@ class RefundServiceTest {
             existingRefund.markAsSucceeded();
             when(payment.getRefunds()).thenReturn(new ArrayList<>(java.util.List.of(existingRefund)));
 
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(5000));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test456");
@@ -471,7 +489,9 @@ class RefundServiceTest {
 
         @Test
         void createRefundRequiresPaymentOwnership() {
-            when(paymentRepository.findByIdWithOrderAndRefunds(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            // When user 999 tries to refund, loadRefundContext is called with (paymentId=1L, userId=999L)
+            when(refundTransactionService.loadRefundContext(1L, 999L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(999L, 1L, null, "Refund"))
                     .isInstanceOf(BusinessRuleViolationException.class)
