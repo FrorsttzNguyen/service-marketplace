@@ -73,6 +73,9 @@ class PaymentServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private PaymentTransactionService paymentTransactionService;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -132,8 +135,8 @@ class PaymentServiceTest {
             Payment savedPayment = new Payment(order, Money.of(11000));
             savedPayment = spy(savedPayment);
             when(savedPayment.getId()).thenReturn(1L);
-            when(paymentRepository.save(any(Payment.class))).thenReturn(savedPayment);
-            when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(savedPayment));
+            when(paymentTransactionService.createPaymentWithOrderUpdate(any(), anyString(), anyString()))
+                    .thenReturn(savedPayment);
 
             // Execute
             String clientSecret = paymentService.createPayment(1L, 1L, "card");
@@ -141,8 +144,7 @@ class PaymentServiceTest {
             // Verify
             assertThat(clientSecret).isEqualTo("cs_test123_secret");
             verify(stripeClient).createPaymentIntent(any(Money.class), eq(1L));
-            verify(paymentRepository).save(any(Payment.class));
-            verify(orderRepository).save(any(Order.class));
+            verify(paymentTransactionService).createPaymentWithOrderUpdate(any(), eq("pi_test123"), eq("card"));
         }
 
         @Test

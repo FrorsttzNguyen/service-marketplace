@@ -75,6 +75,9 @@ class RefundServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private RefundTransactionService refundTransactionService;
+
     @InjectMocks
     private RefundService refundService;
 
@@ -142,14 +145,12 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(null))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save (which has markAsSucceeded called)
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                // Set ID on the refund
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
-            when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
+            Refund savedRefund = new Refund(payment, payment.getAmount(), "Full refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(1L);
+            when(refundTransactionService.createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test123")))
+                    .thenReturn(savedRefund);
 
             // Execute
             Refund result = refundService.createRefund(1L, 1L, null, "Full refund");
@@ -159,7 +160,7 @@ class RefundServiceTest {
             assertThat(result.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
             assertThat(result.getAmount()).isEqualTo(payment.getAmount());
             verify(stripeClient).createRefund("pi_test123", null); // null = full refund
-            verify(eventPublisher).publishEvent(any(RefundProcessedEvent.class));
+            verify(refundTransactionService).createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test123"));
         }
 
         @Test
@@ -171,12 +172,12 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(5000L))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
+            Refund savedRefund = new Refund(payment, Money.of(5000), "Partial refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(1L);
+            when(refundTransactionService.createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test123")))
+                    .thenReturn(savedRefund);
 
             // Execute
             Refund result = refundService.createRefund(1L, 1L, 5000L, "Partial refund");
@@ -186,7 +187,7 @@ class RefundServiceTest {
             assertThat(result.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
             assertThat(result.getAmount()).isEqualTo(Money.of(5000));
             verify(stripeClient).createRefund("pi_test123", 5000L);
-            verify(eventPublisher).publishEvent(any(RefundProcessedEvent.class));
+            verify(refundTransactionService).createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test123"));
         }
 
         @Test
@@ -198,13 +199,15 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(null))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
-            when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
+            // Mock the transaction service to update order status
+            final Refund savedRefund = new Refund(payment, payment.getAmount(), "Full refund");
+            savedRefund.markAsSucceeded();
+            when(refundTransactionService.createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test123")))
+                    .thenAnswer(invocation -> {
+                        // Simulate the order status update that happens in transaction service
+                        payment.getOrder().refund();
+                        return savedRefund;
+                    });
 
             // Execute
             refundService.createRefund(1L, 1L, null, "Full refund");
@@ -222,12 +225,13 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(5000L))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
+            // Mock the transaction service (partial refund doesn't update order)
+            Refund savedRefund = new Refund(payment, Money.of(5000), "Partial refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(1L);
+            when(refundTransactionService.createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test123")))
+                    .thenReturn(savedRefund);
 
             // Execute
             refundService.createRefund(1L, 1L, 5000L, "Partial refund");
@@ -338,12 +342,12 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test456");
             when(stripeClient.createRefund(eq("pi_test123"), eq(6000L))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(2L);
-                return refundToSave;
-            });
+            Refund savedRefund = new Refund(payment, Money.of(6000), "Second refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(2L);
+            when(refundTransactionService.createRefundWithOrderUpdate(any(), any(), anyString(), eq("re_test456")))
+                    .thenReturn(savedRefund);
 
             // Execute: refund 6000 more (5000 + 6000 = 11000 = payment amount, allowed)
             Refund result = refundService.createRefund(1L, 1L, 6000L, "Second refund");

@@ -26,7 +26,7 @@ import java.util.Optional;
  *
  * ARCHITECTURE PATTERN:
  * - Stripe API calls OUTSIDE @Transactional (network I/O)
- * - Database operations INSIDE @Transactional
+ * - Database operations INSIDE @Transactional (via PaymentTransactionService)
  *
  * WHY this pattern?
  * 1. Network I/O should never hold database transactions open
@@ -38,10 +38,14 @@ import java.util.Optional;
  *    - If Stripe succeeds but DB rolls back = orphan PaymentIntent
  *    - If Stripe fails, DB doesn't commit = clean state
  *
+ * 3. Transaction semantics
+ *    - Self-invocation of @Transactional methods doesn't work (Spring proxy limitation)
+ *    - DB mutations moved to PaymentTransactionService for proper transaction boundary
+ *
  * FLOW for createPayment:
  * 1. Validate order (transactional read)
  * 2. Create Stripe PaymentIntent (OUTSIDE transaction)
- * 3. Save Payment with intent ID (INSIDE transaction)
+ * 3. Save Payment with intent ID (INSIDE transaction via PaymentTransactionService)
  * 4. Return client secret for frontend
  */
 @Service
@@ -53,6 +57,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final StripeClient stripeClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final PaymentTransactionService paymentTransactionService;
 
     /**
      * Create a payment for an order.
@@ -107,36 +112,15 @@ public class PaymentService {
         }
 
         // Step 3: Create local Payment and update order (INSIDE transaction)
-        Payment payment = createPaymentWithOrderUpdate(order, paymentIntent.getId(), paymentMethod);
+        // Uses PaymentTransactionService for proper transaction boundary via Spring proxy
+        Payment payment = paymentTransactionService.createPaymentWithOrderUpdate(
+                order, paymentIntent.getId(), paymentMethod);
 
         log.info("Payment created successfully: paymentId={}, intentId={}",
                 payment.getId(), paymentIntent.getId());
 
         // Return client secret for Stripe.js
         return paymentIntent.getClientSecret();
-    }
-
-    /**
-     * Create Payment entity and update Order status.
-     *
-     * This is a separate @Transactional method to ensure
-     * database operations are atomic.
-     */
-    @Transactional
-    protected Payment createPaymentWithOrderUpdate(Order order, String paymentIntentId, String paymentMethod) {
-        // Create Payment entity
-        Payment payment = new Payment(order, order.getTotal());
-        payment.setStripePaymentIntentId(paymentIntentId);
-        payment.setPaymentMethod(paymentMethod);
-        payment.markAsProcessing();
-
-        payment = paymentRepository.save(payment);
-
-        // Update order status
-        order.markAsPendingPayment();
-        orderRepository.save(order);
-
-        return payment;
     }
 
     /**

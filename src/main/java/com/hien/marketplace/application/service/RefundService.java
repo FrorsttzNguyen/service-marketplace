@@ -23,7 +23,7 @@ import java.math.BigDecimal;
  *
  * ARCHITECTURE PATTERN:
  * - Stripe API calls OUTSIDE @Transactional
- * - Database operations INSIDE @Transactional
+ * - Database operations INSIDE @Transactional (via RefundTransactionService)
  *
  * REFUND TYPES:
  * - Full refund: Refund entire payment amount
@@ -33,6 +33,10 @@ import java.math.BigDecimal;
  * - Only SUCCEEDED payments can be refunded
  * - Total refunds cannot exceed payment amount
  * - Partial refunds must have positive amount
+ *
+ * TRANSACTION SEMANTICS:
+ * - Self-invocation of @Transactional methods doesn't work (Spring proxy limitation)
+ * - DB mutations moved to RefundTransactionService for proper transaction boundary
  */
 @Service
 @RequiredArgsConstructor
@@ -43,6 +47,7 @@ public class RefundService {
     private final RefundRepository refundRepository;
     private final StripeClient stripeClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final RefundTransactionService refundTransactionService;
 
     /**
      * Create a refund for a payment.
@@ -105,7 +110,9 @@ public class RefundService {
         }
 
         // Step 3: Create local Refund (INSIDE transaction)
-        com.hien.marketplace.domain.payment.Refund refund = createRefundWithOrderUpdate(payment, refundAmount, reason, stripeRefund.getId());
+        // Uses RefundTransactionService for proper transaction boundary via Spring proxy
+        com.hien.marketplace.domain.payment.Refund refund = refundTransactionService.createRefundWithOrderUpdate(
+                payment, refundAmount, reason, stripeRefund.getId());
 
         log.info("Refund created successfully: refundId={}, stripeRefundId={}",
                 refund.getId(), stripeRefund.getId());
@@ -148,33 +155,6 @@ public class RefundService {
                 .filter(r -> r.getStatus() == RefundStatus.SUCCEEDED)
                 .map(com.hien.marketplace.domain.payment.Refund::getAmount)
                 .reduce(Money.of(0), Money::add);
-    }
-
-    /**
-     * Create Refund entity and update Order if full refund.
-     */
-    @Transactional
-    protected com.hien.marketplace.domain.payment.Refund createRefundWithOrderUpdate(Payment payment, Money refundAmount,
-                                                   String reason, String stripeRefundId) {
-        // Create Refund entity
-        com.hien.marketplace.domain.payment.Refund refund = new com.hien.marketplace.domain.payment.Refund(payment, refundAmount, reason);
-        refund.setStripeRefundId(stripeRefundId);
-        refund.markAsSucceeded();
-
-        refund = refundRepository.save(refund);
-
-        // Update order status if full refund
-        boolean isFullRefund = refundAmount.equals(payment.getAmount());
-        if (isFullRefund) {
-            payment.getOrder().refund();
-            paymentRepository.save(payment); // Cascades to order
-            log.info("Order {} marked as REFUNDED (full refund)", payment.getOrder().getId());
-        }
-
-        // Publish domain event
-        eventPublisher.publishEvent(RefundProcessedEvent.from(refund));
-
-        return refund;
     }
 
     /**
