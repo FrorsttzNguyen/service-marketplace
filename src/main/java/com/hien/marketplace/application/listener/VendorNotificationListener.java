@@ -4,8 +4,10 @@ import com.hien.marketplace.application.event.BookingCancelledEvent;
 import com.hien.marketplace.application.event.BookingConfirmedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Listener for vendor notifications.
@@ -15,14 +17,19 @@ import org.springframework.stereotype.Component;
  * - Dashboard updates
  * - Calendar sync
  *
- * WHY @EventListener: Simple synchronous event handling.
- * - Runs in same thread as event publisher
- * - Good for lightweight operations like logging
+ * WHY @TransactionalEventListener(phase = AFTER_COMMIT):
+ * - Runs AFTER transaction commits successfully
+ * - If notification fails, booking is still saved (transaction already committed)
+ * - Prevents "notification failure causes booking rollback" problem
  *
- * For production: Use @TransactionalEventListener for async processing:
- * @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
- * - Runs after transaction commits
- * - Notification doesn't affect transaction rollback
+ * WHY @Async:
+ * - Runs in separate thread, non-blocking
+ * - Main transaction thread returns immediately
+ * - Notification processing doesn't slow down API response
+ *
+ * Phase 3 Fix: Implements async event processing as documented.
+ * Previous: @EventListener (synchronous, runs during transaction)
+ * Now: @TransactionalEventListener + @Async (async, runs after commit)
  */
 @Slf4j
 @Component
@@ -35,9 +42,10 @@ public class VendorNotificationListener {
      * WHY: Vendor should know when their bookings are confirmed.
      * In production: Send email/SMS notification.
      */
-    @EventListener
+    @Async("eventTaskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBookingConfirmed(BookingConfirmedEvent event) {
-        log.info("Vendor Notification: Booking {} confirmed for service '{}'",
+        log.info("[Async] Vendor Notification: Booking {} confirmed for service '{}'",
                 event.bookingId(), event.serviceTitle());
 
         log.info("  → Vendor: {} (Email: {})", event.vendorName(), event.vendorEmail());
@@ -58,9 +66,10 @@ public class VendorNotificationListener {
      * WHY: Vendor should know when bookings are cancelled.
      * Important for calendar management and potential refund processing.
      */
-    @EventListener
+    @Async("eventTaskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBookingCancelled(BookingCancelledEvent event) {
-        log.info("Vendor Notification: Booking {} cancelled for service '{}'",
+        log.info("[Async] Vendor Notification: Booking {} cancelled for service '{}'",
                 event.bookingId(), event.serviceTitle());
 
         log.info("  → Vendor: {}", event.vendorName());
