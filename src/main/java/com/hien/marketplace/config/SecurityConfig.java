@@ -76,6 +76,8 @@ public class SecurityConfig {
                                 ).permitAll()
 
                                 // Vendor-only endpoints - requires VENDOR role
+                                // IMPORTANT: /api/bookings/vendor must come BEFORE /api/** catch-all
+                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings/vendor").hasRole("VENDOR")
                                 .requestMatchers("/api/vendor/**").hasRole("VENDOR")
 
                                 // Admin-only endpoints - requires ADMIN role

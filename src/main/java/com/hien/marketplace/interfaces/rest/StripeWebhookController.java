@@ -71,12 +71,14 @@ public class StripeWebhookController {
      * Signature verification requires exact payload bytes.
      *
      * ERROR HANDLING:
+     * - Missing signature header → 400 (Stripe won't retry)
      * - Invalid signature → 400 (Stripe won't retry)
+     * - Malformed payload → 400 (Stripe won't retry)
      * - Processing failure → 500 (Stripe will retry)
      * - Duplicate event → 200 (already processed)
      *
      * @param payload Raw request body (JSON string)
-     * @param sigHeader Stripe-Signature header value
+     * @param sigHeader Stripe-Signature header value (optional for manual validation)
      * @return 200 OK on success, 400 on invalid signature, 500 on processing error
      */
     @PostMapping("/stripe")
@@ -87,9 +89,15 @@ public class StripeWebhookController {
     )
     public ResponseEntity<Void> handleStripeWebhook(
             @RequestBody String payload,
-            @RequestHeader("Stripe-Signature") String sigHeader
+            @RequestHeader(value = "Stripe-Signature", required = false) String sigHeader
     ) {
         log.debug("Received Stripe webhook");
+
+        // Step 0: Validate header presence
+        if (sigHeader == null || sigHeader.isBlank()) {
+            log.warn("Missing Stripe-Signature header");
+            return ResponseEntity.badRequest().build();
+        }
 
         try {
             // Step 1: Verify signature (CRITICAL for security)
@@ -106,7 +114,7 @@ public class StripeWebhookController {
             // Invalid signature or malformed payload → 400
             // Stripe will NOT retry on 4xx
             log.error("Invalid Stripe webhook signature: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.badRequest().build();
 
         } catch (Exception e) {
             // Valid webhook but processing failed → 500

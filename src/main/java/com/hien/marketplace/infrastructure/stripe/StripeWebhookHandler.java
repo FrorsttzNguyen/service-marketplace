@@ -3,18 +3,12 @@ package com.hien.marketplace.infrastructure.stripe;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.application.exception.StripeApiException;
 import com.hien.marketplace.application.service.PaymentService;
-import com.hien.marketplace.domain.payment.events.PaymentFailedEvent;
-import com.hien.marketplace.domain.payment.events.PaymentSucceededEvent;
-import com.hien.marketplace.infrastructure.persistence.stripe.StripeEventLog;
-import com.hien.marketplace.infrastructure.persistence.stripe.StripeEventLogRepository;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
 import com.stripe.net.Webhook;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
  * 1. Verify Stripe signature (security)
  * 2. Ensure idempotent processing (deduplication)
  * 3. Dispatch events to appropriate handlers
- * 4. Publish domain events for async processing
  *
  * CRITICAL: Webhook endpoint is PUBLIC (no JWT authentication).
  * Security comes from signature verification using webhook secret.
@@ -33,16 +26,15 @@ import org.springframework.transaction.annotation.Transactional;
  * IDEMPOTENCY PATTERN:
  * 1. Receive webhook
  * 2. Verify signature
- * 3. Try INSERT into stripe_event_log (primary key = event ID)
- *    - Success: process event
- *    - Duplicate key: already processed, return success
+ * 3. Use INSERT ... ON CONFLICT DO NOTHING (PostgreSQL-native)
+ *    - Returns 1 row = new event, proceed to process
+ *    - Returns 0 rows = duplicate, skip cleanly (return 200)
  * 4. Process event and update domain
  * 5. Return 200 OK
  *
- * WHY @Transactional on processEvent():
- * - Ensures event log INSERT and domain UPDATE are atomic
- * - If domain update fails, event log INSERT rolls back
- * - Next webhook delivery will retry
+ * IMPORTANT: Idempotency check uses REQUIRES_NEW transaction
+ * to avoid PostgreSQL transaction abort issues on duplicate key.
+ * See StripeEventIdempotencyChecker for details.
  */
 @Component
 @RequiredArgsConstructor
@@ -50,8 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class StripeWebhookHandler {
 
     private final StripeConfig stripeConfig;
-    private final StripeEventLogRepository eventLogRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final StripeEventIdempotencyChecker idempotencyChecker;
     private final PaymentService paymentService;
 
     /**
@@ -83,11 +74,11 @@ public class StripeWebhookHandler {
      * IDEMPOTENCY: Ensures each event is processed exactly once,
      * even if Stripe delivers it multiple times.
      *
-     * TRANSACTION SEMANTICS:
-     * - Event log INSERT and domain UPDATE are in same transaction
-     * - If domain update fails for SUPPORTED events, exception is rethrown
-     * - Transaction rolls back, including event log INSERT
-     * - Stripe will retry the webhook
+     * FLOW:
+     * 1. Check idempotency in separate transaction (REQUIRES_NEW)
+     * 2. If duplicate, return early (200 OK)
+     * 3. Process supported events
+     * 4. Let exceptions propagate for Stripe retry
      *
      * @param event Verified Stripe event
      */
@@ -98,20 +89,16 @@ public class StripeWebhookHandler {
 
         log.info("Processing Stripe event: id={}, type={}", eventId, eventType);
 
-        // IDEMPOTENCY: Log event to prevent duplicate processing
-        // Use saveAndFlush to detect duplicate immediately, not at transaction commit
-        try {
-            eventLogRepository.saveAndFlush(new StripeEventLog(eventId, eventType));
-            log.debug("Event {} logged successfully", eventId);
-        } catch (DataIntegrityViolationException e) {
-            // Primary key violation = event already processed
-            log.info("Event {} already processed, skipping", eventId);
+        // IDEMPOTENCY: Check and log event in separate transaction
+        // Uses PostgreSQL ON CONFLICT DO NOTHING for safe duplicate detection
+        if (!idempotencyChecker.checkAndLogEvent(eventId, eventType)) {
+            // Already processed, skip cleanly
             return;
         }
 
         // Dispatch to appropriate handler based on event type
         // IMPORTANT: Do NOT catch and swallow exceptions from supported events
-        // Let them propagate to trigger transaction rollback and Stripe retry
+        // Let them propagate to trigger Stripe retry
         switch (eventType) {
             case "payment_intent.succeeded" -> handlePaymentIntentSucceeded(event);
             case "payment_intent.payment_failed" -> handlePaymentIntentPaymentFailed(event);
@@ -132,6 +119,11 @@ public class StripeWebhookHandler {
      * IMPORTANT: This is a SUPPORTED event. Exceptions will be propagated
      * to processEvent() and cause transaction rollback + Stripe retry.
      *
+     * CROSS-ENVIRONMENT HANDLING:
+     * If Payment not found (e.g., webhook from test environment hitting prod),
+     * we log a warning and throw to trigger Stripe retry. This is intentional
+     * because a real payment success should have a corresponding local Payment.
+     *
      * Separation of concerns:
      * - WebhookHandler: signature verification, idempotency, dispatching
      * - PaymentService: domain logic, status updates, event publishing
@@ -149,8 +141,15 @@ public class StripeWebhookHandler {
         log.info("PaymentIntent {} succeeded, triggering payment update", paymentIntentId);
 
         // Call PaymentService to update domain state
-        // This will throw if payment not found or update fails
-        paymentService.handlePaymentSucceeded(paymentIntentId);
+        // If payment not found, this throws ResourceNotFoundException
+        // and triggers Stripe retry - intentional for cross-environment detection
+        try {
+            paymentService.handlePaymentSucceeded(paymentIntentId);
+        } catch (ResourceNotFoundException e) {
+            log.warn("Payment not found for PaymentIntent {} - may be from different environment. " +
+                    "Event will be retried by Stripe.", paymentIntentId);
+            throw e;
+        }
     }
 
     /**
@@ -164,6 +163,9 @@ public class StripeWebhookHandler {
      *
      * IMPORTANT: This is a SUPPORTED event. Exceptions will be propagated
      * to processEvent() and cause transaction rollback + Stripe retry.
+     *
+     * CROSS-ENVIRONMENT HANDLING:
+     * If Payment not found, log warning and throw to trigger retry.
      */
     private void handlePaymentIntentPaymentFailed(Event event) {
         log.info("Handling payment_intent.payment_failed event");
@@ -183,8 +185,14 @@ public class StripeWebhookHandler {
                 paymentIntentId, failureReason, failureCode);
 
         // Call PaymentService to update domain state
-        // This will throw if payment not found or update fails
-        paymentService.handlePaymentFailed(paymentIntentId, failureReason, failureCode);
+        // If payment not found, throw to trigger Stripe retry
+        try {
+            paymentService.handlePaymentFailed(paymentIntentId, failureReason, failureCode);
+        } catch (ResourceNotFoundException e) {
+            log.warn("Payment not found for PaymentIntent {} - may be from different environment. " +
+                    "Event will be retried by Stripe.", paymentIntentId);
+            throw e;
+        }
     }
 
     /**

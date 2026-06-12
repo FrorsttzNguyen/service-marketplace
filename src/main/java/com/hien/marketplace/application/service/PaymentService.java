@@ -63,12 +63,16 @@ public class PaymentService {
      * Create a payment for an order.
      *
      * FLOW:
-     * 1. Validate order ownership and status
-     * 2. Check payment doesn't already exist
-     * 3. Create Stripe PaymentIntent (OUTSIDE transaction)
-     * 4. Create local Payment with PaymentIntent ID (INSIDE transaction)
-     * 5. Update order status to PENDING_PAYMENT
-     * 6. Return client secret for Stripe.js
+     * 1. Quick pre-validation (ownership, status) - can race
+     * 2. Create Stripe PaymentIntent (OUTSIDE transaction)
+     * 3. Create local Payment with locking (INSIDE transaction)
+     *    - Pessimistic lock on Order
+     *    - DB unique constraint catches duplicates
+     * 4. Return client secret for Stripe.js
+     *
+     * RACE CONDITION HANDLING:
+     * - Pre-validation before Stripe is for UX (fast fail)
+     * - Real safety is in transaction service (locking + unique constraint)
      *
      * @param userId Current user ID (for authorization)
      * @param orderId Order to pay for
@@ -78,16 +82,17 @@ public class PaymentService {
     public String createPayment(Long userId, Long orderId, String paymentMethod) {
         log.info("Creating payment for order {} by user {}", orderId, userId);
 
-        // Step 1: Validate order (read-only, no transaction needed yet)
+        // Step 1: Quick pre-validation (read-only, can race)
+        // Real validation happens inside transaction with locking
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
 
-        // Authorization: only order owner can pay
+        // Pre-check authorization (fast fail for UX)
         if (!order.getCustomer().getId().equals(userId)) {
             throw new BusinessRuleViolationException("Payment", "You can only pay for your own orders");
         }
 
-        // Business rule: order must be in CREATED status
+        // Pre-check status (fast fail for UX)
         if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessRuleViolationException(
                     "Order status",
@@ -95,7 +100,7 @@ public class PaymentService {
             );
         }
 
-        // Check if payment already exists for this order
+        // Pre-check duplicate (fast fail for UX)
         if (paymentRepository.existsByOrderId(orderId)) {
             throw new DuplicateResourceException("Payment", "orderId", orderId);
         }
@@ -112,9 +117,10 @@ public class PaymentService {
         }
 
         // Step 3: Create local Payment and update order (INSIDE transaction)
-        // Uses PaymentTransactionService for proper transaction boundary via Spring proxy
+        // Uses PaymentTransactionService for proper transaction boundary
+        // Pessimistic locking + DB unique constraint provide real safety
         Payment payment = paymentTransactionService.createPaymentWithOrderUpdate(
-                order, paymentIntent.getId(), paymentMethod);
+                userId, orderId, paymentIntent.getId(), paymentMethod);
 
         log.info("Payment created successfully: paymentId={}, intentId={}",
                 payment.getId(), paymentIntent.getId());
@@ -215,25 +221,26 @@ public class PaymentService {
     /**
      * Get payment by order ID.
      *
-     * Authorization: Only order owner can view payment.
+     * AUTHORIZATION POLICY:
+     * - Returns 404 if payment not found OR user doesn't own the order
+     * - This prevents leaking existence of other users' payments
+     * - Both "not found" and "unauthorized" return empty Optional (identical response)
+     *
+     * WHY NOT THROW ON UNAUTHORIZED?
+     * - Throwing BusinessRuleViolationException returns 422
+     * - Returning empty Optional returns 404
+     * - If we throw 422 for unauthorized but 404 for not found, attacker can
+     *   determine if another user's order has a payment (information leak)
+     * - Both cases return empty Optional → 404 → no leak
      *
      * @param userId Current user ID (for authorization)
      * @param orderId Order ID
-     * @return Payment if found and user owns the order
-     * @throws BusinessRuleViolationException if user doesn't own the order
+     * @return Payment if found and user owns the order, empty otherwise
      */
     @Transactional(readOnly = true)
     public Optional<Payment> getPaymentByOrderId(Long userId, Long orderId) {
-        return paymentRepository.findByOrderId(orderId)
-                .map(payment -> {
-                    // Authorization: only order owner can view payment
-                    if (!payment.getOrder().getCustomer().getId().equals(userId)) {
-                        throw new BusinessRuleViolationException(
-                                "Payment",
-                                "You can only view payments for your own orders"
-                        );
-                    }
-                    return payment;
-                });
+        // Query by both orderId AND customerId - unauthorized returns empty
+        // This is intentionally identical to "not found" (no information leak)
+        return paymentRepository.findByOrderIdAndOrderCustomerId(orderId, userId);
     }
 }

@@ -1,5 +1,6 @@
 package com.hien.marketplace.application.service;
 
+import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.payment.Payment;
@@ -37,6 +38,11 @@ import java.math.BigDecimal;
  * TRANSACTION SEMANTICS:
  * - Self-invocation of @Transactional methods doesn't work (Spring proxy limitation)
  * - DB mutations moved to RefundTransactionService for proper transaction boundary
+ *
+ * LAZY LOADING SAFE PATTERN:
+ * - RefundContext snapshot loaded transactionally (loadRefundContext)
+ * - Snapshot used for validation and Stripe call (no lazy loading outside tx)
+ * - Final write via RefundTransactionService with locking
  */
 @Service
 @RequiredArgsConstructor
@@ -50,15 +56,48 @@ public class RefundService {
     private final RefundTransactionService refundTransactionService;
 
     /**
+     * Load refund context with all needed data.
+     *
+     * WHY SEPARATE METHOD?
+     * - RefundService.createRefund is NOT @Transactional (Stripe call outside)
+     * - Accessing lazy relationships outside transaction throws LazyInitializationException
+     * - This method loads all needed data in ONE transaction with JOIN FETCH
+     *
+     * @param paymentId Payment ID
+     * @param userId User ID for authorization
+     * @return RefundContext snapshot
+     */
+    @Transactional(readOnly = true)
+    public RefundContext loadRefundContext(Long paymentId, Long userId) {
+        Payment payment = paymentRepository.findByIdWithOrderAndRefunds(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
+
+        return new RefundContext(
+                payment.getId(),
+                payment.getStripePaymentIntentId(),
+                payment.getAmount(),
+                payment.getOrder().getId(),
+                payment.getOrder().getStatus(),
+                payment.getOrder().getCustomer().getId(),
+                calculateTotalRefunded(payment)
+        );
+    }
+
+    /**
      * Create a refund for a payment.
      *
      * FLOW:
-     * 1. Validate payment ownership and status
-     * 2. Validate refund amount
-     * 3. Create Stripe Refund (OUTSIDE transaction)
-     * 4. Create local Refund entity (INSIDE transaction)
-     * 5. Update Order status if full refund
-     * 6. Publish RefundProcessedEvent
+     * 1. Load context (transactional read with all needed data)
+     * 2. Validate ownership and status from snapshot
+     * 3. Validate refund amount from snapshot
+     * 4. Create Stripe Refund (OUTSIDE transaction)
+     * 5. Create local Refund entity (INSIDE transaction)
+     * 6. Update Order status if full refund
+     * 7. Publish RefundProcessedEvent
+     *
+     * IMPORTANT: Uses RefundContext snapshot to avoid LazyInitializationException.
+     * All lazy relationships are loaded in loadRefundContext(), which runs in a
+     * separate @Transactional(readOnly = true) method.
      *
      * @param userId Current user ID (for authorization)
      * @param paymentId Payment to refund
@@ -70,38 +109,37 @@ public class RefundService {
         log.info("Creating refund for payment {} by user {}, amount={}",
                 paymentId, userId, amountCents != null ? amountCents : "full");
 
-        // Step 1: Validate payment
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
+        // Step 1: Load context transactionally (all lazy data loaded here)
+        RefundContext context = loadRefundContext(paymentId, userId);
 
-        // Authorization: only order owner can request refund
-        if (!payment.getOrder().getCustomer().getId().equals(userId)) {
+        // Step 2: Validate ownership from snapshot (no lazy loading)
+        if (!context.isOwnedBy(userId)) {
             throw new BusinessRuleViolationException("Refund", "You can only refund your own payments");
         }
 
-        // Business rule: only succeeded payments can be refunded
-        if (payment.getStatus() != PaymentStatus.SUCCEEDED) {
+        // Business rule: only PAID orders can be refunded
+        if (!context.isRefundable()) {
             throw new PaymentException(
-                    "Payment status",
-                    "Only succeeded payments can be refunded. Current status: " + payment.getStatus(),
-                    payment.getStatus()
+                    "Order status",
+                    "Only paid orders can be refunded. Current status: " + context.orderStatus(),
+                    null
             );
         }
 
         // Determine refund amount
         Money refundAmount = amountCents != null
                 ? Money.of(amountCents)
-                : payment.getAmount(); // Full refund
+                : context.paymentAmount(); // Full refund
 
-        // Validate refund amount
-        validateRefundAmount(payment, refundAmount);
+        // Step 3: Validate refund amount from snapshot (no lazy loading)
+        validateRefundAmount(context, refundAmount);
 
-        // Step 2: Create Stripe Refund (OUTSIDE transaction)
+        // Step 4: Create Stripe Refund (OUTSIDE transaction)
         com.stripe.model.Refund stripeRefund;
         try {
             stripeRefund = stripeClient.createRefund(
-                    payment.getStripePaymentIntentId(),
-                    refundAmount.equals(payment.getAmount()) ? null : refundAmount.getAmountCents()
+                    context.stripePaymentIntentId(),
+                    refundAmount.equals(context.paymentAmount()) ? null : refundAmount.getAmountCents()
             );
             log.info("Created Stripe Refund: {}", stripeRefund.getId());
         } catch (StripeException e) {
@@ -109,10 +147,10 @@ public class RefundService {
             throw new StripeApiException("Failed to create refund: " + e.getMessage(), e);
         }
 
-        // Step 3: Create local Refund (INSIDE transaction)
+        // Step 5: Create local Refund (INSIDE transaction with locking)
         // Uses RefundTransactionService for proper transaction boundary via Spring proxy
         com.hien.marketplace.domain.payment.Refund refund = refundTransactionService.createRefundWithOrderUpdate(
-                payment, refundAmount, reason, stripeRefund.getId());
+                context.paymentId(), refundAmount, reason, stripeRefund.getId());
 
         log.info("Refund created successfully: refundId={}, stripeRefundId={}",
                 refund.getId(), stripeRefund.getId());
@@ -126,29 +164,32 @@ public class RefundService {
      * Rules:
      * - Refund amount must be positive
      * - Total refunds cannot exceed payment amount
+     *
+     * @param context RefundContext snapshot with pre-loaded refund totals
+     * @param refundAmount Amount to refund
      */
-    private void validateRefundAmount(Payment payment, Money refundAmount) {
+    private void validateRefundAmount(RefundContext context, Money refundAmount) {
         // Refund amount must be positive
         if (refundAmount.getAmountCents() <= 0) {
             throw new PaymentException("Refund amount", "Refund amount must be positive");
         }
 
-        // Calculate already refunded amount
-        Money alreadyRefunded = calculateTotalRefunded(payment);
-
         // Total refunds cannot exceed payment
-        Money totalAfterRefund = alreadyRefunded.add(refundAmount);
-        if (totalAfterRefund.getAmountCents() > payment.getAmount().getAmountCents()) {
+        Money totalAfterRefund = context.alreadyRefunded().add(refundAmount);
+        if (totalAfterRefund.getAmountCents() > context.paymentAmount().getAmountCents()) {
             throw new PaymentException(
                     "Refund amount",
                     String.format("Total refunds (%.2f) cannot exceed payment amount (%.2f)",
-                            toDecimal(totalAfterRefund), toDecimal(payment.getAmount()))
+                            toDecimal(totalAfterRefund), toDecimal(context.paymentAmount()))
             );
         }
     }
 
     /**
      * Calculate total amount already refunded for a payment.
+     *
+     * IMPORTANT: This must be called within a transaction where
+     * payment.getRefunds() is already loaded (via JOIN FETCH).
      */
     private Money calculateTotalRefunded(Payment payment) {
         return payment.getRefunds().stream()
