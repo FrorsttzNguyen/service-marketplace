@@ -1,6 +1,8 @@
 package com.hien.marketplace.infrastructure.stripe;
 
+import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.application.exception.StripeApiException;
+import com.hien.marketplace.application.service.PaymentService;
 import com.hien.marketplace.domain.payment.events.PaymentFailedEvent;
 import com.hien.marketplace.domain.payment.events.PaymentSucceededEvent;
 import com.hien.marketplace.infrastructure.persistence.stripe.StripeEventLog;
@@ -50,6 +52,7 @@ public class StripeWebhookHandler {
     private final StripeConfig stripeConfig;
     private final StripeEventLogRepository eventLogRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final PaymentService paymentService;
 
     /**
      * Verify Stripe webhook signature.
@@ -124,23 +127,14 @@ public class StripeWebhookHandler {
      * 3. Update Order status to PAID
      * 4. Publish PaymentSucceededEvent for notifications
      *
-     * Note: Actual Payment update happens in PaymentService.handlePaymentSucceeded()
-     * which is called by this method. Separation of concerns:
+     * Separation of concerns:
      * - WebhookHandler: signature verification, idempotency, dispatching
      * - PaymentService: domain logic, status updates, event publishing
      */
     private void handlePaymentIntentSucceeded(Event event) {
         log.info("Handling payment_intent.succeeded event");
 
-        // Extract PaymentIntent from event data
-        // Stripe SDK v24+ uses event.getData() with type casting
         try {
-            String eventData = event.getData().getObject() != null
-                    ? event.getData().getObject().toString()
-                    : null;
-
-            // Extract PaymentIntent ID from event data
-            // The event data contains the full PaymentIntent JSON
             String paymentIntentId = extractPaymentIntentId(event);
 
             if (paymentIntentId == null) {
@@ -148,12 +142,17 @@ public class StripeWebhookHandler {
                 return;
             }
 
-            log.info("PaymentIntent {} succeeded", paymentIntentId);
+            log.info("PaymentIntent {} succeeded, triggering payment update", paymentIntentId);
 
-            // Note: Actual Payment update will be handled by PaymentService
-            // in the controller layer. This handler just logs and validates.
+            // Call PaymentService to update domain state
+            paymentService.handlePaymentSucceeded(paymentIntentId);
+
+        } catch (ResourceNotFoundException e) {
+            log.warn("Payment not found for PaymentIntent - may be from different environment: {}",
+                    e.getMessage());
         } catch (Exception e) {
-            log.error("Error processing payment_intent.succeeded event: {}", e.getMessage());
+            log.error("Error processing payment_intent.succeeded event: {}", e.getMessage(), e);
+            throw e; // Re-throw to trigger transaction rollback
         }
     }
 
@@ -177,11 +176,22 @@ public class StripeWebhookHandler {
                 return;
             }
 
-            log.warn("PaymentIntent {} failed", paymentIntentId);
+            // Extract failure information from event
+            String failureReason = extractFailureMessage(event);
+            String failureCode = extractFailureCode(event);
 
-            // Note: Actual Payment update will be handled by PaymentService
+            log.warn("PaymentIntent {} failed: {} (code: {})",
+                    paymentIntentId, failureReason, failureCode);
+
+            // Call PaymentService to update domain state
+            paymentService.handlePaymentFailed(paymentIntentId, failureReason, failureCode);
+
+        } catch (ResourceNotFoundException e) {
+            log.warn("Payment not found for PaymentIntent - may be from different environment: {}",
+                    e.getMessage());
         } catch (Exception e) {
-            log.error("Error processing payment_intent.payment_failed event: {}", e.getMessage());
+            log.error("Error processing payment_intent.payment_failed event: {}", e.getMessage(), e);
+            throw e; // Re-throw to trigger transaction rollback
         }
     }
 
@@ -204,5 +214,39 @@ public class StripeWebhookHandler {
             log.debug("Could not extract PaymentIntent ID: {}", e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Extract failure message from payment_intent.payment_failed event.
+     */
+    private String extractFailureMessage(Event event) {
+        try {
+            if (event.getData() != null && event.getData().getObject() instanceof PaymentIntent) {
+                PaymentIntent paymentIntent = (PaymentIntent) event.getData().getObject();
+                if (paymentIntent.getLastPaymentError() != null) {
+                    return paymentIntent.getLastPaymentError().getMessage();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract failure message: {}", e.getMessage());
+        }
+        return "Unknown error";
+    }
+
+    /**
+     * Extract failure code from payment_intent.payment_failed event.
+     */
+    private String extractFailureCode(Event event) {
+        try {
+            if (event.getData() != null && event.getData().getObject() instanceof PaymentIntent) {
+                PaymentIntent paymentIntent = (PaymentIntent) event.getData().getObject();
+                if (paymentIntent.getLastPaymentError() != null) {
+                    return paymentIntent.getLastPaymentError().getCode();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract failure code: {}", e.getMessage());
+        }
+        return "unknown";
     }
 }

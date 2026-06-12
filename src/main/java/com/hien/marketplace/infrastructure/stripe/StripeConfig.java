@@ -1,6 +1,7 @@
 package com.hien.marketplace.infrastructure.stripe;
 
 import com.stripe.Stripe;
+import com.stripe.net.RequestOptions;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -50,5 +51,26 @@ public class StripeConfig {
     @PostConstruct
     public void init() {
         Stripe.apiKey = apiKey;
+    }
+
+    /**
+     * Create RequestOptions with idempotency key.
+     *
+     * WHY IDEMPOTENCY:
+     * - Prevents duplicate operations on network retry
+     * - Stripe stores idempotency keys for 24 hours
+     * - Same key = same response, even if called multiple times
+     *
+     * USAGE:
+     * - PaymentIntent creation: "order_{orderId}"
+     * - Refund creation: "refund_{orderId}_{timestamp}"
+     *
+     * @param idempotencyKey Unique key for this operation
+     * @return RequestOptions with idempotency key set
+     */
+    public RequestOptions getRequestOptions(String idempotencyKey) {
+        return RequestOptions.builder()
+                .setIdempotencyKey(idempotencyKey)
+                .build();
     }
 }

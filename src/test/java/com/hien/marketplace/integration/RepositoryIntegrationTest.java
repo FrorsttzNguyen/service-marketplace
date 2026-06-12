@@ -47,6 +47,9 @@ import static org.assertj.core.api.Assertions.*;
  * - Mỗi test chạy trong transaction, rollback sau khi test xong → tests không ảnh hưởng nhau
  * - TestEntityManager: JPA EntityManager với convenience methods cho tests
  *
+ * TODO: Migrate to TestContainers (real PostgreSQL) for production parity.
+ * H2 compatibility mode doesn't catch all PostgreSQL-specific issues (e.g., jsonb types).
+ *
  * Tại sao test repository?
  * - Verify entity mapping khớp với database schema (không lỗi JPA)
  * - Verify Spring Data derived query methods hoạt động đúng

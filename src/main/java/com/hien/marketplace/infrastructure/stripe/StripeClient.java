@@ -48,23 +48,36 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class StripeClient {
 
+    private final StripeConfig stripeConfig;
+
     /**
      * Create a PaymentIntent on Stripe.
      *
      * CRITICAL: Call this OUTSIDE @Transactional.
      *
+     * IDEMPOTENCY:
+     * - Uses orderId as idempotency key
+     * - If network timeout occurs and request is retried, Stripe returns the SAME PaymentIntent
+     * - Prevents duplicate PaymentIntents for the same order
+     * - Stripe keeps idempotency keys for 24 hours
+     *
      * @param amount Payment amount (Money value object)
-     * @param orderId Order ID for metadata (helps with reconciliation)
+     * @param orderId Order ID for metadata AND idempotency key
      * @return Stripe PaymentIntent with client_secret for frontend
      * @throws StripeException if Stripe API call fails
      */
     public PaymentIntent createPaymentIntent(Money amount, Long orderId) throws StripeException {
         log.info("Creating PaymentIntent for order {}: amount={} cents", orderId, amount.getAmountCents());
 
+        // Use orderId as idempotency key to prevent duplicate PaymentIntents
+        // Format: "order_{orderId}" makes it easy to identify in Stripe dashboard
+        String idempotencyKey = "order_" + orderId;
+
         PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                 .setAmount(amount.getAmountCents())
                 .setCurrency("usd")
                 .putMetadata("order_id", orderId.toString())
+                .putMetadata("idempotency_key", idempotencyKey)
                 // Automatic payment methods allow Stripe to use all enabled methods
                 .setAutomaticPaymentMethods(
                         PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
@@ -73,7 +86,8 @@ public class StripeClient {
                 )
                 .build();
 
-        PaymentIntent intent = PaymentIntent.create(params);
+        // Create with idempotency key - Stripe will return existing intent if key was used before
+        PaymentIntent intent = PaymentIntent.create(params, stripeConfig.getRequestOptions(idempotencyKey));
 
         log.info("Created PaymentIntent {}: status={}", intent.getId(), intent.getStatus());
         return intent;
