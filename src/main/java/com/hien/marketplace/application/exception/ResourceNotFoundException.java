@@ -20,6 +20,16 @@ public class ResourceNotFoundException extends RuntimeException {
         this.identifier = identifier;
     }
 
+    /**
+     * Constructor for "not found by field name".
+     * Example: ResourceNotFoundException("Payment", "stripePaymentIntentId", "pi_xxx")
+     */
+    public ResourceNotFoundException(String resourceType, String fieldName, Object fieldValue) {
+        super(String.format("%s not found with %s: %s", resourceType, fieldName, fieldValue));
+        this.resourceType = resourceType;
+        this.identifier = fieldValue;
+    }
+
     public String getResourceType() {
         return resourceType;
     }
