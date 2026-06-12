@@ -26,8 +26,9 @@ import org.springframework.web.bind.annotation.*;
  * All endpoints require VENDOR role authentication.
  *
  * Security:
- * - @AuthenticationPrincipal extracts vendorId from JWT token
- * - vendorId used to authorize operations (vendor owns the service)
+ * - @AuthenticationPrincipal extracts userId from JWT token
+ * - Service layer resolves vendor profile from userId
+ * - vendorId is NOT the same as userId (different database identities)
  */
 @RestController
 @RequestMapping("/api/vendor/services")
@@ -40,6 +41,8 @@ public class VendorServiceController {
 
     /**
      * Get all services owned by authenticated vendor.
+     *
+     * Note: userId is resolved to vendor profile internally.
      */
     @GetMapping
     @Operation(
@@ -55,8 +58,6 @@ public class VendorServiceController {
             @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        // TODO: In Phase 3, we'll get vendorId from user via VendorRepository
-        // For now, assume userId is vendorId (vendors have vendor profile)
         Page<ServiceResponse> services = vendorServiceManagement.getVendorServices(
                 principal.userId(),
                 pageable
