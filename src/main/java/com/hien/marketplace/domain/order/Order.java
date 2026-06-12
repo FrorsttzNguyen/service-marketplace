@@ -79,11 +79,31 @@ public class Order {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // Domain methods
-    public void markAsPaid() { this.status = OrderStatus.PAID; }
-    public void fulfill() { this.status = OrderStatus.FULFILLED; }
-    public void cancel() { this.status = OrderStatus.CANCELLED; }
-    public void refund() { this.status = OrderStatus.REFUNDED; }
+    // Domain methods with state machine validation
+    public void markAsPendingPayment() {
+        status.throwIfInvalidTransition(OrderStatus.PENDING_PAYMENT);
+        this.status = OrderStatus.PENDING_PAYMENT;
+    }
+
+    public void markAsPaid() {
+        status.throwIfInvalidTransition(OrderStatus.PAID);
+        this.status = OrderStatus.PAID;
+    }
+
+    public void fulfill() {
+        status.throwIfInvalidTransition(OrderStatus.FULFILLED);
+        this.status = OrderStatus.FULFILLED;
+    }
+
+    public void cancel() {
+        status.throwIfInvalidTransition(OrderStatus.CANCELLED);
+        this.status = OrderStatus.CANCELLED;
+    }
+
+    public void refund() {
+        status.throwIfInvalidTransition(OrderStatus.REFUNDED);
+        this.status = OrderStatus.REFUNDED;
+    }
 
     public Money getSubtotal() { return subtotal; }
     public Money getCommission() { return commission; }
