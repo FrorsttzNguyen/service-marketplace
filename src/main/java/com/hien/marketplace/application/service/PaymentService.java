@@ -214,9 +214,26 @@ public class PaymentService {
 
     /**
      * Get payment by order ID.
+     *
+     * Authorization: Only order owner can view payment.
+     *
+     * @param userId Current user ID (for authorization)
+     * @param orderId Order ID
+     * @return Payment if found and user owns the order
+     * @throws BusinessRuleViolationException if user doesn't own the order
      */
     @Transactional(readOnly = true)
-    public Optional<Payment> getPaymentByOrderId(Long orderId) {
-        return paymentRepository.findByOrderId(orderId);
+    public Optional<Payment> getPaymentByOrderId(Long userId, Long orderId) {
+        return paymentRepository.findByOrderId(orderId)
+                .map(payment -> {
+                    // Authorization: only order owner can view payment
+                    if (!payment.getOrder().getCustomer().getId().equals(userId)) {
+                        throw new BusinessRuleViolationException(
+                                "Payment",
+                                "You can only view payments for your own orders"
+                        );
+                    }
+                    return payment;
+                });
     }
 }
