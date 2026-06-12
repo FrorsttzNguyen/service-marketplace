@@ -7,7 +7,9 @@ import com.hien.marketplace.domain.common.PhoneNumber;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
 import com.hien.marketplace.domain.user.UserStatus;
+import com.hien.marketplace.domain.vendor.Vendor;
 import com.hien.marketplace.infrastructure.persistence.UserRepository;
+import com.hien.marketplace.infrastructure.persistence.VendorRepository;
 import com.hien.marketplace.infrastructure.security.CustomUserDetailsService;
 import com.hien.marketplace.infrastructure.security.JwtUtils;
 import com.hien.marketplace.interfaces.dto.request.LoginRequest;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final VendorRepository vendorRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final UserMapper userMapper;
@@ -47,8 +50,9 @@ public class AuthService {
      * 1. Check email not already registered
      * 2. Create User entity with hashed password
      * 3. Save to database
-     * 4. Generate JWT tokens
-     * 5. Return AuthResponse with tokens + user info
+     * 4. If registerAsVendor=true, create Vendor profile
+     * 5. Generate JWT tokens
+     * 6. Return AuthResponse with tokens + user info
      */
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -74,11 +78,19 @@ public class AuthService {
         // Step 3: Save to database
         user = userRepository.save(user);
 
-        // Step 4: Generate JWT tokens
+        // Step 4: Create Vendor profile if registerAsVendor=true
+        if (Boolean.TRUE.equals(request.registerAsVendor())) {
+            // Vendor business name defaults to user's full name
+            // User can update later via VendorProfileRequest
+            Vendor vendor = new Vendor(user, request.fullName() + "'s Services");
+            vendorRepository.save(vendor);
+        }
+
+        // Step 5: Generate JWT tokens
         String accessToken = jwtUtils.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
         String refreshToken = jwtUtils.generateRefreshToken(user.getId());
 
-        // Step 5: Return response
+        // Step 6: Return response
         return new AuthResponse(
                 user.getId(),
                 user.getFullName(),
