@@ -141,8 +141,6 @@ public class PaymentService {
      * 4. Publish PaymentSucceededEvent for listeners
      *
      * @param paymentIntentId Stripe PaymentIntent ID
-     * @param failureReason Failure message (if failed)
-     * @param failureCode Failure code (if failed)
      */
     @Transactional
     public void handlePaymentSucceeded(String paymentIntentId) {

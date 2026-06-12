@@ -32,8 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 4. Process event and update domain
  * 5. Return 200 OK
  *
- * IMPORTANT: Idempotency check uses REQUIRES_NEW transaction
- * to avoid PostgreSQL transaction abort issues on duplicate key.
+ * IMPORTANT: Idempotency check runs within the caller's transaction (no REQUIRES_NEW).
+ * Uses PostgreSQL INSERT ... ON CONFLICT DO NOTHING for safe duplicate detection.
  * See StripeEventIdempotencyChecker for details.
  */
 @Component

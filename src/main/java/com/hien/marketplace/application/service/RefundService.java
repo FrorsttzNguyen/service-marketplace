@@ -4,7 +4,6 @@ import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.payment.Payment;
-import com.hien.marketplace.domain.payment.RefundStatus;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.persistence.RefundRepository;
 import com.hien.marketplace.infrastructure.stripe.StripeClient;
@@ -156,19 +155,6 @@ public class RefundService {
                             toDecimal(totalAfterRefund), toDecimal(context.paymentAmount()))
             );
         }
-    }
-
-    /**
-     * Calculate total amount already refunded for a payment.
-     *
-     * IMPORTANT: This must be called within a transaction where
-     * payment.getRefunds() is already loaded (via JOIN FETCH).
-     */
-    private Money calculateTotalRefunded(Payment payment) {
-        return payment.getRefunds().stream()
-                .filter(r -> r.getStatus() == RefundStatus.SUCCEEDED)
-                .map(com.hien.marketplace.domain.payment.Refund::getAmount)
-                .reduce(Money.of(0), Money::add);
     }
 
     /**
