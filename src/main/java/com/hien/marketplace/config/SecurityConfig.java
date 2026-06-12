@@ -63,6 +63,7 @@ public class SecurityConfig {
                                         "/api/services/**",  // Public service catalog
                                         "/api/reviews/service/**",  // Public reviews
                                         "/api/reviews/vendor/**",  // Public vendor reviews
+                                        "/api/webhooks/stripe",  // Stripe webhook (PUBLIC - security via signature)
                                         "/swagger-ui/**",  // Swagger UI
                                         "/swagger-ui.html",
                                         "/v3/api-docs/**",  // OpenAPI docs

@@ -41,3 +41,10 @@ app:
     access-expiration-minutes: 15
     # Refresh token expiration: 7 days (long-lived for user convenience)
     refresh-expiration-days: 7
+
+# Stripe Configuration (Phase 4)
+# API keys from Stripe Dashboard: https://dashboard.stripe.com/test/apikeys
+# Webhook secret from Stripe CLI: stripe listen --print-secret
+stripe:
+  api-key: ${STRIPE_API_KEY:sk_test_your_stripe_test_key_here}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:whsec_your_webhook_secret_here}
