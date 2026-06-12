@@ -1,20 +1,23 @@
 package com.hien.marketplace.domain.audit;
 
 import com.hien.marketplace.domain.user.User;
-import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.*;
-import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 /**
  * Entity cho audit log. Ghi lại mọi thay đổi quan trọng trên data.
  *
- * WHY jsonb type:
- * - PostgreSQL's jsonb allows querying JSON content directly in SQL
- * - Hypersistence Utils provides cross-database compatibility
- * - Works with both PostgreSQL (jsonb) and H2 (text/varchar) for tests
+ * WHY String type for jsonb:
+ * - Flyway migration creates real jsonb columns in PostgreSQL
+ * - columnDefinition = "text" for H2 compatibility in tests
+ * - Production: PostgreSQL jsonb (via Flyway V6 migration)
+ * - Tests: H2 text (via ddl-auto=create-drop)
+ *
+ * Alternative approach for native jsonb support:
+ * - Use hypersistence-utils with @Type(JsonType.class) and Map<String, Object>
+ * - Requires TestContainers for tests (real PostgreSQL)
+ * - See BaseDataJpaTest for TestContainers setup
  *
  * Không bao giờ DELETE audit log — đây là yêu cầu compliance cho financial data.
  */
@@ -36,28 +39,26 @@ public class AuditLog {
     private String action; // "INSERT", "UPDATE", "DELETE"
 
     /**
-     * Old values before change, stored as JSON.
+     * Old values before change, stored as JSON string.
      *
-     * WHY Map<String, Object>:
-     * - More flexible than String - can query individual fields
-     * - JsonType handles serialization/deserialization automatically
-     * - Works with PostgreSQL jsonb and H2 text
+     * WHY String with columnDefinition = "text":
+     * - H2-compatible for tests (H2 doesn't support jsonb type)
+     * - PostgreSQL migration V6 creates real jsonb column
+     * - When using TestContainers, add @Type(JsonType.class) + Map<String, Object>
      */
-    @Type(JsonType.class)
-    @Column(name = "old_values", columnDefinition = "jsonb")
-    private Map<String, Object> oldValues;
+    @Column(name = "old_values", columnDefinition = "text")
+    private String oldValues;
 
     /**
-     * New values after change, stored as JSON.
+     * New values after change, stored as JSON string.
      *
-     * WHY Map<String, Object>:
-     * - More flexible than String - can query individual fields
-     * - JsonType handles serialization/deserialization automatically
-     * - Works with PostgreSQL jsonb and H2 text
+     * WHY String with columnDefinition = "text":
+     * - H2-compatible for tests (H2 doesn't support jsonb type)
+     * - PostgreSQL migration V6 creates real jsonb column
+     * - When using TestContainers, add @Type(JsonType.class) + Map<String, Object>
      */
-    @Type(JsonType.class)
-    @Column(name = "new_values", columnDefinition = "jsonb")
-    private Map<String, Object> newValues;
+    @Column(name = "new_values", columnDefinition = "text")
+    private String newValues;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "performed_by")
@@ -70,7 +71,7 @@ public class AuditLog {
     }
 
     public AuditLog(String entityType, Long entityId, String action,
-                     Map<String, Object> oldValues, Map<String, Object> newValues, User performedBy) {
+                     String oldValues, String newValues, User performedBy) {
         this.entityType = entityType;
         this.entityId = entityId;
         this.action = action;
@@ -85,8 +86,8 @@ public class AuditLog {
     public String getEntityType() { return entityType; }
     public Long getEntityId() { return entityId; }
     public String getAction() { return action; }
-    public Map<String, Object> getOldValues() { return oldValues; }
-    public Map<String, Object> getNewValues() { return newValues; }
+    public String getOldValues() { return oldValues; }
+    public String getNewValues() { return newValues; }
     public User getPerformedBy() { return performedBy; }
     public LocalDateTime getPerformedAt() { return performedAt; }
 }
