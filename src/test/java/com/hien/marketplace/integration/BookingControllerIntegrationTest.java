@@ -343,6 +343,16 @@ class BookingControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("Customer cannot access vendor bookings endpoint")
+        void customerCannotAccessVendorBookings() throws Exception {
+            // SecurityConfig requires VENDOR role for GET /api/bookings/vendor
+            // CUSTOMER token should get 403 Forbidden
+            mockMvc.perform(get("/api/bookings/vendor")
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
         @DisplayName("Should return empty list when no bookings")
         void shouldReturnEmptyListWhenNoBookings() throws Exception {
             mockMvc.perform(get("/api/bookings")

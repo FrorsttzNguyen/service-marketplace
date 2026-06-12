@@ -135,7 +135,7 @@ class PaymentServiceTest {
             Payment savedPayment = new Payment(order, Money.of(11000));
             savedPayment = spy(savedPayment);
             when(savedPayment.getId()).thenReturn(1L);
-            when(paymentTransactionService.createPaymentWithOrderUpdate(any(), anyString(), anyString()))
+            when(paymentTransactionService.createPaymentWithOrderUpdate(anyLong(), anyLong(), anyString(), anyString()))
                     .thenReturn(savedPayment);
 
             // Execute
@@ -144,7 +144,7 @@ class PaymentServiceTest {
             // Verify
             assertThat(clientSecret).isEqualTo("cs_test123_secret");
             verify(stripeClient).createPaymentIntent(any(Money.class), eq(1L));
-            verify(paymentTransactionService).createPaymentWithOrderUpdate(any(), eq("pi_test123"), eq("card"));
+            verify(paymentTransactionService).createPaymentWithOrderUpdate(eq(1L), eq(1L), eq("pi_test123"), eq("card"));
         }
 
         @Test
@@ -234,6 +234,29 @@ class PaymentServiceTest {
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> paymentService.handlePaymentSucceeded("pi_test123"))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Payment not found");
+        }
+
+        /**
+         * INTENTIONAL BEHAVIOR: When payment_intent.succeeded arrives but no local Payment exists,
+         * we throw ResourceNotFoundException to trigger Stripe retry.
+         *
+         * WHY THIS IS CORRECT:
+         * - Cross-environment webhooks (test hitting prod, or vice versa)
+         * - Stale data scenarios
+         * - By throwing, Stripe retries and our monitoring can alert
+         *
+         * Alternative would be to silently acknowledge (200 OK) and log warning,
+         * but that could hide real issues.
+         */
+        @Test
+        @DisplayName("handlePaymentSucceeded throws when Payment not found - triggers Stripe retry (intentional)")
+        void handlePaymentSucceededThrowsWhenPaymentNotFoundTriggersRetry() {
+            when(paymentRepository.findByStripePaymentIntentId("pi_unknown"))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> paymentService.handlePaymentSucceeded("pi_unknown"))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining("Payment not found");
         }
