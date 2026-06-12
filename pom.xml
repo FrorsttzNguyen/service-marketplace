@@ -157,13 +157,6 @@
 			<artifactId>stripe-java</artifactId>
 			<version>24.0.0</version>
 		</dependency>
-
-		<!-- Hibernate Types: JSON/JSONB type support for PostgreSQL -->
-		<dependency>
-			<groupId>io.hypersistence</groupId>
-			<artifactId>hypersistence-utils-hibernate-63</artifactId>
-			<version>3.9.2</version>
-		</dependency>
 	</dependencies>
 
 	<build>
