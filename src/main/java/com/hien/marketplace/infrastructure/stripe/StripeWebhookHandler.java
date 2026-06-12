@@ -83,6 +83,12 @@ public class StripeWebhookHandler {
      * IDEMPOTENCY: Ensures each event is processed exactly once,
      * even if Stripe delivers it multiple times.
      *
+     * TRANSACTION SEMANTICS:
+     * - Event log INSERT and domain UPDATE are in same transaction
+     * - If domain update fails for SUPPORTED events, exception is rethrown
+     * - Transaction rolls back, including event log INSERT
+     * - Stripe will retry the webhook
+     *
      * @param event Verified Stripe event
      */
     @Transactional
@@ -93,8 +99,9 @@ public class StripeWebhookHandler {
         log.info("Processing Stripe event: id={}, type={}", eventId, eventType);
 
         // IDEMPOTENCY: Log event to prevent duplicate processing
+        // Use saveAndFlush to detect duplicate immediately, not at transaction commit
         try {
-            eventLogRepository.save(new StripeEventLog(eventId, eventType));
+            eventLogRepository.saveAndFlush(new StripeEventLog(eventId, eventType));
             log.debug("Event {} logged successfully", eventId);
         } catch (DataIntegrityViolationException e) {
             // Primary key violation = event already processed
@@ -103,17 +110,12 @@ public class StripeWebhookHandler {
         }
 
         // Dispatch to appropriate handler based on event type
-        try {
-            switch (eventType) {
-                case "payment_intent.succeeded" -> handlePaymentIntentSucceeded(event);
-                case "payment_intent.payment_failed" -> handlePaymentIntentPaymentFailed(event);
-                default -> log.debug("Unhandled event type: {}", eventType);
-            }
-        } catch (Exception e) {
-            // Log error but don't rethrow - we already logged the event
-            // Returning error to Stripe would cause retry, but we've already processed
-            log.error("Error processing event {}: {}", eventId, e.getMessage(), e);
-            // In production, might want to alert/monitor this
+        // IMPORTANT: Do NOT catch and swallow exceptions from supported events
+        // Let them propagate to trigger transaction rollback and Stripe retry
+        switch (eventType) {
+            case "payment_intent.succeeded" -> handlePaymentIntentSucceeded(event);
+            case "payment_intent.payment_failed" -> handlePaymentIntentPaymentFailed(event);
+            default -> log.debug("Unhandled event type: {} - safe to ignore", eventType);
         }
     }
 
@@ -127,6 +129,9 @@ public class StripeWebhookHandler {
      * 3. Update Order status to PAID
      * 4. Publish PaymentSucceededEvent for notifications
      *
+     * IMPORTANT: This is a SUPPORTED event. Exceptions will be propagated
+     * to processEvent() and cause transaction rollback + Stripe retry.
+     *
      * Separation of concerns:
      * - WebhookHandler: signature verification, idempotency, dispatching
      * - PaymentService: domain logic, status updates, event publishing
@@ -134,26 +139,18 @@ public class StripeWebhookHandler {
     private void handlePaymentIntentSucceeded(Event event) {
         log.info("Handling payment_intent.succeeded event");
 
-        try {
-            String paymentIntentId = extractPaymentIntentId(event);
+        String paymentIntentId = extractPaymentIntentId(event);
 
-            if (paymentIntentId == null) {
-                log.error("Failed to extract PaymentIntent ID from event {}", event.getId());
-                return;
-            }
-
-            log.info("PaymentIntent {} succeeded, triggering payment update", paymentIntentId);
-
-            // Call PaymentService to update domain state
-            paymentService.handlePaymentSucceeded(paymentIntentId);
-
-        } catch (ResourceNotFoundException e) {
-            log.warn("Payment not found for PaymentIntent - may be from different environment: {}",
-                    e.getMessage());
-        } catch (Exception e) {
-            log.error("Error processing payment_intent.succeeded event: {}", e.getMessage(), e);
-            throw e; // Re-throw to trigger transaction rollback
+        if (paymentIntentId == null) {
+            log.error("Failed to extract PaymentIntent ID from event {}", event.getId());
+            throw new IllegalStateException("Failed to extract PaymentIntent ID from event");
         }
+
+        log.info("PaymentIntent {} succeeded, triggering payment update", paymentIntentId);
+
+        // Call PaymentService to update domain state
+        // This will throw if payment not found or update fails
+        paymentService.handlePaymentSucceeded(paymentIntentId);
     }
 
     /**
@@ -164,35 +161,30 @@ public class StripeWebhookHandler {
      * 1. Find local Payment by stripePaymentIntentId
      * 2. Update status to FAILED
      * 3. Publish PaymentFailedEvent for notifications
+     *
+     * IMPORTANT: This is a SUPPORTED event. Exceptions will be propagated
+     * to processEvent() and cause transaction rollback + Stripe retry.
      */
     private void handlePaymentIntentPaymentFailed(Event event) {
         log.info("Handling payment_intent.payment_failed event");
 
-        try {
-            String paymentIntentId = extractPaymentIntentId(event);
+        String paymentIntentId = extractPaymentIntentId(event);
 
-            if (paymentIntentId == null) {
-                log.error("Failed to extract PaymentIntent ID from event {}", event.getId());
-                return;
-            }
-
-            // Extract failure information from event
-            String failureReason = extractFailureMessage(event);
-            String failureCode = extractFailureCode(event);
-
-            log.warn("PaymentIntent {} failed: {} (code: {})",
-                    paymentIntentId, failureReason, failureCode);
-
-            // Call PaymentService to update domain state
-            paymentService.handlePaymentFailed(paymentIntentId, failureReason, failureCode);
-
-        } catch (ResourceNotFoundException e) {
-            log.warn("Payment not found for PaymentIntent - may be from different environment: {}",
-                    e.getMessage());
-        } catch (Exception e) {
-            log.error("Error processing payment_intent.payment_failed event: {}", e.getMessage(), e);
-            throw e; // Re-throw to trigger transaction rollback
+        if (paymentIntentId == null) {
+            log.error("Failed to extract PaymentIntent ID from event {}", event.getId());
+            throw new IllegalStateException("Failed to extract PaymentIntent ID from event");
         }
+
+        // Extract failure information from event
+        String failureReason = extractFailureMessage(event);
+        String failureCode = extractFailureCode(event);
+
+        log.warn("PaymentIntent {} failed: {} (code: {})",
+                paymentIntentId, failureReason, failureCode);
+
+        // Call PaymentService to update domain state
+        // This will throw if payment not found or update fails
+        paymentService.handlePaymentFailed(paymentIntentId, failureReason, failureCode);
     }
 
     /**
