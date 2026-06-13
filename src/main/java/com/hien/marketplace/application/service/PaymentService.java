@@ -26,7 +26,7 @@ import java.util.Optional;
  *
  * ARCHITECTURE PATTERN:
  * - Stripe API calls OUTSIDE @Transactional (network I/O)
- * - Database operations INSIDE @Transactional
+ * - Database operations INSIDE @Transactional (via PaymentTransactionService)
  *
  * WHY this pattern?
  * 1. Network I/O should never hold database transactions open
@@ -38,10 +38,14 @@ import java.util.Optional;
  *    - If Stripe succeeds but DB rolls back = orphan PaymentIntent
  *    - If Stripe fails, DB doesn't commit = clean state
  *
+ * 3. Transaction semantics
+ *    - Self-invocation of @Transactional methods doesn't work (Spring proxy limitation)
+ *    - DB mutations moved to PaymentTransactionService for proper transaction boundary
+ *
  * FLOW for createPayment:
  * 1. Validate order (transactional read)
  * 2. Create Stripe PaymentIntent (OUTSIDE transaction)
- * 3. Save Payment with intent ID (INSIDE transaction)
+ * 3. Save Payment with intent ID (INSIDE transaction via PaymentTransactionService)
  * 4. Return client secret for frontend
  */
 @Service
@@ -53,17 +57,22 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final StripeClient stripeClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final PaymentTransactionService paymentTransactionService;
 
     /**
      * Create a payment for an order.
      *
      * FLOW:
-     * 1. Validate order ownership and status
-     * 2. Check payment doesn't already exist
-     * 3. Create Stripe PaymentIntent (OUTSIDE transaction)
-     * 4. Create local Payment with PaymentIntent ID (INSIDE transaction)
-     * 5. Update order status to PENDING_PAYMENT
-     * 6. Return client secret for Stripe.js
+     * 1. Quick pre-validation (ownership, status) - can race
+     * 2. Create Stripe PaymentIntent (OUTSIDE transaction)
+     * 3. Create local Payment with locking (INSIDE transaction)
+     *    - Pessimistic lock on Order
+     *    - DB unique constraint catches duplicates
+     * 4. Return client secret for Stripe.js
+     *
+     * RACE CONDITION HANDLING:
+     * - Pre-validation before Stripe is for UX (fast fail)
+     * - Real safety is in transaction service (locking + unique constraint)
      *
      * @param userId Current user ID (for authorization)
      * @param orderId Order to pay for
@@ -73,16 +82,17 @@ public class PaymentService {
     public String createPayment(Long userId, Long orderId, String paymentMethod) {
         log.info("Creating payment for order {} by user {}", orderId, userId);
 
-        // Step 1: Validate order (read-only, no transaction needed yet)
+        // Step 1: Quick pre-validation (read-only, can race)
+        // Real validation happens inside transaction with locking
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
 
-        // Authorization: only order owner can pay
+        // Pre-check authorization (fast fail for UX)
         if (!order.getCustomer().getId().equals(userId)) {
             throw new BusinessRuleViolationException("Payment", "You can only pay for your own orders");
         }
 
-        // Business rule: order must be in CREATED status
+        // Pre-check status (fast fail for UX)
         if (order.getStatus() != OrderStatus.CREATED) {
             throw new BusinessRuleViolationException(
                     "Order status",
@@ -90,7 +100,7 @@ public class PaymentService {
             );
         }
 
-        // Check if payment already exists for this order
+        // Pre-check duplicate (fast fail for UX)
         if (paymentRepository.existsByOrderId(orderId)) {
             throw new DuplicateResourceException("Payment", "orderId", orderId);
         }
@@ -107,36 +117,16 @@ public class PaymentService {
         }
 
         // Step 3: Create local Payment and update order (INSIDE transaction)
-        Payment payment = createPaymentWithOrderUpdate(order, paymentIntent.getId(), paymentMethod);
+        // Uses PaymentTransactionService for proper transaction boundary
+        // Pessimistic locking + DB unique constraint provide real safety
+        Payment payment = paymentTransactionService.createPaymentWithOrderUpdate(
+                userId, orderId, paymentIntent.getId(), paymentMethod);
 
         log.info("Payment created successfully: paymentId={}, intentId={}",
                 payment.getId(), paymentIntent.getId());
 
         // Return client secret for Stripe.js
         return paymentIntent.getClientSecret();
-    }
-
-    /**
-     * Create Payment entity and update Order status.
-     *
-     * This is a separate @Transactional method to ensure
-     * database operations are atomic.
-     */
-    @Transactional
-    protected Payment createPaymentWithOrderUpdate(Order order, String paymentIntentId, String paymentMethod) {
-        // Create Payment entity
-        Payment payment = new Payment(order, order.getTotal());
-        payment.setStripePaymentIntentId(paymentIntentId);
-        payment.setPaymentMethod(paymentMethod);
-        payment.markAsProcessing();
-
-        payment = paymentRepository.save(payment);
-
-        // Update order status
-        order.markAsPendingPayment();
-        orderRepository.save(order);
-
-        return payment;
     }
 
     /**
@@ -151,8 +141,6 @@ public class PaymentService {
      * 4. Publish PaymentSucceededEvent for listeners
      *
      * @param paymentIntentId Stripe PaymentIntent ID
-     * @param failureReason Failure message (if failed)
-     * @param failureCode Failure code (if failed)
      */
     @Transactional
     public void handlePaymentSucceeded(String paymentIntentId) {
@@ -230,9 +218,27 @@ public class PaymentService {
 
     /**
      * Get payment by order ID.
+     *
+     * AUTHORIZATION POLICY:
+     * - Returns 404 if payment not found OR user doesn't own the order
+     * - This prevents leaking existence of other users' payments
+     * - Both "not found" and "unauthorized" return empty Optional (identical response)
+     *
+     * WHY NOT THROW ON UNAUTHORIZED?
+     * - Throwing BusinessRuleViolationException returns 422
+     * - Returning empty Optional returns 404
+     * - If we throw 422 for unauthorized but 404 for not found, attacker can
+     *   determine if another user's order has a payment (information leak)
+     * - Both cases return empty Optional → 404 → no leak
+     *
+     * @param userId Current user ID (for authorization)
+     * @param orderId Order ID
+     * @return Payment if found and user owns the order, empty otherwise
      */
     @Transactional(readOnly = true)
-    public Optional<Payment> getPaymentByOrderId(Long orderId) {
-        return paymentRepository.findByOrderId(orderId);
+    public Optional<Payment> getPaymentByOrderId(Long userId, Long orderId) {
+        // Query by both orderId AND customerId - unauthorized returns empty
+        // This is intentionally identical to "not found" (no information leak)
+        return paymentRepository.findByOrderIdAndOrderCustomerId(orderId, userId);
     }
 }

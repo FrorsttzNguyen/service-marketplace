@@ -22,9 +22,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * - Set password encoder for user passwords
  *
  * SECURITY RULES:
- * - PUBLIC: /api/auth/** (register, login), /api/services/** (public catalog)
+ * - PUBLIC: /api/auth/**, /api/services/**, /api/webhooks/stripe, Swagger, health
+ * - VENDOR role: /api/vendor/** (vendor management endpoints)
+ * - ADMIN role: /api/admin/** (admin endpoints)
  * - AUTHENTICATED: All other /api/** endpoints
- * - ROLE-based: Vendor-only endpoints checked in controllers via @PreAuthorize
+ *
+ * ROLE CHECKS:
+ * - URL-level role guards in SecurityConfig (primary)
+ * - Service-layer ownership checks (secondary, for business logic)
  */
 @Configuration
 @EnableWebSecurity
@@ -69,6 +74,14 @@ public class SecurityConfig {
                                         "/v3/api-docs/**",  // OpenAPI docs
                                         "/actuator/health"  // Health check
                                 ).permitAll()
+
+                                // Vendor-only endpoints - requires VENDOR role
+                                // IMPORTANT: /api/bookings/vendor must come BEFORE /api/** catch-all
+                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings/vendor").hasRole("VENDOR")
+                                .requestMatchers("/api/vendor/**").hasRole("VENDOR")
+
+                                // Admin-only endpoints - requires ADMIN role
+                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                                 // All other /api/** endpoints require authentication
                                 .requestMatchers("/api/**").authenticated()

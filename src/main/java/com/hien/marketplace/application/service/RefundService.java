@@ -1,11 +1,9 @@
 package com.hien.marketplace.application.service;
 
+import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.payment.Payment;
-import com.hien.marketplace.domain.payment.PaymentStatus;
-import com.hien.marketplace.domain.payment.RefundStatus;
-import com.hien.marketplace.domain.payment.events.RefundProcessedEvent;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.persistence.RefundRepository;
 import com.hien.marketplace.infrastructure.stripe.StripeClient;
@@ -23,7 +21,7 @@ import java.math.BigDecimal;
  *
  * ARCHITECTURE PATTERN:
  * - Stripe API calls OUTSIDE @Transactional
- * - Database operations INSIDE @Transactional
+ * - Database operations INSIDE @Transactional (via RefundTransactionService)
  *
  * REFUND TYPES:
  * - Full refund: Refund entire payment amount
@@ -33,6 +31,15 @@ import java.math.BigDecimal;
  * - Only SUCCEEDED payments can be refunded
  * - Total refunds cannot exceed payment amount
  * - Partial refunds must have positive amount
+ *
+ * TRANSACTION SEMANTICS:
+ * - Self-invocation of @Transactional methods doesn't work (Spring proxy limitation)
+ * - DB mutations AND transactional reads moved to RefundTransactionService
+ *
+ * LAZY LOADING SAFE PATTERN:
+ * - RefundContext snapshot loaded transactionally via RefundTransactionService
+ * - Snapshot used for validation and Stripe call (no lazy loading outside tx)
+ * - Final write via RefundTransactionService with locking
  */
 @Service
 @RequiredArgsConstructor
@@ -43,17 +50,23 @@ public class RefundService {
     private final RefundRepository refundRepository;
     private final StripeClient stripeClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final RefundTransactionService refundTransactionService;
 
     /**
      * Create a refund for a payment.
      *
      * FLOW:
-     * 1. Validate payment ownership and status
-     * 2. Validate refund amount
-     * 3. Create Stripe Refund (OUTSIDE transaction)
-     * 4. Create local Refund entity (INSIDE transaction)
-     * 5. Update Order status if full refund
-     * 6. Publish RefundProcessedEvent
+     * 1. Load context (transactional read via RefundTransactionService)
+     * 2. Validate ownership and status from snapshot
+     * 3. Validate refund amount from snapshot
+     * 4. Create Stripe Refund (OUTSIDE transaction)
+     * 5. Create local Refund entity (INSIDE transaction)
+     * 6. Update Order status if full refund
+     * 7. Publish RefundProcessedEvent
+     *
+     * IMPORTANT: Uses RefundContext snapshot to avoid LazyInitializationException.
+     * loadRefundContext is called on RefundTransactionService (separate bean),
+     * so the @Transactional proxy intercepts the call properly.
      *
      * @param userId Current user ID (for authorization)
      * @param paymentId Payment to refund
@@ -65,38 +78,40 @@ public class RefundService {
         log.info("Creating refund for payment {} by user {}, amount={}",
                 paymentId, userId, amountCents != null ? amountCents : "full");
 
-        // Step 1: Validate payment
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
+        // Step 1: Load context transactionally via separate bean (proxy intercepts)
+        // IMPORTANT: Call refundTransactionService, not this.loadRefundContext()
+        // Self-invocation bypasses Spring proxy and @Transactional is ignored
+        RefundContext context = refundTransactionService.loadRefundContext(paymentId, userId);
 
-        // Authorization: only order owner can request refund
-        if (!payment.getOrder().getCustomer().getId().equals(userId)) {
+        // Step 2: Validate ownership from snapshot (no lazy loading)
+        if (!context.isOwnedBy(userId)) {
             throw new BusinessRuleViolationException("Refund", "You can only refund your own payments");
         }
 
-        // Business rule: only succeeded payments can be refunded
-        if (payment.getStatus() != PaymentStatus.SUCCEEDED) {
+        // Business rule: only PAID orders with SUCCEEDED payments can be refunded
+        if (!context.isRefundable()) {
             throw new PaymentException(
                     "Payment status",
-                    "Only succeeded payments can be refunded. Current status: " + payment.getStatus(),
-                    payment.getStatus()
+                    String.format("Only succeeded payments on paid orders can be refunded. " +
+                            "Payment: %s, Order: %s", context.paymentStatus(), context.orderStatus()),
+                    context.paymentStatus()
             );
         }
 
         // Determine refund amount
         Money refundAmount = amountCents != null
                 ? Money.of(amountCents)
-                : payment.getAmount(); // Full refund
+                : context.paymentAmount(); // Full refund
 
-        // Validate refund amount
-        validateRefundAmount(payment, refundAmount);
+        // Step 3: Validate refund amount from snapshot (no lazy loading)
+        validateRefundAmount(context, refundAmount);
 
-        // Step 2: Create Stripe Refund (OUTSIDE transaction)
+        // Step 4: Create Stripe Refund (OUTSIDE transaction)
         com.stripe.model.Refund stripeRefund;
         try {
             stripeRefund = stripeClient.createRefund(
-                    payment.getStripePaymentIntentId(),
-                    refundAmount.equals(payment.getAmount()) ? null : refundAmount.getAmountCents()
+                    context.stripePaymentIntentId(),
+                    refundAmount.equals(context.paymentAmount()) ? null : refundAmount.getAmountCents()
             );
             log.info("Created Stripe Refund: {}", stripeRefund.getId());
         } catch (StripeException e) {
@@ -104,8 +119,10 @@ public class RefundService {
             throw new StripeApiException("Failed to create refund: " + e.getMessage(), e);
         }
 
-        // Step 3: Create local Refund (INSIDE transaction)
-        com.hien.marketplace.domain.payment.Refund refund = createRefundWithOrderUpdate(payment, refundAmount, reason, stripeRefund.getId());
+        // Step 5: Create local Refund (INSIDE transaction with locking)
+        // Uses RefundTransactionService for proper transaction boundary via Spring proxy
+        com.hien.marketplace.domain.payment.Refund refund = refundTransactionService.createRefundWithOrderUpdate(
+                context.paymentId(), refundAmount, reason, stripeRefund.getId());
 
         log.info("Refund created successfully: refundId={}, stripeRefundId={}",
                 refund.getId(), stripeRefund.getId());
@@ -119,62 +136,25 @@ public class RefundService {
      * Rules:
      * - Refund amount must be positive
      * - Total refunds cannot exceed payment amount
+     *
+     * @param context RefundContext snapshot with pre-loaded refund totals
+     * @param refundAmount Amount to refund
      */
-    private void validateRefundAmount(Payment payment, Money refundAmount) {
+    private void validateRefundAmount(RefundContext context, Money refundAmount) {
         // Refund amount must be positive
         if (refundAmount.getAmountCents() <= 0) {
             throw new PaymentException("Refund amount", "Refund amount must be positive");
         }
 
-        // Calculate already refunded amount
-        Money alreadyRefunded = calculateTotalRefunded(payment);
-
         // Total refunds cannot exceed payment
-        Money totalAfterRefund = alreadyRefunded.add(refundAmount);
-        if (totalAfterRefund.getAmountCents() > payment.getAmount().getAmountCents()) {
+        Money totalAfterRefund = context.alreadyRefunded().add(refundAmount);
+        if (totalAfterRefund.getAmountCents() > context.paymentAmount().getAmountCents()) {
             throw new PaymentException(
                     "Refund amount",
                     String.format("Total refunds (%.2f) cannot exceed payment amount (%.2f)",
-                            toDecimal(totalAfterRefund), toDecimal(payment.getAmount()))
+                            toDecimal(totalAfterRefund), toDecimal(context.paymentAmount()))
             );
         }
-    }
-
-    /**
-     * Calculate total amount already refunded for a payment.
-     */
-    private Money calculateTotalRefunded(Payment payment) {
-        return payment.getRefunds().stream()
-                .filter(r -> r.getStatus() == RefundStatus.SUCCEEDED)
-                .map(com.hien.marketplace.domain.payment.Refund::getAmount)
-                .reduce(Money.of(0), Money::add);
-    }
-
-    /**
-     * Create Refund entity and update Order if full refund.
-     */
-    @Transactional
-    protected com.hien.marketplace.domain.payment.Refund createRefundWithOrderUpdate(Payment payment, Money refundAmount,
-                                                   String reason, String stripeRefundId) {
-        // Create Refund entity
-        com.hien.marketplace.domain.payment.Refund refund = new com.hien.marketplace.domain.payment.Refund(payment, refundAmount, reason);
-        refund.setStripeRefundId(stripeRefundId);
-        refund.markAsSucceeded();
-
-        refund = refundRepository.save(refund);
-
-        // Update order status if full refund
-        boolean isFullRefund = refundAmount.equals(payment.getAmount());
-        if (isFullRefund) {
-            payment.getOrder().refund();
-            paymentRepository.save(payment); // Cascades to order
-            log.info("Order {} marked as REFUNDED (full refund)", payment.getOrder().getId());
-        }
-
-        // Publish domain event
-        eventPublisher.publishEvent(RefundProcessedEvent.from(refund));
-
-        return refund;
     }
 
     /**
