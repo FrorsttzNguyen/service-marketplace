@@ -78,6 +78,10 @@ public class SecurityConfig {
                                 // Vendor-only endpoints - requires VENDOR role
                                 // IMPORTANT: /api/bookings/vendor must come BEFORE /api/** catch-all
                                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings/vendor").hasRole("VENDOR")
+                                // Vendor booking management actions (confirm, start, complete)
+                                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/bookings/*/confirm").hasRole("VENDOR")
+                                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/bookings/*/start").hasRole("VENDOR")
+                                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/bookings/*/complete").hasRole("VENDOR")
                                 .requestMatchers("/api/vendor/**").hasRole("VENDOR")
 
                                 // Admin-only endpoints - requires ADMIN role

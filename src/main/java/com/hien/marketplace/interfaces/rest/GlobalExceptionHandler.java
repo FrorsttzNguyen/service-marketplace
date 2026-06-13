@@ -120,6 +120,27 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle 422 Unprocessable Entity - illegal state transition.
+     *
+     * WHY: Domain entities throw IllegalStateException for invalid state transitions
+     * (e.g., trying to confirm a CANCELLED booking). We map this to 422 to provide
+     * clear error messages to clients.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(
+            IllegalStateException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("Invalid state transition: {} - {}", ex.getMessage(), request.getRequestURI());
+
+        ErrorResponse response = ErrorResponse.of(
+                "BUSINESS_RULE_VIOLATION",
+                ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+    }
+
+    /**
      * Handle 401 Unauthorized - authentication failed.
      */
     @ExceptionHandler({AuthenticationException.class, BadCredentialsException.class})
@@ -228,5 +249,47 @@ public class GlobalExceptionHandler {
                 "An unexpected error occurred. Please try again later."
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    /**
+     * Handle 400 Bad Request - invalid property reference in sort parameter.
+     *
+     * WHY: Spring Data throws PropertyReferenceException when client sends
+     * invalid sort field (e.g., sort=nonexistentField,asc).
+     * We convert this to 400 Bad Request instead of 500 Internal Server Error.
+     */
+    @ExceptionHandler(org.springframework.data.mapping.PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPropertyReference(
+            org.springframework.data.mapping.PropertyReferenceException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("Invalid sort property for {} - {}", request.getRequestURI(), ex.getMessage());
+
+        ErrorResponse response = ErrorResponse.of(
+                "INVALID_SORT_PROPERTY",
+                "Invalid sort field. Please check the field name and try again."
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * Handle 400 Bad Request - invalid pagination parameters.
+     *
+     * WHY: ValidatingPageableResolver throws this dedicated REST exception when
+     * clients send invalid page/size values. We avoid catching every
+     * IllegalArgumentException because unrelated programmer errors should remain 500s.
+     */
+    @ExceptionHandler(InvalidPaginationParameterException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPaginationParameter(
+            InvalidPaginationParameterException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("Invalid pagination parameter for {} - {}", request.getRequestURI(), ex.getMessage());
+
+        ErrorResponse response = ErrorResponse.of(
+                "INVALID_PAGINATION_PARAMETER",
+                ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 }

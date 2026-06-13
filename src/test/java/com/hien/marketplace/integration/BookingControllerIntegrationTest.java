@@ -404,6 +404,281 @@ class BookingControllerIntegrationTest {
     }
 
     // ================================================================
+    // Vendor Booking Management Tests
+    // ================================================================
+
+    @Nested
+    @DisplayName("Vendor Booking Management Endpoints")
+    class VendorBookingManagementTests {
+
+        @Test
+        @DisplayName("Should confirm booking successfully")
+        void shouldConfirmBookingSuccessfully() throws Exception {
+            Long bookingId = createTestBooking();
+
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(bookingId))
+                    .andExpect(jsonPath("$.status").value("CONFIRMED"));
+        }
+
+        @Test
+        @DisplayName("Should reject confirmation by non-owner vendor")
+        void shouldRejectConfirmationByNonOwnerVendor() throws Exception {
+            // Create another vendor
+            User otherVendorUser = registerUser("other-vendor@test.com", "Other Vendor", true);
+            String otherVendorToken = loginAndGetToken("other-vendor@test.com", "Password123");
+
+            Long bookingId = createTestBooking();
+
+            // Other vendor tries to confirm (not their service)
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + otherVendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should reject confirmation by customer")
+        void shouldRejectConfirmationByCustomer() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Customer tries to confirm (requires VENDOR role)
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Should reject confirmation of non-existent booking")
+        void shouldRejectConfirmationOfNonExistentBooking() throws Exception {
+            mockMvc.perform(put("/api/bookings/{id}/confirm", 99999L)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("Should reject confirmation of cancelled booking")
+        void shouldRejectConfirmationOfCancelledBooking() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Cancel first
+            mockMvc.perform(put("/api/bookings/{id}/cancel", bookingId)
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isOk());
+
+            // Try to confirm cancelled booking
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should start service successfully")
+        void shouldStartServiceSuccessfully() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Confirm first
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+
+            // Start service
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(bookingId))
+                    .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+        }
+
+        @Test
+        @DisplayName("Should reject start service by non-owner vendor")
+        void shouldRejectStartServiceByNonOwnerVendor() throws Exception {
+            User otherVendorUser = registerUser("other-vendor2@test.com", "Other Vendor 2", true);
+            String otherVendorToken = loginAndGetToken("other-vendor2@test.com", "Password123");
+
+            Long bookingId = createTestBooking();
+
+            // Confirm first
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+
+            // Other vendor tries to start
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + otherVendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should reject start service on pending booking")
+        void shouldRejectStartServiceOnPendingBooking() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Try to start without confirming first
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should reject start service by customer")
+        void shouldRejectStartServiceByCustomer() throws Exception {
+            Long bookingId = createTestBooking();
+
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Should complete service successfully")
+        void shouldCompleteServiceSuccessfully() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Confirm
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+
+            // Start
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+
+            // Complete
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(bookingId))
+                    .andExpect(jsonPath("$.status").value("COMPLETED"));
+        }
+
+        @Test
+        @DisplayName("Should reject complete service by non-owner vendor")
+        void shouldRejectCompleteServiceByNonOwnerVendor() throws Exception {
+            User otherVendorUser = registerUser("other-vendor3@test.com", "Other Vendor 3", true);
+            String otherVendorToken = loginAndGetToken("other-vendor3@test.com", "Password123");
+
+            Long bookingId = createTestBooking();
+
+            // Confirm and start
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+
+            // Other vendor tries to complete
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId)
+                            .header("Authorization", "Bearer " + otherVendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should reject complete service on confirmed booking")
+        void shouldRejectCompleteServiceOnConfirmedBooking() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Confirm only (skip start)
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk());
+
+            // Try to complete without starting
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should reject complete service on pending booking")
+        void shouldRejectCompleteServiceOnPendingBooking() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Try to complete without confirm or start
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should reject complete service by customer")
+        void shouldRejectCompleteServiceByCustomer() throws Exception {
+            Long bookingId = createTestBooking();
+
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId)
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Should verify full booking lifecycle")
+        void shouldVerifyFullBookingLifecycle() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // Step 1: PENDING (initial state)
+            mockMvc.perform(get("/api/bookings")
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].status").value("PENDING"));
+
+            // Step 2: CONFIRMED (vendor confirms)
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+            // Step 3: IN_PROGRESS (vendor starts service)
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+            // Step 4: COMPLETED (vendor completes service)
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("COMPLETED"));
+        }
+
+        @Test
+        @DisplayName("Should reject confirmation without authentication")
+        void shouldRejectConfirmationWithoutAuth() throws Exception {
+            Long bookingId = createTestBooking();
+
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Should reject start service without authentication")
+        void shouldRejectStartServiceWithoutAuth() throws Exception {
+            Long bookingId = createTestBooking();
+
+            mockMvc.perform(put("/api/bookings/{id}/start", bookingId))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Should reject complete service without authentication")
+        void shouldRejectCompleteServiceWithoutAuth() throws Exception {
+            Long bookingId = createTestBooking();
+
+            mockMvc.perform(put("/api/bookings/{id}/complete", bookingId))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    // ================================================================
     // Helper Methods
     // ================================================================
 

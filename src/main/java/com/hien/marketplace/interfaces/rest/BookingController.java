@@ -117,4 +117,80 @@ public class BookingController {
         BookingResponse booking = bookingService.cancelBooking(principal.userId(), id);
         return ResponseEntity.ok(booking);
     }
+
+    // ================================================================
+    // Vendor Booking Management Endpoints
+    // ================================================================
+
+    /**
+     * Confirm booking (Vendor action).
+     *
+     * WHY: Vendor confirms a pending booking, changing status from PENDING to CONFIRMED.
+     * Only vendor who owns the service can confirm.
+     */
+    @PutMapping("/{id}/confirm")
+    @Operation(
+            summary = "Confirm booking",
+            description = "Vendor confirms a pending booking",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Booking confirmed"),
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "422", description = "Cannot confirm (not your service or invalid status)")
+            }
+    )
+    public ResponseEntity<BookingResponse> confirmBooking(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        BookingResponse booking = bookingService.confirmBooking(principal.userId(), id);
+        return ResponseEntity.ok(booking);
+    }
+
+    /**
+     * Start service (Vendor action).
+     *
+     * WHY: Vendor marks a confirmed booking as IN_PROGRESS when service begins.
+     * Transition: CONFIRMED → IN_PROGRESS
+     */
+    @PutMapping("/{id}/start")
+    @Operation(
+            summary = "Start service",
+            description = "Vendor marks a confirmed booking as in progress",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Service started"),
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "422", description = "Cannot start (not your service or invalid status)")
+            }
+    )
+    public ResponseEntity<BookingResponse> startService(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        BookingResponse booking = bookingService.startService(principal.userId(), id);
+        return ResponseEntity.ok(booking);
+    }
+
+    /**
+     * Complete service (Vendor action).
+     *
+     * WHY: Vendor marks an in-progress booking as COMPLETED after service finishes.
+     * Transition: IN_PROGRESS → COMPLETED
+     */
+    @PutMapping("/{id}/complete")
+    @Operation(
+            summary = "Complete service",
+            description = "Vendor marks an in-progress booking as completed",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Service completed"),
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "422", description = "Cannot complete (not your service or invalid status)")
+            }
+    )
+    public ResponseEntity<BookingResponse> completeService(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        BookingResponse booking = bookingService.completeService(principal.userId(), id);
+        return ResponseEntity.ok(booking);
+    }
 }

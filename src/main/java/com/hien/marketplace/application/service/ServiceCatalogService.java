@@ -5,10 +5,14 @@ import com.hien.marketplace.application.mapper.ServiceMapper;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
+import com.hien.marketplace.infrastructure.persistence.specification.ServiceSpecification;
+import com.hien.marketplace.interfaces.dto.request.ServiceSearchRequest;
 import com.hien.marketplace.interfaces.dto.response.ServiceResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +38,24 @@ public class ServiceCatalogService {
      */
     @Transactional(readOnly = true)
     public Page<ServiceResponse> getAllServices(Pageable pageable) {
-        return serviceRepository.findByStatus(ServiceStatus.ACTIVE, pageable)
+        return serviceRepository.findByStatus(ServiceStatus.ACTIVE, withStableTieBreaker(pageable))
+                .map(this::enrichServiceResponse);
+    }
+
+    /**
+     * Search services with dynamic filters.
+     *
+     * WHY: Uses Specification pattern for dynamic query building.
+     * All filters are optional - combined with AND logic.
+     * Always filters for ACTIVE services (public catalog).
+     *
+     * @param request Search parameters (all optional)
+     * @param pageable Pagination (page, size, sort)
+     * @return Page of matching services
+     */
+    @Transactional(readOnly = true)
+    public Page<ServiceResponse> searchServices(ServiceSearchRequest request, Pageable pageable) {
+        return serviceRepository.findAll(ServiceSpecification.fromRequest(request), withStableTieBreaker(pageable))
                 .map(this::enrichServiceResponse);
     }
 
@@ -61,8 +82,31 @@ public class ServiceCatalogService {
      */
     @Transactional(readOnly = true)
     public Page<ServiceResponse> getServicesByCategory(Long categoryId, Pageable pageable) {
-        return serviceRepository.findByCategoryIdAndStatus(categoryId, ServiceStatus.ACTIVE, pageable)
+        return serviceRepository.findByCategoryIdAndStatus(categoryId, ServiceStatus.ACTIVE, withStableTieBreaker(pageable))
                 .map(this::enrichServiceResponse);
+    }
+
+    /**
+     * Append a unique tie-breaker to every paginated catalog query.
+     *
+     * WHY: Client-provided sorts like "price ascending" are not stable when
+     * multiple services share the same price. Adding id ASC gives deterministic
+     * pagination without changing the requested primary sort.
+     */
+    private Pageable withStableTieBreaker(Pageable pageable) {
+        if (pageable.isUnpaged()) {
+            return pageable;
+        }
+
+        Sort sort = pageable.getSort();
+        for (Sort.Order order : sort) {
+            if ("id".equals(order.getProperty())) {
+                return pageable;
+            }
+        }
+
+        Sort stableSort = sort.and(Sort.by(Sort.Order.asc("id")));
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), stableSort);
     }
 
     /**

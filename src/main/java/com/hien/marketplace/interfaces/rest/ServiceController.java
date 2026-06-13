@@ -1,10 +1,12 @@
 package com.hien.marketplace.interfaces.rest;
 
 import com.hien.marketplace.application.service.ServiceCatalogService;
+import com.hien.marketplace.interfaces.dto.request.ServiceSearchRequest;
 import com.hien.marketplace.interfaces.dto.response.ServiceResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,7 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * Endpoints:
  * - GET /api/services - List all active services (paginated)
+ * - GET /api/services/search - Search services with filters
  * - GET /api/services/{id} - Get service detail
  * - GET /api/services/category/{categoryId} - Filter by category
  */
@@ -53,6 +55,40 @@ public class ServiceController {
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
     ) {
         Page<ServiceResponse> services = serviceCatalogService.getAllServices(pageable);
+        return ResponseEntity.ok(services);
+    }
+
+    /**
+     * Search services with filters.
+     *
+     * All filters are optional - client can filter by any combination.
+     * Spring automatically binds query params to ServiceSearchRequest fields.
+     *
+     * Query params:
+     * - keyword: Search in name and description
+     * - categoryId: Filter by category
+     * - vendorId: Filter by vendor
+     * - city: Filter by city
+     * - minPrice / maxPrice: Price range in dollars (converted to cents internally)
+     * - minRating: Minimum rating (1-5)
+     * - page, size, sort: Pagination (handled by Pageable)
+     *
+     * IMPORTANT: This endpoint must come BEFORE getServiceById(@PathVariable Long id)
+     * to avoid path conflict. Spring MVC matches "/api/services/search" before "/api/services/{id}".
+     */
+    @GetMapping("/search")
+    @Operation(
+            summary = "Search services",
+            description = "Search and filter services by keyword, category, vendor, city, price range, and rating",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Search results retrieved successfully")
+            }
+    )
+    public ResponseEntity<Page<ServiceResponse>> searchServices(
+            @Valid ServiceSearchRequest request,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
+    ) {
+        Page<ServiceResponse> services = serviceCatalogService.searchServices(request, pageable);
         return ResponseEntity.ok(services);
     }
 
