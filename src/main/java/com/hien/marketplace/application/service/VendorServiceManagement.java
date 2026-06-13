@@ -29,8 +29,14 @@ import java.math.BigDecimal;
  * - Vendors CREATE/UPDATE/DELETE their own services
  * - Customers only VIEW (public catalog)
  *
- * Authorization: vendorId comes from authenticated user, not request body.
+ * Authorization: userId comes from JWT authentication.
+ * Service resolves vendor profile from userId, not from request body.
  * This prevents vendors from modifying other vendors' services.
+ *
+ * IMPORTANT: userId and vendorId are DIFFERENT database identities.
+ * - User: authentication entity (users table)
+ * - Vendor: business profile entity (vendors table)
+ * - Relationship: Vendor.user references User, but Vendor.id != User.id
  */
 @Service
 @RequiredArgsConstructor
@@ -42,14 +48,35 @@ public class VendorServiceManagement {
     private final ServiceMapper serviceMapper;
 
     /**
+     * Resolve vendor profile from authenticated user ID.
+     *
+     * WHY: userId from JWT is NOT the same as vendorId.
+     * We need to look up the vendor profile that belongs to this user.
+     *
+     * @param userId Authenticated user ID from JWT
+     * @return Vendor profile
+     * @throws BusinessRuleViolationException if user has no vendor profile
+     */
+    private Vendor getVendorByUserId(Long userId) {
+        return vendorRepository.findByUserId(userId)
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                        "Vendor profile",
+                        "Vendor profile not found. Please complete vendor registration."
+                ));
+    }
+
+    /**
      * Get all services owned by a vendor.
      *
      * WHY: Vendor dashboard shows their own services (not all public services).
      * Includes both ACTIVE and INACTIVE services (vendor sees all).
+     *
+     * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional(readOnly = true)
-    public Page<ServiceResponse> getVendorServices(Long vendorId, Pageable pageable) {
-        return serviceRepository.findByVendorId(vendorId, pageable)
+    public Page<ServiceResponse> getVendorServices(Long userId, Pageable pageable) {
+        Vendor vendor = getVendorByUserId(userId);
+        return serviceRepository.findByVendorId(vendor.getId(), pageable)
                 .map(serviceMapper::toResponse);
     }
 
@@ -57,16 +84,18 @@ public class VendorServiceManagement {
      * Create new service for vendor.
      *
      * Flow:
-     * 1. Validate vendor exists and is approved
-     * 2. Validate category exists
-     * 3. Create ServiceEntity with Money value object
-     * 4. Save and return response
+     * 1. Resolve vendor profile from userId
+     * 2. Validate vendor is approved
+     * 3. Validate category exists
+     * 4. Create ServiceEntity with Money value object
+     * 5. Save and return response
+     *
+     * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional
-    public ServiceResponse createService(Long vendorId, ServiceCreateRequest request) {
-        // Step 1: Validate vendor
-        Vendor vendor = vendorRepository.findById(vendorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vendor", vendorId));
+    public ServiceResponse createService(Long userId, ServiceCreateRequest request) {
+        // Step 1: Resolve vendor profile
+        Vendor vendor = getVendorByUserId(userId);
 
         if (!vendor.isApproved()) {
             throw new BusinessRuleViolationException(
@@ -110,14 +139,19 @@ public class VendorServiceManagement {
      *
      * WHY: Vendors can update title, description, price, etc.
      * Authorization: Only vendor who owns the service can update it.
+     *
+     * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional
-    public ServiceResponse updateService(Long vendorId, Long serviceId, ServiceUpdateRequest request) {
-        // Step 1: Find service owned by this vendor
+    public ServiceResponse updateService(Long userId, Long serviceId, ServiceUpdateRequest request) {
+        // Step 1: Resolve vendor profile
+        Vendor vendor = getVendorByUserId(userId);
+
+        // Step 2: Find service owned by this vendor
         ServiceEntity service = serviceRepository.findById(serviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Service", serviceId));
 
-        if (!service.getVendor().getId().equals(vendorId)) {
+        if (!service.getVendor().getId().equals(vendor.getId())) {
             throw new BusinessRuleViolationException(
                     "Service ownership",
                     "You can only update your own services"
@@ -142,13 +176,18 @@ public class VendorServiceManagement {
      *
      * WHY: Vendors can deactivate services instead of deleting.
      * Deactivated services not shown in public catalog.
+     *
+     * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional
-    public void deactivateService(Long vendorId, Long serviceId) {
+    public void deactivateService(Long userId, Long serviceId) {
+        // Resolve vendor profile
+        Vendor vendor = getVendorByUserId(userId);
+
         ServiceEntity service = serviceRepository.findById(serviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Service", serviceId));
 
-        if (!service.getVendor().getId().equals(vendorId)) {
+        if (!service.getVendor().getId().equals(vendor.getId())) {
             throw new BusinessRuleViolationException(
                     "Service ownership",
                     "You can only deactivate your own services"

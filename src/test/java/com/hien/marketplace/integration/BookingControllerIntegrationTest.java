@@ -84,14 +84,14 @@ class BookingControllerIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         // Step 1: Create vendor user and get token
-        // Note: registerAsVendor=true sets role but doesn't create Vendor profile (Phase 2 gap)
-        // So we create Vendor manually
-        vendorUser = registerUser("vendor-booking@test.com", "Vendor Booking", false);
+        // IMPORTANT: registerAsVendor=true creates user with VENDOR role AND Vendor profile
+        // This is needed for SecurityConfig role checks on /api/bookings/vendor
+        vendorUser = registerUser("vendor-booking@test.com", "Vendor Booking", true);
         vendorToken = loginAndGetToken("vendor-booking@test.com", "Password123");
 
-        // Step 2: Create vendor profile manually
-        vendor = new Vendor(vendorUser, "Test Vendor Business");
-        vendor = vendorRepository.save(vendor);
+        // Step 2: Get the vendor profile that was created during registration
+        vendor = vendorRepository.findByUserId(vendorUser.getId())
+                .orElseThrow(() -> new RuntimeException("Vendor profile not found after registration"));
 
         // Step 3: Create a service for booking
         service = new ServiceEntity(vendor, "Haircut", Money.of(10000), PricingType.FIXED, 60);
@@ -340,6 +340,16 @@ class BookingControllerIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content").isArray())
                     .andExpect(jsonPath("$.content[0].vendorId").value(vendor.getId()));
+        }
+
+        @Test
+        @DisplayName("Customer cannot access vendor bookings endpoint")
+        void customerCannotAccessVendorBookings() throws Exception {
+            // SecurityConfig requires VENDOR role for GET /api/bookings/vendor
+            // CUSTOMER token should get 403 Forbidden
+            mockMvc.perform(get("/api/bookings/vendor")
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isForbidden());
         }
 
         @Test

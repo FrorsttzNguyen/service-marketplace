@@ -1,5 +1,6 @@
 package com.hien.marketplace.application.service;
 
+import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.common.Money;
@@ -75,6 +76,9 @@ class RefundServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private RefundTransactionService refundTransactionService;
+
     @InjectMocks
     private RefundService refundService;
 
@@ -127,6 +131,20 @@ class RefundServiceTest {
         when(payment.getRefunds()).thenReturn(new ArrayList<>());
     }
 
+    // Helper method to create RefundContext from payment
+    private RefundContext createRefundContext(Payment payment, Money alreadyRefunded) {
+        return new RefundContext(
+                payment.getId(),
+                payment.getStripePaymentIntentId(),
+                payment.getStatus(),
+                payment.getAmount(),
+                payment.getOrder().getId(),
+                payment.getOrder().getStatus(),
+                payment.getOrder().getCustomer().getId(),
+                alreadyRefunded
+        );
+    }
+
     // === createRefund tests ===
 
     @Nested
@@ -135,21 +153,20 @@ class RefundServiceTest {
 
         @Test
         void shouldSucceedForFullRefund() throws StripeException {
-            // Setup
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(null))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save (which has markAsSucceeded called)
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                // Set ID on the refund
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
-            when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
+            Refund savedRefund = new Refund(payment, payment.getAmount(), "Full refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(1L);
+            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+                    .thenReturn(savedRefund);
 
             // Execute
             Refund result = refundService.createRefund(1L, 1L, null, "Full refund");
@@ -159,24 +176,25 @@ class RefundServiceTest {
             assertThat(result.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
             assertThat(result.getAmount()).isEqualTo(payment.getAmount());
             verify(stripeClient).createRefund("pi_test123", null); // null = full refund
-            verify(eventPublisher).publishEvent(any(RefundProcessedEvent.class));
+            verify(refundTransactionService).createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123"));
         }
 
         @Test
         void shouldSucceedForPartialRefund() throws StripeException {
-            // Setup
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(5000L))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
+            Refund savedRefund = new Refund(payment, Money.of(5000), "Partial refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(1L);
+            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+                    .thenReturn(savedRefund);
 
             // Execute
             Refund result = refundService.createRefund(1L, 1L, 5000L, "Partial refund");
@@ -186,25 +204,28 @@ class RefundServiceTest {
             assertThat(result.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
             assertThat(result.getAmount()).isEqualTo(Money.of(5000));
             verify(stripeClient).createRefund("pi_test123", 5000L);
-            verify(eventPublisher).publishEvent(any(RefundProcessedEvent.class));
+            verify(refundTransactionService).createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123"));
         }
 
         @Test
         void shouldUpdateOrderStatusOnFullRefund() throws StripeException {
-            // Setup
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(null))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
-            when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
+            // Mock the transaction service to update order status
+            final Refund savedRefund = new Refund(payment, payment.getAmount(), "Full refund");
+            savedRefund.markAsSucceeded();
+            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+                    .thenAnswer(invocation -> {
+                        // Simulate the order status update that happens in transaction service
+                        payment.getOrder().refund();
+                        return savedRefund;
+                    });
 
             // Execute
             refundService.createRefund(1L, 1L, null, "Full refund");
@@ -215,19 +236,21 @@ class RefundServiceTest {
 
         @Test
         void shouldNotUpdateOrderStatusOnPartialRefund() throws StripeException {
-            // Setup
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            // Setup - mock loadRefundContext via RefundTransactionService
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(5000L))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(1L);
-                return refundToSave;
-            });
+            // Mock the transaction service (partial refund doesn't update order)
+            Refund savedRefund = new Refund(payment, Money.of(5000), "Partial refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(1L);
+            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+                    .thenReturn(savedRefund);
 
             // Execute
             refundService.createRefund(1L, 1L, 5000L, "Partial refund");
@@ -238,7 +261,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenPaymentNotFound() {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.empty());
+            when(refundTransactionService.loadRefundContext(1L, 1L))
+                    .thenThrow(new ResourceNotFoundException("Payment", 1L));
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, null, "Refund"))
                     .isInstanceOf(ResourceNotFoundException.class)
@@ -247,29 +271,50 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenNotPaymentOwner() {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            // Load context with customer ID 1 (payment belongs to customer 1)
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            // When user 2 tries to refund, loadRefundContext is called with (paymentId=1L, userId=2L)
+            when(refundTransactionService.loadRefundContext(1L, 2L)).thenReturn(context);
 
+            // Try to refund as user 2 (not owner)
             assertThatThrownBy(() -> refundService.createRefund(2L, 1L, null, "Refund"))
                     .isInstanceOf(BusinessRuleViolationException.class)
                     .hasMessageContaining("You can only refund your own payments");
         }
 
         @Test
-        void shouldThrowWhenPaymentNotSucceeded() {
-            // Create new payment in PENDING status (not succeeded)
-            Payment pendingPayment = spy(new Payment(order, Money.of(11000)));
-            when(pendingPayment.getId()).thenReturn(1L);
-            when(pendingPayment.getStatus()).thenReturn(PaymentStatus.PENDING);
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(pendingPayment));
+        void shouldThrowWhenOrderNotPaid() {
+            // Create order in CREATED status (not PAID)
+            Order unpaidOrder = new Order(customer, booking, Money.of(10000), Money.of(1000));
+            unpaidOrder = spy(unpaidOrder);
+            when(unpaidOrder.getId()).thenReturn(2L);
+            when(unpaidOrder.getStatus()).thenReturn(OrderStatus.CREATED);
+            when(unpaidOrder.getCustomer()).thenReturn(customer);
+
+            // Create payment for this order (SUCCEEDED status)
+            Payment paymentForUnpaidOrder = spy(new Payment(unpaidOrder, Money.of(11000)));
+            when(paymentForUnpaidOrder.getId()).thenReturn(1L);
+            when(paymentForUnpaidOrder.getStatus()).thenReturn(PaymentStatus.SUCCEEDED);
+            when(paymentForUnpaidOrder.getAmount()).thenReturn(Money.of(11000));
+            when(paymentForUnpaidOrder.getStripePaymentIntentId()).thenReturn("pi_test123");
+            when(paymentForUnpaidOrder.getOrder()).thenReturn(unpaidOrder);
+            when(paymentForUnpaidOrder.getRefunds()).thenReturn(new ArrayList<>());
+
+            RefundContext context = new RefundContext(
+                    1L, "pi_test123", PaymentStatus.SUCCEEDED, Money.of(11000),
+                    2L, OrderStatus.CREATED, 1L, Money.of(0)
+            );
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, null, "Refund"))
                     .isInstanceOf(PaymentException.class)
-                    .hasMessageContaining("Only succeeded payments can be refunded");
+                    .hasMessageContaining("Only succeeded payments on paid orders can be refunded");
         }
 
         @Test
         void shouldThrowWhenRefundAmountExceedsPayment() throws StripeException {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             // Payment amount is 11000, try to refund 15000
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, 15000L, "Too much"))
@@ -279,7 +324,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenRefundAmountIsZero() {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, 0L, "Zero amount"))
                     .isInstanceOf(PaymentException.class)
@@ -288,7 +334,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenRefundAmountIsNegative() {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             // Money.of() throws IllegalArgumentException for negative amounts
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, -100L, "Negative amount"))
@@ -298,7 +345,8 @@ class RefundServiceTest {
 
         @Test
         void shouldThrowWhenStripeApiFails() throws StripeException {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             StripeException stripeException = mock(StripeException.class);
             when(stripeException.getMessage()).thenReturn("API error");
@@ -317,7 +365,8 @@ class RefundServiceTest {
             existingRefund.markAsSucceeded();
             when(payment.getRefunds()).thenReturn(new ArrayList<>(java.util.List.of(existingRefund)));
 
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(5000));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             // Try to refund another 7000 (5000 + 7000 = 12000 > 11000)
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, 7000L, "Second refund"))
@@ -332,18 +381,19 @@ class RefundServiceTest {
             existingRefund.markAsSucceeded();
             when(payment.getRefunds()).thenReturn(new ArrayList<>(java.util.List.of(existingRefund)));
 
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(5000));
+            when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             com.stripe.model.Refund mockStripeRefund = mock(com.stripe.model.Refund.class);
             when(mockStripeRefund.getId()).thenReturn("re_test456");
             when(stripeClient.createRefund(eq("pi_test123"), eq(6000L))).thenReturn(mockStripeRefund);
 
-            // Return the actual refund passed to save
-            when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> {
-                Refund refundToSave = invocation.getArgument(0);
-                when(refundToSave.getId()).thenReturn(2L);
-                return refundToSave;
-            });
+            Refund savedRefund = new Refund(payment, Money.of(6000), "Second refund");
+            savedRefund.markAsSucceeded();
+            savedRefund = spy(savedRefund);
+            when(savedRefund.getId()).thenReturn(2L);
+            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test456")))
+                    .thenReturn(savedRefund);
 
             // Execute: refund 6000 more (5000 + 6000 = 11000 = payment amount, allowed)
             Refund result = refundService.createRefund(1L, 1L, 6000L, "Second refund");
@@ -439,7 +489,9 @@ class RefundServiceTest {
 
         @Test
         void createRefundRequiresPaymentOwnership() {
-            when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+            RefundContext context = createRefundContext(payment, Money.of(0));
+            // When user 999 tries to refund, loadRefundContext is called with (paymentId=1L, userId=999L)
+            when(refundTransactionService.loadRefundContext(1L, 999L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(999L, 1L, null, "Refund"))
                     .isInstanceOf(BusinessRuleViolationException.class)

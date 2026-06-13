@@ -89,7 +89,7 @@ public class PaymentController {
         );
 
         // Get the created payment to build response
-        Payment payment = paymentService.getPaymentByOrderId(request.orderId())
+        Payment payment = paymentService.getPaymentByOrderId(principal.userId(), request.orderId())
                 .orElseThrow(() -> new IllegalStateException("Payment not found after creation"));
 
         PaymentResponse response = PaymentResponse.withClientSecret(payment, clientSecret);
@@ -123,21 +123,23 @@ public class PaymentController {
      * Get payment by order ID.
      *
      * Returns payment for a specific order, if exists.
+     * Authorization: Only order owner can view payment.
      */
     @GetMapping("/order/{orderId}")
     @Operation(
             summary = "Get payment by order ID",
-            description = "Retrieve payment for a specific order.",
+            description = "Retrieve payment for a specific order. Only order owner can access.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Payment found"),
-                    @ApiResponse(responseCode = "404", description = "No payment for this order")
+                    @ApiResponse(responseCode = "404", description = "No payment for this order"),
+                    @ApiResponse(responseCode = "403", description = "Not authorized to view this payment")
             }
     )
     public ResponseEntity<PaymentResponse> getPaymentByOrder(
             @AuthenticationPrincipal UserPrincipal principal,
             @Parameter(description = "Order ID") @PathVariable Long orderId
     ) {
-        return paymentService.getPaymentByOrderId(orderId)
+        return paymentService.getPaymentByOrderId(principal.userId(), orderId)
                 .map(payment -> ResponseEntity.ok(PaymentResponse.from(payment)))
                 .orElse(ResponseEntity.notFound().build());
     }
