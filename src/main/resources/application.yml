@@ -44,6 +44,11 @@ server:
 app:
   ratelimit:
     enabled: true
+    # Comma-separated CIDRs of trusted reverse proxies / load balancers. X-Forwarded-For is honored
+    # ONLY when the request's socket peer (remoteAddr) matches one of these — otherwise a client could
+    # spoof XFF and bypass the limit. Empty (default) = trust nobody = use the un-spoofable socket IP.
+    # Example behind a Docker/K8s load balancer: "10.0.0.0/8,172.16.0.0/12"
+    trusted-proxies: ""
 
 # Actuator — production-ready monitoring endpoints
 management:
