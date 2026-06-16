@@ -96,8 +96,20 @@ public class SecurityConfig {
                                         "/swagger-ui/**",  // Swagger UI
                                         "/swagger-ui.html",
                                         "/v3/api-docs/**",  // OpenAPI docs
-                                        "/actuator/health"  // Health check
+                                        "/actuator/health",  // Health check — load balancers, k8s probes
+                                        "/actuator/info"    // Build/info endpoint — non-sensitive
                                 ).permitAll()
+
+                                // Actuator lockdown (Phase 6 Slice 3): metrics + prometheus are
+                                // sensitive (expose traffic, JVM internals, endpoint names).
+                                // Default-deny ALL actuator paths to ADMIN, then the explicit
+                                // permitAll above only re-opens health + info. ORDER MATTERS in
+                                // Spring Security: the FIRST matching rule wins, so the public
+                                // health/info rules above must come before this catch-all.
+                                // NOTE for Hien: if a Prometheus scraper cannot authenticate,
+                                // open ONLY "/actuator/prometheus" by adding it to permitAll — do
+                                // NOT loosen "/actuator/**" wholesale.
+                                .requestMatchers("/actuator/**").hasRole("ADMIN")
 
                                 // Vendor-only endpoints - requires VENDOR role
                                 // IMPORTANT: /api/bookings/vendor must come BEFORE /api/** catch-all
