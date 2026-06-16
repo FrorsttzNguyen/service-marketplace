@@ -54,9 +54,10 @@ public class SecurityConfig {
     public RateLimitFilter rateLimitFilter(
             ObjectProvider<LettuceBasedProxyManager<byte[]>> proxyManagerProvider,
             ObjectMapper objectMapper,
-            @org.springframework.beans.factory.annotation.Value("${app.ratelimit.enabled:true}") boolean enabled
+            @org.springframework.beans.factory.annotation.Value("${app.ratelimit.enabled:true}") boolean enabled,
+            @org.springframework.beans.factory.annotation.Value("${app.ratelimit.trusted-proxies:}") String trustedProxies
     ) {
-        return new RateLimitFilter(proxyManagerProvider, objectMapper, enabled);
+        return new RateLimitFilter(proxyManagerProvider, objectMapper, enabled, trustedProxies);
     }
 
     /**

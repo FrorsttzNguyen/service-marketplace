@@ -39,8 +39,16 @@ class RateLimitFilterTest {
         // getIfAvailable() returns null → filter falls back to in-memory buckets.
         org.mockito.Mockito.when(emptyProvider.getIfAvailable()).thenReturn(null);
 
-        filter = new RateLimitFilter(emptyProvider, new ObjectMapper(), true);
+        // No trusted proxies → X-Forwarded-For is ignored, identity is the socket IP.
+        filter = new RateLimitFilter(emptyProvider, new ObjectMapper(), true, "");
         chain = mock(FilterChain.class);
+    }
+
+    /** Build a filter that trusts a given proxy CIDR (so it honors X-Forwarded-For from it). */
+    private RateLimitFilter filterTrusting(String trustedProxiesCsv) {
+        ObjectProvider<LettuceBasedProxyManager<byte[]>> emptyProvider = mock(ObjectProvider.class);
+        org.mockito.Mockito.when(emptyProvider.getIfAvailable()).thenReturn(null);
+        return new RateLimitFilter(emptyProvider, new ObjectMapper(), true, trustedProxiesCsv);
     }
 
     private MockHttpServletRequest post(String uri) {
@@ -114,7 +122,7 @@ class RateLimitFilterTest {
     void disabledLetsEverythingThrough() throws Exception {
         ObjectProvider<LettuceBasedProxyManager<byte[]>> emptyProvider = mock(ObjectProvider.class);
         org.mockito.Mockito.when(emptyProvider.getIfAvailable()).thenReturn(null);
-        RateLimitFilter disabledFilter = new RateLimitFilter(emptyProvider, new ObjectMapper(), false);
+        RateLimitFilter disabledFilter = new RateLimitFilter(emptyProvider, new ObjectMapper(), false, "");
 
         for (int i = 0; i < 20; i++) {
             MockHttpServletResponse res = new MockHttpServletResponse();
@@ -140,25 +148,47 @@ class RateLimitFilterTest {
     }
 
     @Test
-    @DisplayName("X-Forwarded-For is used as the client identity")
-    void xForwardedForIsUsedAsIdentity() throws Exception {
+    @DisplayName("Untrusted peer: X-Forwarded-For is IGNORED → cannot bypass by spoofing it")
+    void xForwardedForIgnoredWhenProxyUntrusted() throws Exception {
+        // remoteAddr is 1.2.3.4 (post() helper), which is NOT a trusted proxy in the default filter.
+        // Exhaust the bucket for that socket IP using one spoofed XFF...
+        for (int i = 0; i < 5; i++) {
+            MockHttpServletRequest req = post("/api/auth/login");
+            req.addHeader("X-Forwarded-For", "203.0.113.7");
+            filter.doFilter(req, new MockHttpServletResponse(), chain);
+        }
+        // ...then a request with a DIFFERENT spoofed XFF but the same socket IP must STILL be blocked,
+        // proving XFF did not create a fresh bucket (no bypass).
+        MockHttpServletRequest spoofed = post("/api/auth/login");
+        spoofed.addHeader("X-Forwarded-For", "9.9.9.9");
+        MockHttpServletResponse blocked = new MockHttpServletResponse();
+        filter.doFilter(spoofed, blocked, chain);
+        assertThat(blocked.getStatus()).isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName("Trusted proxy: X-Forwarded-For is honored as the client identity")
+    void xForwardedForHonoredWhenProxyTrusted() throws Exception {
+        // The socket peer 1.2.3.4 (post() helper) is declared trusted, so XFF is used as identity.
+        RateLimitFilter trusting = filterTrusting("1.2.3.4");
+
         for (int i = 0; i < 5; i++) {
             MockHttpServletRequest req = post("/api/auth/login");
             req.addHeader("X-Forwarded-For", "203.0.113.7, 10.0.0.1");
-            filter.doFilter(req, new MockHttpServletResponse(), chain);
+            trusting.doFilter(req, new MockHttpServletResponse(), chain);
         }
-        // Same XFF first-ip should now be blocked.
+        // Same XFF client → blocked.
         MockHttpServletRequest req = post("/api/auth/login");
         req.addHeader("X-Forwarded-For", "203.0.113.7, 10.0.0.1");
         MockHttpServletResponse blocked = new MockHttpServletResponse();
-        filter.doFilter(req, blocked, chain);
+        trusting.doFilter(req, blocked, chain);
         assertThat(blocked.getStatus()).isEqualTo(429);
 
-        // A different XFF ip is a separate bucket.
+        // Different XFF client (same trusted proxy) → separate bucket.
         MockHttpServletRequest otherReq = post("/api/auth/login");
         otherReq.addHeader("X-Forwarded-For", "198.51.100.2");
         MockHttpServletResponse otherRes = new MockHttpServletResponse();
-        filter.doFilter(otherReq, otherRes, chain);
+        trusting.doFilter(otherReq, otherRes, chain);
         assertThat(otherRes.getStatus()).isEqualTo(200);
     }
 }
