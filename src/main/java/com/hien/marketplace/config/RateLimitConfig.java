@@ -1,11 +1,14 @@
 package com.hien.marketplace.config;
 
+import io.github.bucket4j.distributed.ExpirationAfterWriteStrategy;
 import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
 import io.lettuce.core.RedisClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Duration;
 
 /**
  * Rate-limiting infrastructure backed by Redis (Phase 5).
@@ -59,10 +62,23 @@ public class RateLimitConfig {
      *
      * Key serialization is handled by the RateLimitFilter, which builds a String key and the filter
      * is the only consumer of this ProxyManager.
+     *
+     * WHY an expiration strategy (memory safety):
+     * - Without one, every distinct (endpoint, ip) key lives in Redis FOREVER. With many client IPs
+     *   (or spoofed ones) that is an unbounded memory leak in Redis.
+     * - basedOnTimeForRefillingBucketUpToMax sets each key's TTL to "the time needed to refill the
+     *   bucket back to full" + a small margin. The insight: once a bucket has refilled to capacity,
+     *   its state is identical to a brand-new bucket — so there is nothing worth keeping, and Redis
+     *   can safely evict the key. A returning client just gets a fresh full bucket, same result.
+     * - The longest refill window here is register (3/hour → ~1h to refill); the strategy computes
+     *   the right TTL per key automatically, so we only add a small grace margin.
      */
     @Bean
     public LettuceBasedProxyManager<byte[]> rateLimitProxyManager(RedisClient rateLimitRedisClient) {
         // builderFor(RedisClient) returns a builder whose key type is byte[] (the default codec).
-        return LettuceBasedProxyManager.builderFor(rateLimitRedisClient).build();
+        return LettuceBasedProxyManager.builderFor(rateLimitRedisClient)
+                .withExpirationStrategy(ExpirationAfterWriteStrategy
+                        .basedOnTimeForRefillingBucketUpToMax(Duration.ofSeconds(10)))
+                .build();
     }
 }
