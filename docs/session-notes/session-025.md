@@ -83,9 +83,19 @@ biggest portfolio gap (CI, Docker, prod config, observability, live deploy).
   `Successfully applied 10 migrations` → `Started ServiceMarketplaceApplication`. Slice 2 acceptance MET.
 - **⚠️ Blocker RESOLVED:** the `audit_logs` jsonb/text mismatch (broke runtime boot AND Testcontainers) is
   fixed by V10. Runtime `ddl-auto=validate` now passes against the Flyway schema.
-- **Remaining Phase 6 slices:** Slice 3 (prod config: `application-prod.yml`, Actuator `prometheus`,
-  structured logging, export `docs/api/openapi.yaml`) · Slice 4b optional (wire Testcontainers into CI now
-  that jsonb is fixed) · Slice 5 (deploy to free-tier + README badge/live URL — Hien-driven).
+- **Slice 3 — DONE (PR #13, merged):** `feat/phase6-prod-config` — `application-prod.yml` (env-only secrets,
+  fail-fast on missing `JWT_SECRET`), `micrometer-registry-prometheus`, Actuator exposes
+  `health,info,prometheus,metrics` with SecurityConfig locking `/actuator/**` to ADMIN (health+info public),
+  structured ECS JSON logging (Spring Boot 3.5 built-in), `springdoc 2.6.0→2.8.9` (fixes latent
+  `/v3/api-docs` NoSuchMethodError), exported `docs/api/openapi.yaml`. Review: `docs/pr-13-review.md`.
+  Opus reproduced under prod profile: app boots, JSON logs, health/info 200, prometheus **403** no-auth,
+  api-docs 200, fail-fast on missing JWT_SECRET. All verified.
+- **Only Slice 5 (deploy) remains** for Phase 6.
+
+### Pre-existing security note (future hardening, NOT a current task)
+`JwtUtils` has `@Value("${app.jwt.secret:your-very-long-secret-key-must-be-at-least-256-bits-long}")` — a
+hardcoded fallback. `prod` is safe (overridden + fail-fast, verified), but the default/common profile signs
+JWTs with a public key. Drop the default someday so every profile fails-fast. (Out of Phase 6 scope.)
 
 ### Open decisions for Hien
 - Deploy target (Slice 5): Railway / Render / Fly.io — spec recommends **Render**.
@@ -95,10 +105,11 @@ biggest portfolio gap (CI, Docker, prod config, observability, live deploy).
 
 ```
 Read docs/phase6-production-readiness-spec.md + docs/session-notes/session-025.md.
-Phase 6 status: Slice 1 (CI, PR #10), Slice 4 (jsonb V10, PR #12), Slice 2 (Docker, PR #11) — all DONE,
-merged, and full-stack verified (docker compose up → /actuator/health UP). main has CI + Dockerfile +
-docker-compose + V10. The audit_logs jsonb/text blocker is RESOLVED.
-NEXT: Slice 3 (prod config — application-prod.yml, Actuator prometheus metrics, structured JSON logging,
-export docs/api/openapi.yaml). Prepare the branch + GLM prompt like prior slices. Then Slice 5 (deploy;
-Hien picks Render/Railway/Fly). Optional: Testcontainers-in-CI now that jsonb is fixed.
+Phase 6: Slices 1 (CI #10), 4 (jsonb V10 #12), 2 (Docker #11), 3 (prod config + observability #13) — ALL
+DONE & merged, each reproduced/verified by Opus (compose stack boots, /actuator/health UP, prod profile JSON
+logs, prometheus secured, OpenAPI exported). main is production-shaped.
+NEXT = Slice 5 (deploy, Hien-driven): pick a free-tier host (spec recommends Render); GLM prepares host
+config (render.yaml) + documents required env vars (JWT_SECRET, STRIPE_*, ADMIN_*, DB/Redis); Hien performs
+the deploy; README gets CI badge + live URL + Swagger link; verify /actuator/health UP in prod.
+Optional: Testcontainers-in-CI (jsonb blocker is gone).
 ```

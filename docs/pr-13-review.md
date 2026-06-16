@@ -150,3 +150,34 @@ remaining slice — and it's now unblocked (the image boots in compose + prod pr
 - Slice 5 (`feat/phase6-deploy`): pick a free-tier host (spec recommends **Render**), Hien performs the
   deploy with the prod env vars (`JWT_SECRET`, `STRIPE_*`, `ADMIN_*`, DB/Redis from the host's managed
   services). README gets the CI badge + live URL + Swagger link. `/actuator/health` must be UP in prod.
+
+---
+
+## Independent reviewer reproduction (Opus) — APPROVED, all claims verified
+
+Reviewed the real diffs (not the self-review) and reproduced the runtime behavior against live
+Postgres 16 + Redis 7 with `SPRING_PROFILES_ACTIVE=prod`:
+
+| Check | Result |
+|-------|--------|
+| App boots under `prod` profile | ✅ `Started ServiceMarketplaceApplication` |
+| Logs are structured JSON (ECS) | ✅ `{"@timestamp":...,"ecs":{"version":"8.11"},...}` |
+| `/actuator/health` (no auth) | ✅ **200** (permitted) |
+| `/actuator/info` (no auth) | ✅ **200** (permitted) |
+| `/actuator/prometheus` (no auth) | ✅ **403** — secured to ROLE_ADMIN as intended |
+| `/v3/api-docs` (no auth) | ✅ **200** — springdoc 2.8.9 bump fixed the latent `NoSuchMethodError` |
+| Fail-fast on missing `JWT_SECRET` | ✅ `PlaceholderResolutionException: Could not resolve placeholder 'JWT_SECRET'` → `Application run failed` |
+| `./mvnw -B verify` (CI) | ✅ green (308 tests) |
+| `docs/api/openapi.yaml` | ✅ committed; OpenAPI 3.1.0, includes `/api/admin/**` + auth/order/payment paths |
+
+**Findings:** none blocking. Notable justified extra: the springdoc `2.6.0 → 2.8.9` bump was necessary —
+2.6.0 throws `NoSuchMethodError` on `/v3/api-docs` under Spring Boot 3.5 + `@RestControllerAdvice` (a latent
+bug; the endpoint was broken before, just never hit). Verified `/v3/api-docs` now returns 200.
+
+**Pre-existing observation (NOT introduced by this PR, out of Slice 3 scope):** `JwtUtils` uses
+`@Value("${app.jwt.secret:your-very-long-secret-key-must-be-at-least-256-bits-long}")` — a hardcoded fallback
+secret. The `prod` profile is safe (it sets `app.jwt.secret: ${JWT_SECRET}` with no default → fail-fast, as
+verified). But the **default/common profile would sign JWTs with a publicly-known key**. Worth hardening
+later (drop the default so any profile fails-fast, and require the secret via env everywhere). Flagging only.
+
+**Verdict: APPROVED — merged.** Opus reproduced every acceptance criterion.
