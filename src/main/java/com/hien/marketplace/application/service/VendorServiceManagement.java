@@ -2,6 +2,7 @@ package com.hien.marketplace.application.service;
 
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
+import com.hien.marketplace.config.CacheConfig;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -15,6 +16,7 @@ import com.hien.marketplace.interfaces.dto.request.ServiceUpdateRequest;
 import com.hien.marketplace.interfaces.dto.response.ServiceResponse;
 import com.hien.marketplace.application.mapper.ServiceMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,18 @@ import java.math.BigDecimal;
  * - User: authentication entity (users table)
  * - Vendor: business profile entity (vendors table)
  * - Relationship: Vendor.user references User, but Vendor.id != User.id
+ *
+ * CACHE EVICTION (Phase 5):
+ * - Every mutation (create/update/deactivate) evicts the entire "serviceDetail" cache.
+ * - WHY allEntries=true: getServiceById is cached per service id. When a vendor mutates ANY of
+ *   their services, we cannot cheaply know which cached ids correspond to that vendor's services
+ *   (the cache key is just the id, no vendor scoping). Clearing the whole cache is the safe choice
+ *   — it trades a slightly higher miss rate right after a mutation for guaranteed freshness.
+ * - WHY beforeInvocation=false (default): eviction runs AFTER the method succeeds. If the method
+ *   throws, the DB is unchanged, so the cache MUST stay intact (keeping a valid entry is correct;
+ *   evicting it would just cause an unnecessary refill on the next read).
+ * - Catalog/category list caches are NOT evicted here because they are not cached in the first
+ *   place (see ServiceCatalogService javadoc for the Page<T> rationale).
  */
 @Service
 @RequiredArgsConstructor
@@ -93,6 +107,8 @@ public class VendorServiceManagement {
      * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.CACHE_SERVICE_DETAIL, allEntries = true,
+            beforeInvocation = false)
     public ServiceResponse createService(Long userId, ServiceCreateRequest request) {
         // Step 1: Resolve vendor profile
         Vendor vendor = getVendorByUserId(userId);
@@ -143,6 +159,8 @@ public class VendorServiceManagement {
      * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.CACHE_SERVICE_DETAIL, allEntries = true,
+            beforeInvocation = false)
     public ServiceResponse updateService(Long userId, Long serviceId, ServiceUpdateRequest request) {
         // Step 1: Resolve vendor profile
         Vendor vendor = getVendorByUserId(userId);
@@ -180,6 +198,8 @@ public class VendorServiceManagement {
      * @param userId Authenticated user ID (resolved to vendor internally)
      */
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.CACHE_SERVICE_DETAIL, allEntries = true,
+            beforeInvocation = false)
     public void deactivateService(Long userId, Long serviceId) {
         // Resolve vendor profile
         Vendor vendor = getVendorByUserId(userId);

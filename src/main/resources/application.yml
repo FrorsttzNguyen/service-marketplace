@@ -25,9 +25,25 @@ spring:
     # baseline-on-migrate allows Flyway to start on an existing database
     baseline-on-migrate: true
 
+  # Caching (Phase 5)
+  # - Default runtime cache type is Redis. The "test" profile sets spring.cache.type=simple so
+  #   tests use an in-memory ConcurrentMapCacheManager instead.
+  # - TTLs per cache name are configured in CacheConfig#cacheManager, not here, because they are
+  #   code-level decisions tied to the cache names referenced by annotations.
+  cache:
+    type: redis
+
 # Server
 server:
   port: 8080
+
+# Rate limiting (Phase 5)
+# - ON by default; the test profile sets app.ratelimit.enabled=false so existing auth/booking
+#   integration tests (shared context, repeated /api/auth/** calls) are not blocked.
+# - Limits are defined in code (RateLimitFilter): login 5/min, register 3/hour, refresh 10/min.
+app:
+  ratelimit:
+    enabled: true
 
 # Actuator — production-ready monitoring endpoints
 management:

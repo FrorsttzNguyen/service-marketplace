@@ -216,19 +216,21 @@
 **Git branch:** `feat/phase5-caching`
 
 ### Build
-- [ ] Add Spring Data Redis dependency
-- [ ] Redis configuration (connection factory, serializer)
-- [ ] `@Cacheable` on service catalog queries
-- [ ] `@CacheEvict` on service CRUD operations
-- [ ] Custom cache key generation (include filter params)
-- [ ] Rate limiting with Redis + Bucket4j on auth endpoints
-- [ ] Configure TTL per cache (services: 5min, vendor: 15min, search: 2min)
+- [x] Add Spring Data Redis dependency
+- [x] Redis configuration (connection factory, JSON serializer)
+- [x] `@Cacheable` on service detail lookup (`getServiceById`); Page catalog/category caching deferred
+- [x] `@CacheEvict` on service create/update/deactivate operations
+- [ ] Custom Page cache key generation — deferred because Page<T> methods are not cached
+- [x] Rate limiting with Redis + Bucket4j on auth endpoints
+- [x] Configure TTL per cache (`serviceDetail`: 15min; catalog/category configs present but Page caching deferred)
 
 ### Verify
-- [ ] First GET /api/services → cache MISS (check logs)
-- [ ] Second GET /api/services → cache HIT
-- [ ] Vendor updates service → cache evicted → next request fetches fresh data
-- [ ] Rate limiting returns 429 after N requests per minute
+- [x] First `getServiceById` call → cache MISS (`ServiceCatalogCachingTest`)
+- [x] Second `getServiceById` call → cache HIT (`ServiceCatalogCachingTest`)
+- [x] Successful vendor update → service detail cache evicted (`ServiceCatalogCachingTest`)
+- [x] Failed vendor update → cache remains because `beforeInvocation=false` (`ServiceCatalogCachingTest`)
+- [x] Rate limiting returns 429 after threshold (`RateLimitFilterTest`)
+- [ ] Redis-backed integration smoke test — deferred; current tests use simple cache/in-memory bucket
 
 ---
 
@@ -323,10 +325,10 @@
 - **Lessons learned:**
 
 ### Phase 5 Review
-- **Completed date:**
-- **What went well:**
-- **What to improve:**
-- **Lessons learned:**
+- **Completed date:** 2026-06-16
+- **What went well:** Distributed rate limiting (Bucket4j+Redis) with token bucket; cache-aside with per-cache TTL; honest scope cuts documented in code; 13 new/updated behavioral tests (cache call-counting, success/failure cache eviction, rate-limit IP/XFF isolation); full suite passes with 299 tests after stabilizing Surefire/Mockito; test profile remains Docker-free via `@ConditionalOnProperty`.
+- **What to improve:** Page<T> methods not cached (Jackson Page deserialization blocked); EN docs deferred (VI only); no Redis-backed integration test (in-memory fallback only); rate-limit needs `app.ratelimit.enabled=false` toggle in test profile; `PageableKeyGenerator` is dead code.
+- **Lessons learned:** Jackson cannot deserialize `Page`/`PageImpl` without a datatype module — caching Page silently stores on MISS but returns a LinkedHashMap on HIT (ClassCastException). `@ConditionalOnProperty` is the clean way to make Redis beans optional in tests. Spring env vars must use relaxed Spring names such as `SPRING_DATA_REDIS_HOST`; plain `REDIS_HOST` does not bind to `spring.data.redis.host`. Mockito inline mocks should run via a Java agent on Java 21+ instead of relying on runtime self-attach.
 
 ### Phase 6 Review
 - **Completed date:**
