@@ -2,7 +2,7 @@
 
 - **PR:** [#11 build: add multi-stage Dockerfile, docker-compose (app+postgres+redis), .dockerignore](https://github.com/FrorsttzNguyen/service-marketplace/pull/11)
 - **Branch:** `feat/phase6-docker` → `main`
-- **Reviewer:** (Opus). Coder: GLM.
+- **Coder + initial write-up:** GLM. **Independent review/sign-off:** Opus (see "Independent reviewer reproduction" below).
 - **Date:** 2026-06-17
 - **Spec:** `docs/phase6-production-readiness-spec.md` (Slice 2)
 - **Diff:** 3 files added — `Dockerfile`, `docker-compose.yml` (overwrites old pg+redis-only one), `.dockerignore`. **No app code changed.**
@@ -22,6 +22,33 @@ Testcontainers tests. This is exactly the contingency the spec's Slice 2 review 
 **Answer: yes, it breaks runtime startup.** Therefore **Slice 4 (jsonb fix) is now a hard prerequisite for
 Slice 2 acceptance AND for Slice 5 (deploy).** Recommended path: keep this PR open, do Slice 4 on its own
 branch, then re-verify Slice 2 against the Slice 4 image.
+
+## Independent reviewer reproduction (Opus) — BLOCKER CONFIRMED
+
+I did not take GLM's self-review on trust. I reproduced the boot failure myself, separately from the PR's
+Docker image, to confirm the blocker is real and not a compose-config artifact:
+
+- Started a clean `postgres:16-alpine` container, ran the **app** against it via `./mvnw spring-boot:run`
+  with the **common profile** (no `dev`), `SPRING_DATASOURCE_*` pointing at that Postgres, `SPRING_CACHE_TYPE=simple`
+  to isolate the DB path (Redis not involved), Stripe dummy env to pass `@NotBlank`.
+- Real boot log: Flyway `Successfully applied 9 migrations ... now at version v9` (V6 creates the jsonb
+  columns), then immediately:
+  ```
+  ERROR ... Failed to initialize JPA EntityManagerFactory ... SchemaManagementException:
+  Schema-validation: wrong column type encountered in column [new_values] in table [audit_logs];
+  found [jsonb (Types#OTHER)], but expecting [text (Types#VARCHAR)]
+  ... Application run failed
+  ```
+- **Conclusion:** identical failure to GLM's, on a path that does NOT involve the Docker image or compose
+  networking → the blocker is a genuine **pre-existing runtime bug** (app + real Postgres + `ddl-auto=validate`),
+  merely *exposed* by Slice 2 being the first time the app is booted against Postgres. PR #11's infra did not
+  cause it and is correct. Confidence: **High** (own reproduction + the 3 root-cause facts independently verified:
+  `AuditLog.java:49,60` text-mapped String; `V6:51,52` JSONB; common `application.yml` `ddl-auto: validate`).
+- My earlier "LOW probability at runtime" estimate was **wrong** — the app had evidently never been booted
+  against a fresh Postgres carrying V6.
+
+**Verdict stands: do NOT merge PR #11. Slice 4 (jsonb fix) is a hard prerequisite — and because this breaks
+runtime boot, it also blocks Slice 5 (deploy), not just Testcontainers tests.**
 
 ## What I verified (real runs, not asserted)
 
