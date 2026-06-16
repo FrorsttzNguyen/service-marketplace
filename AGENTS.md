@@ -101,7 +101,7 @@ Each phase is scored out of 10 with weighted criteria:
 | Phase 2 | 9.5 | 9.0 | 8.5 | 9.0 | **9.05** | Tests deferred to Phase 3 |
 | Phase 3 | 9.5 | 8.5 | 9.0 | 9.0 | **9.00** | Business logic complete |
 | Phase 4 | 9.5 | 9.0 | 9.0 | 9.0 | **9.15** | Payment integration complete |
-| Phase 5 | 8.0 | 8.5 | 7.5 | 8.0 | **8.05** | Caching + rate limit; Page<T> & EN docs deferred |
+| Phase 5 | 8.0 | 8.5 | 8.0 | 8.0 | **8.15** | Caching + rate limit; Page<T>, Redis smoke & EN docs deferred |
 
 ---
 

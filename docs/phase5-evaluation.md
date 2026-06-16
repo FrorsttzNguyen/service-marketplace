@@ -8,7 +8,7 @@
 
 ## Evaluation Summary
 
-Phase 5 implemented **Redis caching (cache-aside)** and **distributed rate limiting (token bucket)**. Coverage is solid on the caching layer and rate-limit filter, with deliberate, documented scope cuts where a correct implementation would have required risky dependencies.
+Phase 5 implemented **Redis caching (cache-aside)** and **distributed rate limiting (token bucket)**. Coverage is solid on the Spring cache behavior and rate-limit filter, with deliberate, documented scope cuts where a correct implementation would have required Docker/Redis integration coverage.
 
 ---
 
@@ -22,15 +22,15 @@ Phase 5 implemented **Redis caching (cache-aside)** and **distributed rate limit
 ├─────────────────┼────────┼────────┼──────────┤
 │ Code Quality    │ 30%    │ 8.5/10 │ 2.55     │
 ├─────────────────┼────────┼────────┼──────────┤
-│ Test Coverage   │ 20%    │ 7.5/10 │ 1.50     │
+│ Test Coverage   │ 20%    │ 8.0/10 │ 1.60     │
 ├─────────────────┼────────┼────────┼──────────┤
 │ Concept Mastery │ 20%    │ 8.0/10 │ 1.60     │
 ├─────────────────┼────────┼────────┼──────────┤
-│ TOTAL           │ 100%   │        │ 8.05/10  │
+│ TOTAL           │ 100%   │        │ 8.15/10  │
 └─────────────────┴────────┴────────┴──────────┘
 ```
 
-**Honest note:** This is the **lowest phase score so far** (vs Phase 4's 9.15). The score is lower because Phase 5 has real, documented scope cuts (Page<T> not cached, EN docs deferred, no Redis-backed integration test) and the rate-limit filter needed a test-profile disable toggle. These are defensible engineering tradeoffs, but they mean Phase 5 is "good and honest" rather than "excellent."
+**Honest note:** This is still the **lowest phase score so far** (vs Phase 4's 9.15). The score is lower because Phase 5 has real, documented scope cuts (Page<T> not cached, EN docs deferred, no Redis-backed integration test) and the rate-limit filter needed a test-profile disable toggle. These are defensible engineering tradeoffs, but they mean Phase 5 is "good and honest" rather than "excellent."
 
 ---
 
@@ -84,23 +84,30 @@ Phase 5 implemented **Redis caching (cache-aside)** and **distributed rate limit
 
 ---
 
-### 3. Test Coverage (20%) — Score: 7.5/10
+### 3. Test Coverage (20%) — Score: 8.0/10
 
 **Evidence:**
 
 | Test | Count | What it proves |
 |------|-------|----------------|
-| `ServiceCatalogCachingTest` | 5 | Cache hit reduces repo calls, independent keys, 404 not cached, `beforeInvocation=false` contract |
+| `ServiceCatalogCachingTest` | 6 | Cache hit reduces repo calls, independent keys, successful update evicts, failed update does not evict, 404 not cached |
 | `RateLimitFilterTest` | 7 | login/register thresholds, per-IP + XFF isolation, 429 body validity, non-auth passthrough, disabled flag |
-| **New total** | **+12** | (suite: 286 → 298) |
+| **New/updated total** | **+13** | (suite: 286 → 299) |
+
+Verification command:
+
+```bash
+env -u SPRING_DATASOURCE_URL -u SPRING_DATASOURCE_USERNAME -u SPRING_DATASOURCE_PASSWORD ./mvnw test
+```
+
+Result after PR #7 stabilization: **299 tests, 0 failures, 0 errors, 0 skipped**.
 
 **Strengths:**
 - **Cache test is behavioral, not just "no exception"** — it counts repository invocations to prove the cache actually intercepts.
 - **Rate-limit test covers the security-relevant paths** (XFF spoofing isolation, different IPs).
 
-**Why 7.5, not higher (gaps):**
-- **No Redis-backed integration test.** The plan called for a smoke test against real Redis; it was cut to keep the test profile Docker-free. The in-memory fallback exercises the same algorithm, but doesn't prove the Redis `ProxyManager` wiring works end-to-end. This should be added once a Redis testcontainer or CI Redis service is set up.
-- **`@CacheEvict` on a SUCCESSFUL mutation is not directly tested.** `updateServiceEvictsCache` tests the *failure* path (eviction must NOT happen on throw). The success path (eviction DOES happen after a successful update) is implied by Spring's contract but not asserted, because building a full valid vendor/category/service graph in the mocked context is heavy.
+**Why 8.0, not higher (gaps):**
+- **No Redis-backed integration test.** The plan called for a smoke test against real Redis; it was cut to keep the default test profile Docker-free. The in-memory fallback exercises token-bucket behavior and Spring Cache interception, but does not prove Redis `ProxyManager`/serialization wiring end-to-end. This should be added once a Redis testcontainer or CI Redis service is set up.
 - **Cache eviction for `createService`/`deactivateService` not separately tested** (same annotation, but each mutation could regress independently).
 
 ---
@@ -142,17 +149,14 @@ Phase 5 implemented **Redis caching (cache-aside)** and **distributed rate limit
 - **Current:** Defined in `CacheConfig` but unreferenced since Page methods aren't cached.
 - **Fix:** Remove it, or keep it only if Page caching is planned next.
 
-### 5. Pre-existing test failure (not Phase 5)
-- `AuthControllerIntegrationTest$FullAuthFlowTests.shouldAccessProtectedEndpointAfterLogin` fails (expected 404, got 400). **Reproduces on `main`** before Phase 5. Likely a broken test assertion, not a regression.
-
-### 6. Environment: tests require unset datasource env vars
+### 5. Environment: tests require unset datasource env vars
 - The local `.env` sets `SPRING_DATASOURCE_URL=postgres...` which overrides the H2 test datasource. Tests must be run with `env -u SPRING_DATASOURCE_URL -u SPRING_DATASOURCE_USERNAME -u SPRING_DATASOURCE_PASSWORD ./mvnw test`. This is a pre-existing environment issue, documented in session-020.
 
 ---
 
 ## Verdict
 
-**Phase 5 passes with score 8.05/10** — the lowest phase score, reflecting honest scope cuts rather than inflated claims.
+**Phase 5 passes with score 8.15/10** — the lowest phase score, reflecting honest scope cuts rather than inflated claims.
 
 The caching and rate-limiting work is correct, tested, and well-documented (in VI). The score is held back by: (a) Page<T> methods not cached, (b) EN docs deferred, (c) no Redis integration test, (d) rate-limit needs a test toggle. All of these are **documented and defensible**, none are bugs.
 

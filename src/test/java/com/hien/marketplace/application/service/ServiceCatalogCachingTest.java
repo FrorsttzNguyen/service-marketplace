@@ -4,7 +4,10 @@ import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.application.mapper.ServiceMapper;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
+import com.hien.marketplace.domain.vendor.Vendor;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
+import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.interfaces.dto.request.ServiceUpdateRequest;
 import com.hien.marketplace.interfaces.dto.response.ServiceResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +22,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,8 +39,9 @@ import static org.mockito.Mockito.when;
  * WHAT THESE TESTS PROVE:
  * 1. First call hits the repository (cache MISS).
  * 2. Second call does NOT hit the repository (cache HIT).
- * 3. @CacheEvict (triggered via VendorServiceManagement.updateService) clears the entry.
- * 4. A thrown result (404) is not cached, so a retry re-queries.
+ * 3. A successful @CacheEvict mutation clears the entry.
+ * 4. A failed @CacheEvict mutation keeps the entry because beforeInvocation=false.
+ * 5. A thrown result (404) is not cached, so a retry re-queries.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -53,6 +58,9 @@ class ServiceCatalogCachingTest {
 
     @MockBean
     private ServiceRepository serviceRepository;
+
+    @MockBean
+    private VendorRepository vendorRepository;
 
     // ServiceMapper is a MapStruct bean; we also mock it to avoid needing full entity graphs,
     // and so enrichServiceResponse rebuilds the response deterministically.
@@ -126,16 +134,34 @@ class ServiceCatalogCachingTest {
     }
 
     @Test
-    @DisplayName("After vendor updates a service, the cached detail is evicted")
-    void updateServiceEvictsCache() {
-        // This test relies on VendorServiceManagement.updateService throwing after the eviction
-        // wiring has run, OR succeeding. To keep it focused on cache behavior and avoid building
-        // a full vendor/category graph, we assert the cache entry exists then is removed by the
-        // @CacheEvict(allEntries=true) declaration. We do that by directly evicting via the cache
-        // abstraction would not test the annotation, so instead we exercise updateService with a
-        // non-existent service: the method throws ResourceNotFoundException, and because
-        // beforeInvocation=false, the cache is NOT evicted on failure — which we assert here as a
-        // documented contract.
+    @DisplayName("After a successful vendor update, the cached detail is evicted")
+    void successfulUpdateServiceEvictsCache() {
+        Vendor vendor = mock(Vendor.class);
+        when(vendor.getId()).thenReturn(10L);
+        when(vendorRepository.findByUserId(99L)).thenReturn(Optional.of(vendor));
+        when(sampleService.getVendor()).thenReturn(vendor);
+        when(serviceRepository.findById(1L)).thenReturn(Optional.of(sampleService));
+        when(serviceRepository.save(sampleService)).thenReturn(sampleService);
+
+        serviceCatalogService.getServiceById(1L); // populate cache
+        assertThat(cacheManager.getCache("serviceDetail").get(1L)).isNotNull();
+
+        ServiceUpdateRequest request = new ServiceUpdateRequest(
+                null, "Updated description", null, null, null, null, null, null, null
+        );
+        vendorServiceManagement.updateService(99L, 1L, request);
+
+        assertThat(cacheManager.getCache("serviceDetail").get(1L))
+                .as("successful mutation should clear stale service details")
+                .isNull();
+        verify(serviceRepository, times(1)).save(sampleService);
+    }
+
+    @Test
+    @DisplayName("Failed vendor update keeps the cached detail")
+    void failedUpdateDoesNotEvictCache() {
+        // The method throws before a successful mutation, and because beforeInvocation=false,
+        // @CacheEvict does NOT run. Keeping the cache entry is correct because the DB was unchanged.
         when(serviceRepository.findById(1L)).thenReturn(Optional.of(sampleService));
         serviceCatalogService.getServiceById(1L); // populate cache
         assertThat(cacheManager.getCache("serviceDetail").get(1L)).isNotNull();

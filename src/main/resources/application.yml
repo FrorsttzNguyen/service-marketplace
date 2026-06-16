@@ -26,9 +26,8 @@ spring:
     baseline-on-migrate: true
 
   # Caching (Phase 5)
-  # - No type set here at the common level: CacheConfig declares a RedisCacheManager bean directly
-  #   (it wins over auto-configuration when Redis is configured). The "test" profile sets
-  #   spring.cache.type=simple so tests use an in-memory ConcurrentMapCacheManager instead.
+  # - Default runtime cache type is Redis. The "test" profile sets spring.cache.type=simple so
+  #   tests use an in-memory ConcurrentMapCacheManager instead.
   # - TTLs per cache name are configured in CacheConfig#cacheManager, not here, because they are
   #   code-level decisions tied to the cache names referenced by annotations.
   cache:

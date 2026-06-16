@@ -15,6 +15,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -407,12 +409,15 @@ class AuthControllerIntegrationTest {
                     AuthResponse.class
             );
 
+            String futureDate = LocalDate.now().plusDays(1).toString();
+
             // Step 2: Use access token to call protected endpoint
             // /api/bookings requires authentication
             mockMvc.perform(post("/api/bookings")
                             .header("Authorization", "Bearer " + authResponse.accessToken())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"serviceId\":1,\"startTime\":\"2026-06-15T09:00:00\",\"endTime\":\"2026-06-15T10:00:00\"}"))
+                            .content("{\"serviceId\":1,\"startTime\":\"" + futureDate
+                                    + "T09:00:00\",\"endTime\":\"" + futureDate + "T10:00:00\"}"))
                     // 404 because service doesn't exist, but auth passed (not 401)
                     .andExpect(status().isNotFound());  // Not 401 Unauthorized
         }

@@ -148,15 +148,17 @@ This document maps the project build phases to learning milestones. Each phase p
 - Rate limiting
 
 ### Build
-- [x] Cache service catalog in Redis (TTL-based) — `getServiceById` cached; `Page<T>` methods deliberately NOT cached (see learning doc 01 "Pitfall")
+- [x] Cache service detail in Redis (TTL-based) — `getServiceById` cached; `Page<T>` catalog/category methods deliberately NOT cached (see learning doc 01 "Pitfall")
 - [x] Cache invalidation on service update/create — `@CacheEvict` on `VendorServiceManagement` mutations
 - [x] Rate limiting on API endpoints with Redis + Bucket4j — login/register/refresh, distributed via Redis
 - [ ] Redis-based session storage (optional, deferred)
 
 ### Verify
-- [x] Repeated catalog queries hit Redis — `ServiceCatalogCachingTest` proves repository call count drops to 1 on cache hit
-- [x] Cache invalidates when vendor updates a service — `@CacheEvict(beforeInvocation=false)` tested
+- [x] Repeated service detail lookups hit Spring Cache — `ServiceCatalogCachingTest` proves repository call count drops to 1 on cache hit
+- [x] Cache invalidates when vendor successfully updates a service — success-path `@CacheEvict` tested
+- [x] Failed vendor update does not evict cache — `beforeInvocation=false` contract tested
 - [x] Rate limiting returns 429 after threshold — `RateLimitFilterTest` (7 scenarios)
+- [ ] Redis-backed integration smoke test — deferred; current tests use simple cache/in-memory bucket
 
 ---
 
