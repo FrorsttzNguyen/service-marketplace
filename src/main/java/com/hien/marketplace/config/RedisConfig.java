@@ -39,6 +39,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  * manual access — e.g. rate-limit bucket storage, debugging, or future features needing raw Redis ops.
  */
 @Configuration
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "spring.data.redis.host")
 public class RedisConfig {
 
     /**

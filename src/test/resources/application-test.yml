@@ -25,11 +25,15 @@ spring:
   flyway:
     enabled: false
 
-  # Disable Redis in tests
-  data:
-    redis:
-      host: localhost
-      port: 6379
+  # Redis / cache in tests (Phase 5):
+  # - We deliberately do NOT set spring.data.redis.host here. The RateLimitConfig and
+  #   rateLimitProxyManager bean are @ConditionalOnProperty(spring.data.redis.host), so omitting it
+  #   keeps them out of the test context → tests run with zero Redis dependency.
+  #   The RateLimitFilter then uses its in-memory ConcurrentHashMap fallback.
+  # - spring.cache.type=simple switches @Cacheable to an in-JVM ConcurrentMapCacheManager, so cache
+  #   behavior is testable without a Redis server.
+  cache:
+    type: simple
 
 logging:
   level:
@@ -41,6 +45,12 @@ app:
     secret: test-secret-key-for-jwt-signing-must-be-at-least-256-bits-long
     access-expiration-minutes: 15
     refresh-expiration-days: 7
+  # Rate limiting is disabled in the test profile so existing auth/booking integration tests
+  # (which reuse one shared ApplicationContext and legitimately repeat /api/auth/** calls) are not
+  # blocked by 429s. Dedicated rate-limit behavior is verified by RateLimitFilterTest (Task 6)
+  # against an isolated filter instance.
+  ratelimit:
+    enabled: false
 
 # Stripe Configuration for tests (Phase 4)
 # Use test mode keys for integration tests

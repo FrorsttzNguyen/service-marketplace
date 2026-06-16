@@ -1,7 +1,11 @@
 package com.hien.marketplace.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hien.marketplace.infrastructure.security.JwtAuthenticationFilter;
+import com.hien.marketplace.infrastructure.security.RateLimitFilter;
+import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -39,6 +43,23 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /**
+     * RateLimitFilter bean (Phase 5).
+     *
+     * WHY an ObjectProvider for the ProxyManager:
+     * - The LettuceBasedProxyManager bean is @ConditionalOnProperty(spring.data.redis.host), so it
+     *   is ABSENT in the test profile (no Redis). ObjectProvider lets the filter start even when the
+     *   bean is missing, and fall back to an in-memory bucket map (see RateLimitFilter).
+     */
+    @Bean
+    public RateLimitFilter rateLimitFilter(
+            ObjectProvider<LettuceBasedProxyManager<byte[]>> proxyManagerProvider,
+            ObjectMapper objectMapper,
+            @org.springframework.beans.factory.annotation.Value("${app.ratelimit.enabled:true}") boolean enabled
+    ) {
+        return new RateLimitFilter(proxyManagerProvider, objectMapper, enabled);
+    }
+
+    /**
      * Main security filter chain configuration.
      *
      * WHY: Defines the security rules for all HTTP requests.
@@ -47,9 +68,11 @@ public class SecurityConfig {
      * - No HTTP session created (JWT is stateless)
      * - Each request must include JWT token
      * - Server doesn't store user session
+     *
+     * rateLimitFilter is injected as a method param (Spring resolves the bean declared above).
      */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, RateLimitFilter rateLimitFilter) throws Exception {
         http
                 // Disable CSRF - not needed for stateless JWT API
                 .csrf(AbstractHttpConfigurer::disable)
@@ -92,7 +115,13 @@ public class SecurityConfig {
 
                 // Add JWT filter before UsernamePasswordAuthenticationFilter
                 // JWT filter checks token first, then Spring's default filter handles auth
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // Add rate-limit filter FIRST, before JWT (Phase 5).
+                // WHY before JWT: /api/auth/** is public (no JWT), so the JWT filter is a no-op there,
+                // but a brute-force login attempt must be throttled BEFORE any bcrypt/DB work happens.
+                // Placing it first also means a rejected (429) request never reaches the auth service.
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

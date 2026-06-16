@@ -61,13 +61,18 @@ public class CacheConfig {
     private static final Duration DEFAULT_TTL = Duration.ofMinutes(10);
 
     /**
-     * RedisCacheManager with per-cache TTL overrides.
+     * RedisCacheManager with per-cache TTL overrides (used when Redis is configured).
+     *
+     * @ConditionalOnProperty: only active when spring.data.redis.host is set, i.e. dev/prod.
+     * In the test profile that property is absent, so this bean is skipped and the fallback
+     * ConcurrentMapCacheManager below takes over — tests then run with zero Redis dependency.
      *
      * The serializer MUST match what we cache: values are written/read as JSON using the same
      * ObjectMapper configured in RedisConfig (with java.time support + type info). If the cache
      * manager and the value type disagree on serialization, you get ClassCastException on read.
      */
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "spring.data.redis.host")
     public RedisCacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             @Qualifier("redisObjectMapper") ObjectMapper redisObjectMapper
@@ -97,6 +102,23 @@ public class CacheConfig {
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(perCache)
                 .build();
+    }
+
+    /**
+     * Fallback CacheManager for when Redis is NOT configured (e.g. the test profile).
+     *
+     * WHY @ConditionalOnMissingBean(CacheManager.class):
+     * - The RedisCacheManager above (a CacheManager) is created when Redis is configured.
+     * - When it is absent, Spring would otherwise auto-create its own SimpleCacheManager, but we
+     *   declare this explicitly so the cache names we rely on (serviceDetail, etc.) are known to
+     *   the test cache and @Cacheable works deterministically in tests.
+     * - This manager stores entries in the JVM heap (ConcurrentMap) — fine for tests, NOT for prod.
+     */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(org.springframework.cache.CacheManager.class)
+    public org.springframework.cache.concurrent.ConcurrentMapCacheManager fallbackCacheManager() {
+        return new org.springframework.cache.concurrent.ConcurrentMapCacheManager(
+                CACHE_SERVICE_CATALOG, CACHE_SERVICE_DETAIL, CACHE_SERVICES_BY_CATEGORY);
     }
 
     /**
