@@ -18,11 +18,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -51,11 +54,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * KEY = "ratelimit:<endpoint>:<ip>". The IP is the rate-limit identity.
  *
  * IP EXTRACTION — security consideration:
- * - We prefer the X-Forwarded-For header (set by reverse proxies / load balancers) because the
- *   servlet remoteAddr is the proxy's IP, not the real client's.
- * - X-Forwarded-For can be SPOOFED by the client if the proxy does not strip/overwrite it. In
- *   production behind a trusted proxy, configure that proxy to set XFF authoritatively. For this
- *   learning project we take the first XFF value, which is the convention.
+ * - X-Forwarded-For (XFF) is a CLIENT-SUPPLIED header. Trusting it blindly is a rate-limit BYPASS:
+ *   an attacker sends a different XFF value per request and gets a fresh full bucket every time.
+ * - We therefore trust XFF ONLY when the immediate peer — request.getRemoteAddr(), the real TCP
+ *   socket IP, which cannot be forged — matches a configured trusted-proxy CIDR
+ *   (app.ratelimit.trusted-proxies). Otherwise we use getRemoteAddr() directly.
+ * - Default (no trusted proxies) = always use the socket IP = spoofing impossible. Behind a real
+ *   LB, set the LB's subnet as trusted; the LB must itself overwrite/strip inbound XFF.
  *
  * FALLBACK (in-memory) when no Redis ProxyManager is present:
  * - In tests (and any profile without spring.data.redis.host), the ProxyManager bean is absent.
@@ -74,6 +79,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /** In-memory fallback buckets, keyed by "endpoint:ip". Only used when no ProxyManager. */
     private final Map<String, Bucket> localBuckets = new ConcurrentHashMap<>();
+
+    /**
+     * Hard cap on the in-memory fallback map. The fallback has no per-key TTL (unlike the Redis path),
+     * so without a cap a flood of distinct IPs would grow the heap without bound. When exceeded we
+     * clear the map — acceptable because this path is non-distributed and exists only for test / no-Redis
+     * setups, where dropping bucket state just resets a few counters.
+     */
+    private static final int MAX_LOCAL_BUCKETS = 100_000;
+
+    /**
+     * Reverse proxies whose X-Forwarded-For we trust. Built from app.ratelimit.trusted-proxies.
+     * Empty = trust nobody = always use the raw socket IP (un-spoofable).
+     */
+    private final List<IpAddressMatcher> trustedProxies;
 
     private final ObjectMapper objectMapper;
 
@@ -96,10 +115,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * - refresh: 10 / minute — clients refresh proactively; allow headroom.
      */
     public RateLimitFilter(ObjectProvider<LettuceBasedProxyManager<byte[]>> proxyManagerProvider,
-                           ObjectMapper objectMapper, boolean enabled) {
+                           ObjectMapper objectMapper, boolean enabled, String trustedProxiesCsv) {
         this.proxyManagerProvider = proxyManagerProvider;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
+        this.trustedProxies = parseTrustedProxies(trustedProxiesCsv);
 
         Bandwidth loginLimit = Bandwidth.builder()
                 .capacity(5).refillIntervally(5, Duration.ofMinutes(1)).build();
@@ -113,6 +133,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 "/api/auth/register", BucketConfiguration.builder().addLimit(registerLimit).build(),
                 "/api/auth/refresh", BucketConfiguration.builder().addLimit(refreshLimit).build()
         );
+    }
+
+    /**
+     * Parse the comma-separated trusted-proxy CIDR list into matchers.
+     *
+     * Reuses Spring Security's IpAddressMatcher (handles IPv4/IPv6 + CIDR) instead of hand-rolling
+     * bit masking. An invalid entry is skipped with a warning rather than failing app startup.
+     */
+    private static List<IpAddressMatcher> parseTrustedProxies(String csv) {
+        List<IpAddressMatcher> matchers = new ArrayList<>();
+        if (csv == null || csv.isBlank()) {
+            return matchers;
+        }
+        for (String cidr : csv.split(",")) {
+            String trimmed = cidr.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                matchers.add(new IpAddressMatcher(trimmed));
+            } catch (IllegalArgumentException e) {
+                log.warn("Ignoring invalid trusted-proxy CIDR '{}': {}", trimmed, e.getMessage());
+            }
+        }
+        return matchers;
     }
 
     @Override
@@ -163,6 +208,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         // In-memory fallback: lazily create a local Bucket from the same Bandwidths.
         // Bucket.builder().addLimit(Bandwidth) is the local-bucket API; we unwrap the config's
         // bandwidths to avoid maintaining a parallel Bandwidth map.
+        // Bound the map: this path has no TTL, so cap its size to avoid unbounded heap growth.
+        if (localBuckets.size() >= MAX_LOCAL_BUCKETS && !localBuckets.containsKey(bucketKey)) {
+            localBuckets.clear();
+        }
         Bucket bucket = localBuckets.computeIfAbsent(bucketKey, k -> {
             LocalBucketBuilder builder = Bucket.builder();
             for (Bandwidth bandwidth : config.getBandwidths()) {
@@ -174,15 +223,32 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Resolve the client IP, preferring X-Forwarded-For (set by proxies).
+     * Resolve the client IP used as the rate-limit identity.
+     *
+     * getRemoteAddr() is the real TCP socket peer — it cannot be spoofed. We only consult the
+     * client-supplied X-Forwarded-For header when that peer is a TRUSTED proxy; otherwise an attacker
+     * could vary XFF per request to get a fresh bucket each time (rate-limit bypass).
      */
     private String resolveClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            // XFF is "client, proxy1, proxy2"; the first entry is the originating client.
-            return xff.split(",")[0].trim();
+        String remoteAddr = request.getRemoteAddr();
+        if (isTrustedProxy(remoteAddr)) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                // XFF is "client, proxy1, proxy2"; the first entry is the originating client.
+                // (The trusted proxy is responsible for overwriting any inbound XFF.)
+                return xff.split(",")[0].trim();
+            }
         }
-        return request.getRemoteAddr();
+        return remoteAddr;
+    }
+
+    private boolean isTrustedProxy(String ip) {
+        for (IpAddressMatcher matcher : trustedProxies) {
+            if (matcher.matches(ip)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

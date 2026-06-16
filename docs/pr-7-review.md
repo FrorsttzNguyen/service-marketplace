@@ -149,3 +149,102 @@ Expected verification:
 - HTML link checker result included if docs/html links are touched.
 - PR body updated to remove any stale "297 pass, 1 fail" claim unless reproduced.
 ```
+
+---
+
+## Re-Review #2 — 2026-06-16 (after Codex amend; GLM-4.6 original implement)
+
+**Verdict:** **Tests now pass (299, 0 failures). Original P0 blockers resolved.** No new
+correctness blocker, but there is **one security-correctness issue (P1) that should be fixed
+or explicitly accepted before merge**, plus several cleanup items.
+
+**Test verification (re-run this session):**
+```
+env -u SPRING_DATASOURCE_URL -u SPRING_DATASOURCE_USERNAME -u SPRING_DATASOURCE_PASSWORD ./mvnw test
+→ BUILD SUCCESS — Tests run: 299, Failures: 0, Errors: 0, Skipped: 0
+```
+Mockito Java-agent argLine (`pom.xml`) fixed the prior Byte Buddy self-attach errors. `mockito.version`
+resolves from the Spring Boot parent. Auth integration test now uses a dynamic future date.
+
+### P1 — X-Forwarded-For is trusted unconditionally → rate-limit bypass
+
+`RateLimitFilter.resolveClientIp()` (`src/main/java/.../security/RateLimitFilter.java:179-186`)
+takes `X-Forwarded-For.split(",")[0]` whenever the header is present, with no trusted-proxy check.
+The bucket key is `path:clientIp`, so a client that sends a **different XFF value per request**
+(`X-Forwarded-For: 1.2.3.4`, then `1.2.3.5`, …) gets a fresh bucket every time → unlimited
+login/register attempts. This defeats the filter's stated purpose ("a brute-force attempt should
+never cost a bcrypt hash or a DB query"). The filter ships enabled in prod (`app.ratelimit.enabled=true`).
+`RateLimitFilterTest.xForwardedForIsUsedAsIdentity` codifies this trust as intended behavior.
+
+**Why it matters:** this is the one finding that makes the security control ineffective against the
+exact attacker it targets. The javadoc acknowledges XFF spoofability but the code has no gate.
+**Fix options:** (a) only honor XFF when `remoteAddr` is a configured trusted-proxy CIDR; otherwise
+use `request.getRemoteAddr()`; or (b) for this learning project, key on `getRemoteAddr()` and treat
+XFF as out of scope. Either is fine — but pick one explicitly.
+
+### P2 — Rate-limit bucket keys have no TTL → unbounded growth (memory)
+
+- In-memory fallback `localBuckets` (`RateLimitFilter.java:76`) is a `ConcurrentHashMap` with no
+  eviction/size cap.
+- Redis path (`RateLimitConfig.java:66`) builds `LettuceBasedProxyManager.builderFor(client).build()`
+  with **no expiration strategy**, so bucket4j keys persist in Redis indefinitely.
+
+Combined with P1 (spoofable XFF → unbounded distinct keys), an attacker can grow the in-memory map
+to OOM, or bloat Redis without bound. Add an expiration strategy on the proxy manager and/or a bounded
+fallback. Low likelihood in the happy path, real under abuse.
+
+### P3 — Cleanup / maintainability (non-blocking)
+
+| # | File | Issue |
+|---|------|-------|
+| 1 | `VendorServiceManagement.java:110,162,201` | `@CacheEvict(allEntries=true)` on every mutation flushes the whole `serviceDetail` cache. `update`/`deactivate` already have `serviceId` → could evict `key="#serviceId"`. `create` has no detail entry to evict at all. Documented tradeoff, but heavier than needed. |
+| 2 | `RateLimitFilter.java:197` | `log.warn` on every 429 → attacker-amplified log volume exactly during a brute-force burst. Consider `debug` or sampled logging. |
+| 3 | `RateLimitConfig.java:46-55` | Hand-rolls a Redis URI from host/port/password only, separate from Spring Boot's auto-configured `ConnectionFactory` (used by the cache). Diverges if SSL/timeout/db-index/sentinel is later added to `spring.data.redis.*`. |
+| 4 | `CacheConfig.java:54,58,138-156` | `CACHE_SERVICE_CATALOG`, `CACHE_SERVICES_BY_CATEGORY`, their per-cache TTLs, and the entire `pageableKeyGenerator` bean are **dead** — no method caches Page<T> (that was deliberately abandoned). Remove or wire up. |
+| 5 | `AGENTS.md` (new, 213 lines) | Near-duplicate of `CLAUDE.md`, and line ~210 rewrites the governing convention `.claudeignore`/`CLAUDE.md` to `.agentsignore`/`AGENTS.md`. Repo-root `CLAUDE.md` states: *"Files in `.claudeignore` are AI working files (CLAUDE.md, .claude/)"* → conflicting guidance the next agent may follow. |
+| 6 | `SecurityConfig.java:53-60` | `RateLimitFilter` is a `Filter` `@Bean` with **no `FilterRegistrationBean`**, so Spring Boot also auto-registers it on the servlet container for `/*` in addition to the security chain. `OncePerRequestFilter` dedups execution so it is **not** a functional bug, but the explicit `addFilterBefore` ordering is partly redundant; register with `setEnabled(false)` to avoid the double registration. |
+| 7 | `VendorServiceManagement.java:110` | `@CacheEvict(beforeInvocation=false)` runs after the method body but is **not transaction-aware**; a concurrent `getServiceById` between evict and TX commit can re-cache pre-commit (stale) data. Minor with `allEntries` + short TTL safety net; note for later. |
+
+### Verdict for the coder
+
+**PR #7 is close. Decide on P1 before merge** — either gate XFF behind a trusted proxy or key on
+`remoteAddr` and document XFF as out of scope. P2 (Redis key TTL) is the only other thing I'd want
+addressed for a production-shaped feature; P3 are optional polish. If Hien accepts P1/P2 as documented
+learning-project limitations, the PR is mergeable as-is since tests pass and behavior is correct on the
+happy path.
+
+---
+
+## Fix Applied — 2026-06-16 (same session)
+
+Hien chose to fix P1 + P2 at a production-correct, learning-oriented depth. **Done in this session:**
+
+**P1 — X-Forwarded-For trust (RESOLVED).**
+- `RateLimitFilter.resolveClientIp()` now uses `getRemoteAddr()` (un-spoofable TCP socket IP) and only
+  honors XFF when that peer matches a configured trusted-proxy CIDR.
+- New config `app.ratelimit.trusted-proxies` (CSV of CIDRs), **default empty = trust nobody = use the
+  socket IP**, so spoofing is impossible out of the box.
+- CIDR matching reuses Spring Security's `IpAddressMatcher` (no hand-rolled bit math).
+- Wired through `SecurityConfig.rateLimitFilter(...)` via `@Value("${app.ratelimit.trusted-proxies:}")`.
+
+**P2 — Key lifecycle (RESOLVED).**
+- Redis: `RateLimitConfig.rateLimitProxyManager` now sets
+  `.withExpirationStrategy(ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofSeconds(10)))`
+  so each bucket key auto-expires once it has refilled to full (nothing left to keep).
+- In-memory fallback: bounded with `MAX_LOCAL_BUCKETS = 100_000` (clear-on-overflow) to cap heap.
+
+**Tests.** `RateLimitFilterTest` rewrote the old `xForwardedForIsUsedAsIdentity` (which codified the
+vulnerability) into two tests: `xForwardedForIgnoredWhenProxyUntrusted` (proves no bypass) and
+`xForwardedForHonoredWhenProxyTrusted` (proves correct behavior behind a trusted LB).
+Full suite: **300 tests, 0 failures** (`env -u SPRING_DATASOURCE_* ./mvnw test`, BUILD SUCCESS).
+
+**Learning doc.** Added `docs/html/vi/phase5/04-securing-rate-limit.html` (trusted proxy + key TTL,
+diagrams, why-sections, interview tip); nav links added to docs 01–03; doc 03's stale "we trust XFF"
+callout updated to point at doc 04. (EN doc deferred per existing phase-5 scope.)
+
+**Still open (P3, non-blocking):** allEntries cache eviction breadth; WARN-per-429 log amplification;
+hand-rolled Redis URI vs Boot config; dead catalog/category cache config + `pageableKeyGenerator`;
+AGENTS.md `.agentsignore` vs `.claudeignore` conflict; Filter double-registration (benign);
+`@CacheEvict` not transaction-aware. None block merge.
+
+**Updated verdict: P1/P2 resolved → PR #7 is mergeable** once P3 are accepted as follow-ups.
