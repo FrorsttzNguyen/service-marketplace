@@ -162,7 +162,57 @@ This document maps the project build phases to learning milestones. Each phase p
 
 ---
 
-## Phase 6: Frontend (React/Next.js)
+## Backend Completion (pre-Phase 6): Admin Vendor Approval
+**Goal:** Close the broken vendor-onboarding flow before adding the production shell.
+**Status:** ⏳ Planned — small, see `docs/admin-approval-spec.md`
+
+### Problem
+- A vendor registers → `verificationStatus = PENDING` → `createService` is blocked ("vendor must be
+  approved"), but **no API path calls `vendor.approve()`** → the vendor dead-ends. Only a manual DB
+  edit unblocks them. The `ADMIN` role is declared in `SecurityConfig` but has no controller.
+
+### Build
+- [ ] `AdminController` under `/api/admin/**` (ADMIN role)
+- [ ] List pending vendors, approve, reject (reuse existing `Vendor.approve()` / `reject()` domain methods)
+- [ ] Seed one ADMIN user via Flyway migration (or document bootstrap)
+- [ ] Integration tests: non-admin → 403; admin approve → vendor can then create a service
+
+### Verify
+- [ ] End-to-end: register vendor → admin approves → vendor creates service succeeds
+- [ ] (Out of scope now: review moderation — Review domain has no hide/remove method yet)
+
+---
+
+## Phase 6: Production Readiness / DevOps
+**Goal:** App builds in CI, runs as a container, and is deployed live — the biggest portfolio gap.
+**Status:** ⏳ Next — see `docs/phase6-production-readiness-spec.md` (to be written)
+
+### Learn
+- CI/CD pipelines (GitHub Actions): build, test (with Testcontainers), cache
+- Containerization: multi-stage Dockerfile, slim JRE images, layered builds
+- 12-factor config, secrets, profiles for prod
+- Observability: Spring Boot Actuator, Prometheus metrics, structured JSON logging
+- Cloud deployment (Railway / Render / Fly.io free tier)
+
+### Build
+- [ ] `.github/workflows/ci.yml` — `mvn verify` on push/PR, Testcontainers in CI
+- [ ] Multi-stage `Dockerfile` for the app (build → runtime JRE)
+- [ ] `docker-compose` brings up app + postgres + redis together (full stack)
+- [ ] `application-prod.yml` + externalized secrets
+- [ ] Actuator metrics (`/actuator/prometheus`), structured logging
+- [ ] Commit `docs/api/openapi.yaml` (export from runtime Swagger)
+- [ ] Deploy to a free-tier cloud → live URL
+- [ ] README: CI badge + live demo / Swagger link
+
+### Verify
+- [ ] CI is green on PR; failing test blocks merge
+- [ ] `docker build` + `docker compose up` runs the whole stack from scratch
+- [ ] Live URL serves the API + Swagger UI
+- [ ] `/actuator/health` is UP in prod
+
+---
+
+## Phase 7: Frontend (React/Next.js)
 **Goal:** User-facing web application
 
 ### Build
@@ -179,7 +229,7 @@ This document maps the project build phases to learning milestones. Each phase p
 
 ---
 
-## Phase 7: Documentation & Polish (System Design)
+## Phase 8: Documentation & Polish (System Design)
 **Goal:** Production-quality documentation for CV/Portfolio
 
 ### Build
@@ -218,8 +268,10 @@ This document maps the project build phases to learning milestones. Each phase p
 | 3 | Business Logic | 2-3 weeks |
 | 4 | Payment | 1-2 weeks |
 | 5 | Caching | 1 week |
-| 6 | Frontend | 2-3 weeks |
-| 7 | Documentation | 1 week |
-| **Total** | | **~12-16 weeks** |
+| 5.5 | Backend completion (admin approval) | 1-2 days |
+| 6 | Production Readiness / DevOps | 1 week |
+| 7 | Frontend | 2-3 weeks |
+| 8 | Documentation | 1 week |
+| **Total** | | **~14-18 weeks** |
 
 > Note: Timeline assumes Hien is learning Java/Spring concurrently. Adjust based on pace.
