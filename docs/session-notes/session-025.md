@@ -1,4 +1,4 @@
-# Session 025 — PR #9 Review (Phase 5.5 Admin Vendor Approval)
+# Session 025 — Phase 5.5 Review→Merge→Docs, + Phase 6 Spec
 
 ## What was done
 
@@ -23,20 +23,33 @@
 
 Non-issues (agreed with PR): 403-vs-401 for anonymous, H2 test profile, env-based admin seeding.
 
-## Current state
+## Current state (end of session)
 
-- **Branch:** `feat/admin-vendor-approval` (PR #9 OPEN, not merged).
-- **Tests:** `AdminControllerIntegrationTest` 8/8 green; PR claims full suite 308 pass (not re-run this session).
-- **Untracked:** `.agents/`, `docs/learning-brief-phase0-1.md` (pre-existing, unrelated).
+- **Branch:** on `main`, fast-forwarded to merge commit `3da26e5`. PR #9 **MERGED** by Hien.
+- `feat/admin-vendor-approval` branch **deleted** (local + remote).
+- **Tests:** full suite 308 green (H2 test profile); N+1 fix SQL-verified (single JOIN, no per-row user SELECT).
+- **Other open branch (unrelated, separate track):** `origin/fix/service-search-pagination-sorting`.
+- **Untracked / local-only (never commit, per rule):** `docs/html/**` (gitignored), `docs/learning-brief-*.md`, `.agents/`.
 
 ## Learning docs status
 
-- Phase 5.5 **knowledge brief written**: `docs/learning-brief-phase5.5.md` — full concept capture,
-  mapped to real code, structured as 6 HTML docs (01–06). Ready to convert to HTML AFTER GLM commit + merge.
-- Phase 5.5 HTML learning docs (`docs/html/{vi,en}/phase5.5/`) **not built yet** (waiting on N+1 fix
-  so Doc 04 reflects final code).
-- Phase 5 EN docs + `Page<T>` docs still deferred (from session-024) — `Page<T>` can be folded into
-  Phase 5.5 Doc 03.
+- Phase 5.5 **knowledge brief**: `docs/learning-brief-phase5.5.md` (local-only, untracked per rule).
+- Phase 5.5 **HTML learning docs BUILT** (VI, local-only): `docs/html/vi/phase5.5/01–06` + `styles.css`
+  (copied from phase5). EN folder created with `styles.css`; EN content deferred (same as phase5 — EN
+  consistently deferred across phases).
+  - 01 Vendor dead-end / vertical slice · 02 Layered + domain-rich · 03 Pageable/Page/derived queries
+    (folds in deferred `Page<T>`) · 04 ⭐ LAZY+N+1+@EntityGraph (written against post-fix code + real SQL log)
+    · 05 AdminBootstrap/CommandLineRunner/env-secrets/idempotency/BCrypt · 06 Security(403-vs-401)/record DTO/testing
+  - All code references verified against real files (Vendor.java:87/95, SecurityConfig.java:108,
+    VendorServiceManagement.java:116, VendorRepository @EntityGraph, AdminControllerIntegrationTest).
+  - Style matches phase5 vi docs: navbar 01–06, VI/EN switcher, diagram-box, callout note/warning/tip,
+    tables, "Tại sao" sections, Interview Tip per doc.
+- Phase 5 EN docs still deferred (from session-024).
+
+## Phase 5.5 = DONE (merged + docs)
+
+- PR #9 merged by Hien. Code: admin vendor approval + N+1 fix. Docs: 6 VI HTML built (local).
+- Learning docs (`docs/html/**`, `docs/learning-brief-phase5.5.md`) are LOCAL-ONLY, never committed (rule).
 
 ## Concepts captured for Phase 5.5 HTML (see learning-brief)
 
@@ -44,27 +57,39 @@ Non-issues (agreed with PR): 403-vs-401 for anonymous, H2 test profile, env-base
 4. ⭐ LAZY + N+1 + @EntityGraph (centerpiece)  5. CommandLineRunner / env secrets / idempotency / BCrypt
 6. Security (403-vs-401, hasRole, SecurityRequirement) + record DTO + @SpringBootTest/MockMvc testing
 
-## Status: WAITING ON GLM COMMIT
+## Phase 5.5 lifecycle (DONE this session)
 
-GLM is amending PR #9 with the N+1 fix (commit pushed onto branch `feat/admin-vendor-approval`, same PR).
-Reminders given to Hien for GLM: stay on the existing branch, do NOT create a new branch/PR, do NOT
-`--amend`/force-push Hien's commit — add a new commit only.
+Reviewed PR #9 → found N+1 → GLM committed `@EntityGraph` fix (`55c686e`) → Opus re-reviewed &
+SQL-verified → Hien merged → branch cleaned up → 6 VI HTML learning docs built (local).
 
-## Next session — priority order
+## NEXT: Phase 6 — Production Readiness / DevOps
 
-1. **(waiting)** GLM commits N+1 fix onto PR #9.
-2. Re-review the amended PR from the re-review checklist in `docs/pr-9-review.md` (update that file,
-   don't scatter new prompts). Verify `@EntityGraph` on both paginated queries + `AdminControllerIntegrationTest` 8/8.
-3. After green + N+1 confirmed, merge PR #9.
-4. Build Phase 5.5 HTML docs from `docs/learning-brief-phase5.5.md` (Doc 04 must reflect post-fix code);
-   fold in deferred Phase 5 EN/`Page<T>` docs.
+**Spec written: `docs/phase6-production-readiness-spec.md`** (sliced into independent PRs). Phase 6 is the
+biggest portfolio gap (CI, Docker, prod config, observability, live deploy).
+
+- **Slice 1 (immediate GLM task):** `feat/phase6-ci` — GitHub Actions running `./mvnw -B verify` on the
+  **H2 test profile** (308 green). Copy-paste GLM prompt is at the bottom of the spec.
+- Slices 2–5: Docker+compose → prod config/Actuator/OpenAPI → (Testcontainers-in-CI) → deploy.
+- **⚠️ Known blocker (documented in spec):** `audit_logs.old_values/new_values` are `JSONB` in migration V6
+  but mapped as `String/text` in the `AuditLog` entity. `BaseIntegrationTest` (Testcontainers + Postgres +
+  `ddl-auto=validate`) trips this → Testcontainers tests can't run in CI yet. So **Slice 1 CI must use the
+  H2 suite only**; fixing the mismatch is its own Slice 4. NOTE: runtime `application.yml` also uses
+  `validate` — must check during Slice 2 whether the app boots clean against real Postgres in compose; if it
+  also breaks at runtime, Slice 4 becomes a prerequisite for deploy.
+
+### Open decisions for Hien
+- Deploy target (Slice 5): Railway / Render / Fly.io — spec recommends **Render**.
+- Testcontainers fix approach (Slice 4): new migration→text vs hypersistence JsonType vs profile-specific.
+
+### Pending git action (this session's docs)
+`docs/session-notes/session-025.md` (modified) + `docs/phase6-production-readiness-spec.md` (new) are
+tracked docs not yet committed. Awaiting Hien's call: commit directly to `main` vs via a docs PR.
 
 ## Quick-start prompt for next agent
 
 ```
-Read docs/pr-9-review.md and docs/session-notes/session-025.md. PR #9 (feat/admin-vendor-approval)
-was reviewed: approve with one fix (N+1 in vendor listing). If GLM has amended it, re-review from the
-re-review checklist in pr-9-review.md and update that file. Verify with:
-  env -u SPRING_DATASOURCE_URL -u SPRING_DATASOURCE_USERNAME -u SPRING_DATASOURCE_PASSWORD \
-    ./mvnw test -Dtest=AdminControllerIntegrationTest
+Read docs/phase6-production-readiness-spec.md and docs/session-notes/session-025.md. Phase 5.5 is merged.
+Next is Phase 6 Slice 1 (CI) — hand the GLM prompt at the bottom of the spec to the coder, then review the
+resulting PR (verify Java version matches pom.xml, Maven invocation matches the green local run, no
+Testcontainers in CI). Mind the documented audit_logs jsonb/text blocker.
 ```
