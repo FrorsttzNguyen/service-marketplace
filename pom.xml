@@ -30,6 +30,7 @@
 		<java.version>21</java.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
 		<jjwt.version>0.12.6</jjwt.version>
+		<bucket4j.version>8.10.1</bucket4j.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -43,6 +44,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+		<!-- Spring Cache abstraction (Phase 5): activates @Cacheable/@CacheEvict + @EnableCaching.
+		     WHY a separate starter: spring-boot-starter-data-redis only gives RedisTemplate/ConnectionFactory,
+		     NOT the declarative cache annotations. This starter provides CacheManager infrastructure. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -157,6 +165,24 @@
 			<artifactId>stripe-java</artifactId>
 			<version>24.0.0</version>
 		</dependency>
+
+		<!-- Bucket4j: Token-bucket rate limiting (Phase 5).
+		     WHY two artifacts:
+		     - bucket4j-core: the algorithm + Bucket interface (framework-agnostic)
+		     - bucket4j-redis: Redis-backed Bucket proxy so rate limits are SHARED across instances.
+		       Without bucket4j-redis, each instance counts independently (distributed bypass).
+		     Token bucket model: capacity C tokens, refills R tokens every period.
+		     tryConsume(1) = take 1 token; if 0 tokens left → 429. -->
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j-core</artifactId>
+			<version>${bucket4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j-redis</artifactId>
+			<version>${bucket4j.version}</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -220,6 +246,15 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Mockito inline mocks need JVM instrumentation; loading Mockito as a Java agent
+					     avoids JDK self-attach failures and warnings on Java 21+. -->
+					<argLine>-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
