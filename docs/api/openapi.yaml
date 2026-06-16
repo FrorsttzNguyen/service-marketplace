@@ -1,0 +1,1487 @@
+openapi: 3.1.0
+info:
+  title: Service Marketplace API
+  description: |
+    REST API for Service Marketplace - a platform connecting service providers with customers.
+
+    ## Authentication
+    - Use `/api/auth/register` to create an account
+    - Use `/api/auth/login` to get JWT tokens
+    - Include `Authorization: Bearer <token>` header for authenticated endpoints
+
+    ## Roles
+    - **CUSTOMER**: Browse services, create bookings, leave reviews
+    - **VENDOR**: Manage services, view bookings, track earnings
+    - **ADMIN**: Full system access
+  contact:
+    name: Hien Nguyen
+    email: fangrixian.nguyenn@outlook.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: 0.0.1
+servers:
+- url: http://localhost:8080
+  description: Generated server url
+security:
+- bearerAuth: []
+tags:
+- name: Vendor Dashboard
+  description: Vendor analytics and statistics
+- name: Bookings
+  description: Booking management endpoints
+- name: Vendor Service Management
+  description: Endpoints for vendors to manage their services
+- name: Webhooks
+  description: Third-party webhook endpoints
+- name: Service Catalog
+  description: Public service browsing endpoints
+- name: Payments
+  description: Payment creation and management
+- name: Orders
+  description: Order management endpoints
+- name: Refunds
+  description: Refund creation and management
+- name: Authentication
+  description: "User registration, login, and token refresh"
+- name: Admin
+  description: "Admin operations: vendor approval / rejection"
+- name: Reviews
+  description: Review management endpoints
+paths:
+  /api/vendor/services/{id}:
+    put:
+      tags:
+      - Vendor Service Management
+      summary: Update service
+      description: Update an existing service owned by the authenticated vendor
+      operationId: updateService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: Service updated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "404":
+          description: Service not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "422":
+          description: Not your service
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Vendor Service Management
+      summary: Deactivate service
+      description: Deactivate (soft delete) a service owned by the authenticated vendor
+      operationId: deactivateService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: Service deactivated
+        "404":
+          description: Service not found
+        "422":
+          description: Not your service
+      security:
+      - bearerAuth: []
+  /api/bookings/{id}/cancel:
+    put:
+      tags:
+      - Bookings
+      summary: Cancel booking
+      description: Cancel a pending booking
+      operationId: cancelBooking
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "404":
+          description: Booking not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "422":
+          description: Cannot cancel (not yours or invalid status)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+      security:
+      - bearerAuth: []
+  /api/webhooks/stripe:
+    post:
+      tags:
+      - Webhooks
+      summary: Stripe webhook
+      description: Handle Stripe payment events. This endpoint is PUBLIC (no JWT).
+        Security comes from Stripe signature verification.
+      operationId: handleStripeWebhook
+      parameters:
+      - name: Stripe-Signature
+        in: header
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+  /api/vendor/services:
+    get:
+      tags:
+      - Vendor Service Management
+      summary: Get vendor's services
+      description: List all services owned by the authenticated vendor
+      operationId: getMyServices
+      parameters:
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: Services retrieved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageServiceResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageServiceResponse"
+        "403":
+          description: Not a vendor
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageServiceResponse"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Vendor Service Management
+      summary: Create service
+      description: Create a new service for the authenticated vendor
+      operationId: createService
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceCreateRequest"
+        required: true
+      responses:
+        "201":
+          description: Service created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "400":
+          description: Invalid input
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "403":
+          description: Not a vendor
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "422":
+          description: Vendor not approved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+      security:
+      - bearerAuth: []
+  /api/reviews:
+    post:
+      tags:
+      - Reviews
+      summary: Create review
+      description: Leave a review for a completed booking (Phase 3)
+      operationId: createReview
+      responses:
+        "201":
+          description: Review created
+        "404":
+          description: Booking not found
+        "422":
+          description: Booking not completed
+      security:
+      - bearerAuth: []
+  /api/refunds:
+    post:
+      tags:
+      - Refunds
+      summary: Create refund
+      description: Create a refund for a payment. Omit amountCents for full refund.
+      operationId: createRefund
+      parameters:
+      - name: paymentId
+        in: query
+        description: Payment ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRequest"
+      responses:
+        "201":
+          description: Refund created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "404":
+          description: Payment not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "422":
+          description: Payment not refundable or invalid amount
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+      security:
+      - bearerAuth: []
+  /api/payments:
+    post:
+      tags:
+      - Payments
+      summary: Create payment
+      description: Create a payment for an order. Returns clientSecret for Stripe.js.
+      operationId: createPayment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCreateRequest"
+        required: true
+      responses:
+        "201":
+          description: "Payment created, clientSecret returned"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          description: Order not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "409":
+          description: Payment already exists for this order
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "422":
+          description: Order not eligible for payment
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearerAuth: []
+  /api/orders:
+    post:
+      tags:
+      - Orders
+      summary: Create order
+      description: Create an order from a confirmed booking (Phase 4)
+      operationId: createOrder
+      responses:
+        "201":
+          description: Order created
+        "404":
+          description: Booking not found
+        "422":
+          description: Booking not confirmed
+      security:
+      - bearerAuth: []
+  /api/bookings:
+    get:
+      tags:
+      - Bookings
+      summary: Get my bookings
+      description: List all bookings for the authenticated customer
+      operationId: getMyBookings
+      parameters:
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: Bookings retrieved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageBookingResponse"
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Bookings
+      summary: Create booking
+      description: Create a new booking for a service
+      operationId: createBooking
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCreateRequest"
+        required: true
+      responses:
+        "201":
+          description: Booking created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Invalid input
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "404":
+          description: Service not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "422":
+          description: Service not available
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+      security:
+      - bearerAuth: []
+  /api/auth/register:
+    post:
+      tags:
+      - Authentication
+      summary: Register new user
+      description: Create a new user account. Optionally register as vendor.
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already registered
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid input data
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+  /api/auth/refresh:
+    post:
+      tags:
+      - Authentication
+      summary: Refresh access token
+      description: Get a new access token using a valid refresh token
+      operationId: refreshToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+        required: true
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TokenRefreshResponse"
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TokenRefreshResponse"
+  /api/auth/login:
+    post:
+      tags:
+      - Authentication
+      summary: Login
+      description: Authenticate with email and password to get JWT tokens
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: Login successful
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid input data
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+  /api/admin/vendors/{vendorId}/reject:
+    post:
+      tags:
+      - Admin
+      summary: Reject a vendor
+      operationId: rejectVendor
+      parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Vendor rejected
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+        "403":
+          description: Not an admin
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+        "404":
+          description: Vendor not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+      security:
+      - bearerAuth: []
+  /api/admin/vendors/{vendorId}/approve:
+    post:
+      tags:
+      - Admin
+      summary: Approve a vendor
+      operationId: approveVendor
+      parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Vendor approved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+        "403":
+          description: Not an admin
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+        "404":
+          description: Vendor not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorAdminResponse"
+      security:
+      - bearerAuth: []
+  /api/vendor/dashboard/stats:
+    get:
+      tags:
+      - Vendor Dashboard
+      summary: Get statistics
+      description: Get booking statistics for authenticated vendor (Phase 3)
+      operationId: getStats
+      responses:
+        "200":
+          description: Statistics retrieved
+      security:
+      - bearerAuth: []
+  /api/vendor/dashboard/earnings:
+    get:
+      tags:
+      - Vendor Dashboard
+      summary: Get earnings
+      description: Get earnings summary for authenticated vendor (Phase 3)
+      operationId: getEarnings
+      responses:
+        "200":
+          description: Earnings retrieved
+      security:
+      - bearerAuth: []
+  /api/services:
+    get:
+      tags:
+      - Service Catalog
+      summary: List all services
+      description: Get paginated list of all active services
+      operationId: getAllServices
+      parameters:
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: Services retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageServiceResponse"
+  /api/services/{id}:
+    get:
+      tags:
+      - Service Catalog
+      summary: Get service detail
+      description: Get detailed information about a specific service
+      operationId: getServiceById
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Service found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "404":
+          description: Service not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+  /api/services/category/{categoryId}:
+    get:
+      tags:
+      - Service Catalog
+      summary: Get services by category
+      description: Filter services by category ID
+      operationId: getServicesByCategory
+      parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: Services retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageServiceResponse"
+  /api/reviews/vendor/{vendorId}:
+    get:
+      tags:
+      - Reviews
+      summary: Get vendor reviews
+      description: List all reviews for a vendor (Phase 3)
+      operationId: getVendorReviews
+      parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Reviews retrieved
+      security:
+      - bearerAuth: []
+  /api/reviews/service/{serviceId}:
+    get:
+      tags:
+      - Reviews
+      summary: Get service reviews
+      description: List all reviews for a service (Phase 3)
+      operationId: getServiceReviews
+      parameters:
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Reviews retrieved
+      security:
+      - bearerAuth: []
+  /api/refunds/{id}:
+    get:
+      tags:
+      - Refunds
+      summary: Get refund by ID
+      description: Retrieve refund details.
+      operationId: getRefund
+      parameters:
+      - name: id
+        in: path
+        description: Refund ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Refund found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "404":
+          description: Refund not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+      security:
+      - bearerAuth: []
+  /api/refunds/payment/{paymentId}:
+    get:
+      tags:
+      - Refunds
+      summary: Get refunds for payment
+      description: Retrieve all refunds for a specific payment.
+      operationId: getRefundsForPayment
+      parameters:
+      - name: paymentId
+        in: path
+        description: Payment ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Refunds found
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RefundResponse"
+        "404":
+          description: Payment not found
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RefundResponse"
+      security:
+      - bearerAuth: []
+  /api/payments/{id}:
+    get:
+      tags:
+      - Payments
+      summary: Get payment by ID
+      description: Retrieve payment details. Only order owner can access.
+      operationId: getPayment
+      parameters:
+      - name: id
+        in: path
+        description: Payment ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Payment found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          description: Payment not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "403":
+          description: Not authorized to view this payment
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearerAuth: []
+  /api/payments/order/{orderId}:
+    get:
+      tags:
+      - Payments
+      summary: Get payment by order ID
+      description: Retrieve payment for a specific order. Only order owner can access.
+      operationId: getPaymentByOrder
+      parameters:
+      - name: orderId
+        in: path
+        description: Order ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Payment found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          description: No payment for this order
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "403":
+          description: Not authorized to view this payment
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+      security:
+      - bearerAuth: []
+  /api/orders/{id}:
+    get:
+      tags:
+      - Orders
+      summary: Get order
+      description: Get order details (Phase 3)
+      operationId: getOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Order found
+        "404":
+          description: Order not found
+      security:
+      - bearerAuth: []
+  /api/health:
+    get:
+      tags:
+      - health-controller
+      operationId: health
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+  /api/bookings/vendor:
+    get:
+      tags:
+      - Bookings
+      summary: Get vendor bookings
+      description: List all bookings for the authenticated vendor's services
+      operationId: getVendorBookings
+      parameters:
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: Bookings retrieved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageBookingResponse"
+      security:
+      - bearerAuth: []
+  /api/admin/vendors:
+    get:
+      tags:
+      - Admin
+      summary: List vendors (optionally filtered by verification status)
+      operationId: listVendors
+      parameters:
+      - name: status
+        in: query
+        description: Filter by verification status; omit to list all
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: Page of vendors
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageVendorAdminResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageVendorAdminResponse"
+        "403":
+          description: Not an admin
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageVendorAdminResponse"
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    ServiceUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          minLength: 5
+        description:
+          type: string
+          maxLength: 2000
+          minLength: 0
+        pricingType:
+          type: string
+          enum:
+          - FIXED
+          - HOURLY
+          - VARIABLE
+        basePrice:
+          type: number
+          minimum: 0.0
+        durationHours:
+          type: integer
+          format: int32
+        address:
+          type: string
+          maxLength: 500
+          minLength: 0
+        city:
+          type: string
+          maxLength: 50
+          minLength: 0
+        imageUrl:
+          type: string
+        active:
+          type: boolean
+    ServiceResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        vendorId:
+          type: integer
+          format: int64
+        vendorName:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        pricingType:
+          type: string
+          enum:
+          - FIXED
+          - HOURLY
+          - VARIABLE
+        basePrice:
+          type: number
+        durationHours:
+          type: integer
+          format: int32
+        address:
+          type: string
+        city:
+          type: string
+        imageUrl:
+          type: string
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - ACTIVE
+          - INACTIVE
+        averageRating:
+          type: number
+        totalReviews:
+          type: integer
+          format: int32
+        totalBookings:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+    BookingResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        customerId:
+          type: integer
+          format: int64
+        customerName:
+          type: string
+        serviceId:
+          type: integer
+          format: int64
+        serviceTitle:
+          type: string
+        vendorId:
+          type: integer
+          format: int64
+        vendorName:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - IN_PROGRESS
+          - COMPLETED
+          - CANCELLED
+        quantity:
+          type: integer
+          format: int32
+        totalPrice:
+          type: number
+        currency:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ServiceCreateRequest:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          maxLength: 200
+          minLength: 5
+        description:
+          type: string
+          maxLength: 2000
+          minLength: 0
+        pricingType:
+          type: string
+          enum:
+          - FIXED
+          - HOURLY
+          - VARIABLE
+        basePrice:
+          type: number
+          minimum: 0.0
+        durationHours:
+          type: integer
+          format: int32
+        address:
+          type: string
+          maxLength: 500
+          minLength: 0
+        city:
+          type: string
+          maxLength: 50
+          minLength: 0
+        imageUrl:
+          type: string
+      required:
+      - basePrice
+      - categoryId
+      - pricingType
+      - title
+    RefundRequest:
+      type: object
+      properties:
+        amountCents:
+          type: integer
+          format: int64
+        reason:
+          type: string
+    RefundResponse:
+      type: object
+      properties:
+        refundId:
+          type: integer
+          format: int64
+        paymentId:
+          type: integer
+          format: int64
+        stripeRefundId:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PROCESSING
+          - SUCCEEDED
+          - FAILED
+        amount:
+          type: number
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PaymentCreateRequest:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        paymentMethod:
+          type: string
+          minLength: 1
+      required:
+      - orderId
+      - paymentMethod
+    PaymentResponse:
+      type: object
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+        stripePaymentIntentId:
+          type: string
+        clientSecret:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PROCESSING
+          - SUCCEEDED
+          - FAILED
+        orderId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+        currency:
+          type: string
+        paymentMethod:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    BookingCreateRequest:
+      type: object
+      properties:
+        serviceId:
+          type: integer
+          format: int64
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        quantity:
+          type: integer
+          format: int32
+        notes:
+          type: string
+          maxLength: 1000
+          minLength: 0
+      required:
+      - endTime
+      - serviceId
+      - startTime
+    RegisterRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          maxLength: 100
+          minLength: 2
+        email:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          maxLength: 100
+          minLength: 8
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$"
+        phoneNumber:
+          type: string
+          minLength: 1
+          pattern: "^\\+?[1-9]\\d{1,14}$"
+        registerAsVendor:
+          type: boolean
+      required:
+      - email
+      - fullName
+      - password
+      - phoneNumber
+    AuthResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        accessTokenExpiresAt:
+          type: string
+          format: date-time
+        refreshTokenExpiresAt:
+          type: string
+          format: date-time
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+      required:
+      - refreshToken
+    TokenRefreshResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        accessTokenExpiresAt:
+          type: string
+          format: date-time
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+      - email
+      - password
+    VendorAdminResponse:
+      type: object
+      properties:
+        vendorId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        businessName:
+          type: string
+        email:
+          type: string
+        verificationStatus:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+        createdAt:
+          type: string
+          format: date-time
+    Pageable:
+      type: object
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+        size:
+          type: integer
+          format: int32
+          minimum: 1
+        sort:
+          type: array
+          items:
+            type: string
+    PageServiceResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
+        first:
+          type: boolean
+        last:
+          type: boolean
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceResponse"
+        number:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        empty:
+          type: boolean
+    PageableObject:
+      type: object
+      properties:
+        paged:
+          type: boolean
+        pageNumber:
+          type: integer
+          format: int32
+        pageSize:
+          type: integer
+          format: int32
+        unpaged:
+          type: boolean
+        offset:
+          type: integer
+          format: int64
+        sort:
+          $ref: "#/components/schemas/SortObject"
+    SortObject:
+      type: object
+      properties:
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean
+        empty:
+          type: boolean
+    PageBookingResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
+        first:
+          type: boolean
+        last:
+          type: boolean
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingResponse"
+        number:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        empty:
+          type: boolean
+    PageVendorAdminResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
+        first:
+          type: boolean
+        last:
+          type: boolean
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorAdminResponse"
+        number:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        empty:
+          type: boolean
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: Enter JWT token (without 'Bearer ' prefix)
+      scheme: bearer
+      bearerFormat: JWT
