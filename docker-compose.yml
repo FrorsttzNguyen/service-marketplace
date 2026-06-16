@@ -1,37 +1,99 @@
-# Docker Compose for local development
-# Images: Alpine variants for minimal RAM usage
-# Usage: docker compose up -d
+# =============================================================================
+# Phase 6 Slice 2 — one-command full stack (app + postgres + redis)
+# See docs/phase6-production-readiness-spec.md (Slice 2).
+#
+# Usage:
+#   cp .env.example .env   # then edit real values
+#   docker compose up --build
+#
+# Why NO SPRING_PROFILES_ACTIVE=dev:
+#   The dev profile HARDCODES localhost:5433 (host DB) — wrong inside the compose network,
+#   where the DB is the service name `postgres` on the default port 5432. Instead we use the
+#   common application.yml and inject DB/Redis hosts as compose env (service names, not localhost).
+# =============================================================================
 
 services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 (Alpine = smaller image). Stores all app data; Flyway runs the
+  # V1..V9 migrations on app startup against THIS container.
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: marketplace-postgres
     ports:
-      - "5433:5432"
+      - "5433:5432"   # host:container — 5433 on host to avoid clashes with a local pg
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-marketplace}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marketplace}
-      POSTGRES_DB: ${POSTGRES_DB:-marketplace}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    mem_limit: 256m
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-marketplace}"]
+      # pg_isready exits 0 when Postgres accepts connections.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    mem_limit: 256m
 
+  # ---------------------------------------------------------------------------
+  # Redis 7 (Alpine). Backs @Cacheable (Phase 5) + the shared Bucket4j rate limiter.
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: marketplace-redis
     ports:
       - "6379:6379"
-    mem_limit: 64m
     healthcheck:
+      # redis-cli ping → "PONG" exits 0 when Redis is up.
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    mem_limit: 64m
+
+  # ---------------------------------------------------------------------------
+  # The Spring Boot app, built from ./Dockerfile in this repo.
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: marketplace-app
+    depends_on:
+      # long-form depends_on so the app only starts AFTER both deps are HEALTHY,
+      # not merely "container started" — avoids Flyway/Lettuce failing on a not-yet-ready DB/Redis.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # --- Database: connect by SERVICE NAME (postgres) on the container port 5432,
+      # NOT localhost:5433. localhost inside a container is the container itself. ---
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      # --- Redis: service name `redis`, default port 6379. ---
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      # --- Stripe: required by StripeConfig (@NotBlank), absent from common application.yml.
+      # Forwarded from .env so no secret lives in the image. ---
+      STRIPE_API_KEY: ${STRIPE_API_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      # --- Admin bootstrap (Phase 5.5): OPTIONAL. AdminBootstrap skips seeding if either is blank. ---
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # curl the actuator health endpoint that SecurityConfig permits without auth.
+      # --fail makes curl exit non-zero on any HTTP >= 400.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s   # give Spring Boot + Flyway time to boot before probing
+    mem_limit: 512m
 
 volumes:
   pgdata:
