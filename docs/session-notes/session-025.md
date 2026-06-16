@@ -67,8 +67,10 @@ SQL-verified → Hien merged → branch cleaned up → 6 VI HTML learning docs b
 **Spec written: `docs/phase6-production-readiness-spec.md`** (sliced into independent PRs). Phase 6 is the
 biggest portfolio gap (CI, Docker, prod config, observability, live deploy).
 
-- **Slice 1 (immediate GLM task):** `feat/phase6-ci` — GitHub Actions running `./mvnw -B verify` on the
-  **H2 test profile** (308 green). Copy-paste GLM prompt is at the bottom of the spec.
+- **Slice 1 — DONE (PR #10, reviewed APPROVE, awaiting Hien merge):** `feat/phase6-ci` — GitHub Actions
+  `./mvnw -B verify` on H2 profile. Review: `docs/pr-10-review.md`. CI run verified GREEN on real infra
+  (`Tests run: 308, BUILD SUCCESS`, 45.86s; Testcontainers never triggered — abstract bases have no live
+  subclass). No blocking findings; optional nits = no `timeout-minutes`/`permissions` (skip).
 - Slices 2–5: Docker+compose → prod config/Actuator/OpenAPI → (Testcontainers-in-CI) → deploy.
 - **⚠️ Known blocker (documented in spec):** `audit_logs.old_values/new_values` are `JSONB` in migration V6
   but mapped as `String/text` in the `AuditLog` entity. `BaseIntegrationTest` (Testcontainers + Postgres +
@@ -88,8 +90,9 @@ tracked docs not yet committed. Awaiting Hien's call: commit directly to `main` 
 ## Quick-start prompt for next agent
 
 ```
-Read docs/phase6-production-readiness-spec.md and docs/session-notes/session-025.md. Phase 5.5 is merged.
-Next is Phase 6 Slice 1 (CI) — hand the GLM prompt at the bottom of the spec to the coder, then review the
-resulting PR (verify Java version matches pom.xml, Maven invocation matches the green local run, no
-Testcontainers in CI). Mind the documented audit_logs jsonb/text blocker.
+Read docs/phase6-production-readiness-spec.md, docs/pr-10-review.md, docs/session-notes/session-025.md.
+Phase 6 Slice 1 (CI, PR #10) is reviewed APPROVE and CI is green — once Hien merges it, move to Slice 2
+(feat/phase6-docker: multi-stage Dockerfile + docker-compose app+postgres+redis). During Slice 2, CHECK
+whether the app boots clean against real Postgres in compose (runtime application.yml uses ddl-auto=validate);
+if the audit_logs jsonb/text mismatch breaks runtime too, Slice 4 (jsonb fix) becomes a deploy prerequisite.
 ```
