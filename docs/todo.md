@@ -323,10 +323,10 @@
 - **Lessons learned:**
 
 ### Phase 5 Review
-- **Completed date:**
-- **What went well:**
-- **What to improve:**
-- **Lessons learned:**
+- **Completed date:** 2026-06-16
+- **What went well:** Distributed rate limiting (Bucket4j+Redis) with token bucket; cache-aside with per-cache TTL; honest scope cuts documented in code; 12 new behavioral tests (cache call-counting, rate-limit IP/XFF isolation); test profile fully Docker-free via `@ConditionalOnProperty`.
+- **What to improve:** Page<T> methods not cached (Jackson Page deserialization blocked); EN docs deferred (VI only); no Redis-backed integration test (in-memory fallback only); rate-limit needs `app.ratelimit.enabled=false` toggle in test profile; `PageableKeyGenerator` is dead code.
+- **Lessons learned:** Jackson cannot deserialize `Page`/`PageImpl` without a datatype module — caching Page silently stores on MISS but returns a LinkedHashMap on HIT (ClassCastException). `@ConditionalOnProperty` is the clean way to make Redis beans optional in tests. Env vars (`.env` SPRING_DATASOURCE_URL) override YAML and silently break H2 tests — run tests with `env -u SPRING_DATASOURCE_URL ...`.
 
 ### Phase 6 Review
 - **Completed date:**
