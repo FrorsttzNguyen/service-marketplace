@@ -55,8 +55,10 @@ management:
   endpoints:
     web:
       exposure:
-        # Only expose health and info (not all actuator endpoints)
-        include: health, info
+        # Expose health + info (public-ish), plus prometheus + metrics (scrape endpoints).
+        # Access CONTROL is enforced in SecurityConfig — prometheus/metrics require ROLE_ADMIN.
+        # Exposing here only makes the endpoints EXIST; SecurityConfig decides who can call them.
+        include: health, info, prometheus, metrics
   endpoint:
     health:
       # Show component details (db, redis status) only to authenticated users
