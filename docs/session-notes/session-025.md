@@ -67,17 +67,21 @@ SQL-verified → Hien merged → branch cleaned up → 6 VI HTML learning docs b
 **Spec written: `docs/phase6-production-readiness-spec.md`** (sliced into independent PRs). Phase 6 is the
 biggest portfolio gap (CI, Docker, prod config, observability, live deploy).
 
-- **Slice 1 — DONE (PR #10, reviewed APPROVE, awaiting Hien merge):** `feat/phase6-ci` — GitHub Actions
+- **Slice 1 — DONE (PR #10, reviewed APPROVE, merged):** `feat/phase6-ci` — GitHub Actions
   `./mvnw -B verify` on H2 profile. Review: `docs/pr-10-review.md`. CI run verified GREEN on real infra
   (`Tests run: 308, BUILD SUCCESS`, 45.86s; Testcontainers never triggered — abstract bases have no live
   subclass). No blocking findings; optional nits = no `timeout-minutes`/`permissions` (skip).
-- Slices 2–5: Docker+compose → prod config/Actuator/OpenAPI → (Testcontainers-in-CI) → deploy.
-- **⚠️ Known blocker (documented in spec):** `audit_logs.old_values/new_values` are `JSONB` in migration V6
-  but mapped as `String/text` in the `AuditLog` entity. `BaseIntegrationTest` (Testcontainers + Postgres +
-  `ddl-auto=validate`) trips this → Testcontainers tests can't run in CI yet. So **Slice 1 CI must use the
-  H2 suite only**; fixing the mismatch is its own Slice 4. NOTE: runtime `application.yml` also uses
-  `validate` — must check during Slice 2 whether the app boots clean against real Postgres in compose; if it
-  also breaks at runtime, Slice 4 becomes a prerequisite for deploy.
+- **Slice 2 — OPEN, DO NOT MERGE (PR #11):** `feat/phase6-docker` — multi-stage Dockerfile + docker-compose
+  (app+postgres+redis) + `.dockerignore`. Infra correct & verified (`docker build` ✅, all 3 services start,
+  app connects to compose services by name, Flyway applies V1..V9 on real Postgres ✅). BUT app **does NOT
+  boot**: `ddl-auto=validate` fails on `audit_logs.new_values` (jsonb vs text) — same root cause as the
+  Testcontainers blocker, now confirmed at RUNTIME. `/actuator/health` never reachable. Review + coder
+  prompt + verify commands: `docs/pr-11-review.md`. **Verdict: Slice 4 (jsonb fix) is now a hard
+  prerequisite for Slice 2 acceptance AND Slice 5 deploy.**
+- Slices 3–5: prod config/Actuator/OpenAPI → (Testcontainers-in-CI) → deploy.
+- **⚠️ Known blocker (documented in spec, now confirmed runtime):** `audit_logs.old_values/new_values` are
+  `JSONB` in migration V6 but mapped as `String/text` in the `AuditLog` entity. Breaks BOTH Testcontainers
+  tests AND runtime boot under `ddl-auto=validate`. Fixing = Slice 4.
 
 ### Open decisions for Hien
 - Deploy target (Slice 5): Railway / Render / Fly.io — spec recommends **Render**.
@@ -90,9 +94,12 @@ tracked docs not yet committed. Awaiting Hien's call: commit directly to `main` 
 ## Quick-start prompt for next agent
 
 ```
-Read docs/phase6-production-readiness-spec.md, docs/pr-10-review.md, docs/session-notes/session-025.md.
-Phase 6 Slice 1 (CI, PR #10) is reviewed APPROVE and CI is green — once Hien merges it, move to Slice 2
-(feat/phase6-docker: multi-stage Dockerfile + docker-compose app+postgres+redis). During Slice 2, CHECK
-whether the app boots clean against real Postgres in compose (runtime application.yml uses ddl-auto=validate);
-if the audit_logs jsonb/text mismatch breaks runtime too, Slice 4 (jsonb fix) becomes a deploy prerequisite.
+Read docs/phase6-production-readiness-spec.md, docs/pr-10-review.md, docs/pr-11-review.md,
+docs/session-notes/session-025.md.
+Phase 6 Slice 1 (CI, PR #10) — DONE, merged.
+Phase 6 Slice 2 (Docker, PR #11) — OPEN, DO NOT MERGE. Infra correct & verified, but app does NOT boot
+against the compose Postgres: ddl-auto=validate fails on audit_logs.new_values (jsonb vs text). Same root
+cause as the documented Testcontainers blocker, now confirmed at RUNTIME. This makes Slice 4 (jsonb fix) a
+hard prerequisite for both Slice 2 acceptance and Slice 5 deploy. Next step: Slice 4 (see coder prompt in
+docs/pr-11-review.md), then re-verify the PR #11 image boots.
 ```

@@ -1,0 +1,40 @@
+# Phase 6 Slice 2 — .dockerignore
+# Excludes these paths from the Docker BUILD CONTEXT so they are never sent to
+# the daemon and never COPY-able in the Dockerfile. Keeps builds fast + avoids
+# accidentally baking stale artifacts / secrets into the image.
+
+# Build output — would otherwise shadow a fresh `mvnw package` inside the builder.
+target/
+
+# VCS + CI metadata — never needed in the image.
+.git/
+.github/
+
+# Documentation + AI working files — image should not carry docs.
+docs/
+.agents/
+.claude/
+.claudeignore
+
+# Local secrets — NEVER bake into an image. Compose reads these and injects as env at runtime.
+.env
+.env.*
+!.env.example
+
+# Markdown / project notes not needed by the build.
+*.md
+
+# IDE configs.
+.idea/
+.vscode/
+.settings/
+.project
+.classpath
+*.iml
+
+# OS junk.
+.DS_Store
+Thumbs.db
+
+# Frontend is a separate track (Phase 7) — not part of the backend image.
+frontend/
