@@ -1,4 +1,4 @@
-# Session 025 — Phase 5.5 Review→Merge→Docs, + Phase 6 Spec
+# Session 025 — Phase 5.5 (review→merge→docs) + Phase 6 Slices 1/4/2 (CI, jsonb fix, Docker) all merged
 
 ## What was done
 
@@ -71,35 +71,34 @@ biggest portfolio gap (CI, Docker, prod config, observability, live deploy).
   `./mvnw -B verify` on H2 profile. Review: `docs/pr-10-review.md`. CI run verified GREEN on real infra
   (`Tests run: 308, BUILD SUCCESS`, 45.86s; Testcontainers never triggered — abstract bases have no live
   subclass). No blocking findings; optional nits = no `timeout-minutes`/`permissions` (skip).
-- **Slice 2 — OPEN, DO NOT MERGE (PR #11):** `feat/phase6-docker` — multi-stage Dockerfile + docker-compose
-  (app+postgres+redis) + `.dockerignore`. Infra correct & verified (`docker build` ✅, all 3 services start,
-  app connects to compose services by name, Flyway applies V1..V9 on real Postgres ✅). BUT app **does NOT
-  boot**: `ddl-auto=validate` fails on `audit_logs.new_values` (jsonb vs text) — same root cause as the
-  Testcontainers blocker, now confirmed at RUNTIME. `/actuator/health` never reachable. Review + coder
-  prompt + verify commands: `docs/pr-11-review.md`. **Verdict: Slice 4 (jsonb fix) is now a hard
-  prerequisite for Slice 2 acceptance AND Slice 5 deploy.**
-- Slices 3–5: prod config/Actuator/OpenAPI → (Testcontainers-in-CI) → deploy.
-- **⚠️ Known blocker (documented in spec, now confirmed runtime):** `audit_logs.old_values/new_values` are
-  `JSONB` in migration V6 but mapped as `String/text` in the `AuditLog` entity. Breaks BOTH Testcontainers
-  tests AND runtime boot under `ddl-auto=validate`. Fixing = Slice 4.
+- **Slice 4 — DONE (PR #12, merged):** `feat/phase6-audit-jsonb` — `V10__audit_logs_values_to_text.sql`
+  ALTERs `audit_logs.old_values/new_values` jsonb→text (Option A, Hien's pick) to match the `AuditLog`
+  entity. Review: `docs/pr-12-review.md`. Opus reproduced on real Postgres: `Successfully applied 10
+  migrations` → no Schema-validation error → app starts. (Done BEFORE Slice 2 could pass — it was the
+  blocker's fix.)
+- **Slice 2 — DONE (PR #11, merged):** `feat/phase6-docker` — multi-stage Dockerfile (non-root, slim JRE,
+  dep-cache layer) + docker-compose (app+postgres+redis, healthchecks, no dev profile, env-wired) +
+  `.dockerignore`. Review: `docs/pr-11-review.md`. After V10 merged, Opus ran the FULL stack
+  `docker compose up --build`: app container **healthy**, `/actuator/health` → `{"status":"UP"}`,
+  `Successfully applied 10 migrations` → `Started ServiceMarketplaceApplication`. Slice 2 acceptance MET.
+- **⚠️ Blocker RESOLVED:** the `audit_logs` jsonb/text mismatch (broke runtime boot AND Testcontainers) is
+  fixed by V10. Runtime `ddl-auto=validate` now passes against the Flyway schema.
+- **Remaining Phase 6 slices:** Slice 3 (prod config: `application-prod.yml`, Actuator `prometheus`,
+  structured logging, export `docs/api/openapi.yaml`) · Slice 4b optional (wire Testcontainers into CI now
+  that jsonb is fixed) · Slice 5 (deploy to free-tier + README badge/live URL — Hien-driven).
 
 ### Open decisions for Hien
 - Deploy target (Slice 5): Railway / Render / Fly.io — spec recommends **Render**.
-- Testcontainers fix approach (Slice 4): new migration→text vs hypersistence JsonType vs profile-specific.
-
-### Pending git action (this session's docs)
-`docs/session-notes/session-025.md` (modified) + `docs/phase6-production-readiness-spec.md` (new) are
-tracked docs not yet committed. Awaiting Hien's call: commit directly to `main` vs via a docs PR.
+- Whether to do the optional Testcontainers-in-CI slice (jsonb no longer blocks it).
 
 ## Quick-start prompt for next agent
 
 ```
-Read docs/phase6-production-readiness-spec.md, docs/pr-10-review.md, docs/pr-11-review.md,
-docs/session-notes/session-025.md.
-Phase 6 Slice 1 (CI, PR #10) — DONE, merged.
-Phase 6 Slice 2 (Docker, PR #11) — OPEN, DO NOT MERGE. Infra correct & verified, but app does NOT boot
-against the compose Postgres: ddl-auto=validate fails on audit_logs.new_values (jsonb vs text). Same root
-cause as the documented Testcontainers blocker, now confirmed at RUNTIME. This makes Slice 4 (jsonb fix) a
-hard prerequisite for both Slice 2 acceptance and Slice 5 deploy. Next step: Slice 4 (see coder prompt in
-docs/pr-11-review.md), then re-verify the PR #11 image boots.
+Read docs/phase6-production-readiness-spec.md + docs/session-notes/session-025.md.
+Phase 6 status: Slice 1 (CI, PR #10), Slice 4 (jsonb V10, PR #12), Slice 2 (Docker, PR #11) — all DONE,
+merged, and full-stack verified (docker compose up → /actuator/health UP). main has CI + Dockerfile +
+docker-compose + V10. The audit_logs jsonb/text blocker is RESOLVED.
+NEXT: Slice 3 (prod config — application-prod.yml, Actuator prometheus metrics, structured JSON logging,
+export docs/api/openapi.yaml). Prepare the branch + GLM prompt like prior slices. Then Slice 5 (deploy;
+Hien picks Render/Railway/Fly). Optional: Testcontainers-in-CI now that jsonb is fixed.
 ```
