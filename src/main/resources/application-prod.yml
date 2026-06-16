@@ -1,0 +1,46 @@
+# Prod profile — hardened for production deployment (Phase 6 Slice 3).
+# Activated by: SPRING_PROFILES_ACTIVE=prod.
+#
+# Design rules (see docs/phase6-production-readiness-spec.md Slice 3):
+# - ALL secrets come from environment variables, with NO default value. A missing secret
+#   makes Spring fail-fast at startup with a clear "could not resolve placeholder" error —
+#   this is intentional (better than silently falling back to a weak/dev value in prod).
+# - DB/Redis connection details are NOT repeated here: the common application.yml already
+#   reads them from SPRING_DATASOURCE_* / SPRING_DATA_REDIS_* env vars via Spring Boot's
+#   relaxed binding. Setting them again would just duplicate config.
+# - SQL logging is silenced; app logs are INFO; Hibernate SQL goes to WARN.
+
+spring:
+  # Keep Flyway on (real schema migrations on startup) and validate entities against it.
+  # (audit_logs jsonb→text mismatch was fixed in V10, so validate passes on real Postgres.)
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+
+# JWT signing secret. ${JWT_SECRET} with NO default → fail-fast if unset.
+# HS256 requires ≥256-bit (≥32-char) keys; the placeholder in .env.example documents the minimum.
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+
+# Stripe keys — required by StripeConfig (@NotBlank), so they MUST be set in any profile.
+# Repeated here only to make the prod contract explicit: no literal, env-only.
+stripe:
+  api-key: ${STRIPE_API_KEY}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+# Prod logging: INFO overall, JSON/ECS on the console so a log aggregator (ELK/Loki/Datadog)
+# can parse structured fields. Spring Boot 3.4+ ships this encoder built-in — no extra lib.
+# WHY ECS: Elastic Common Schema — standardized field names (@timestamp, log.level, service.name, ...).
+# Dev/test profiles keep human-readable plain text; this override only applies under `prod`.
+logging:
+  level:
+    root: INFO
+    com.hien.marketplace: INFO
+    org.hibernate.SQL: WARN
+  structured:
+    format:
+      console: ecs
