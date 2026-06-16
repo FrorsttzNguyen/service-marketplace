@@ -139,6 +139,7 @@ This document maps the project build phases to learning milestones. Each phase p
 
 ## Phase 5: Caching & Performance (Redis)
 **Goal:** Performance optimization with Redis
+**Status:** ✅ Complete (branch `feat/phase5-caching`) — see `docs/phase5-evaluation.md`
 
 ### Learn
 - Redis data structures (String, Hash, Set, Sorted Set)
@@ -147,15 +148,15 @@ This document maps the project build phases to learning milestones. Each phase p
 - Rate limiting
 
 ### Build
-- [ ] Cache service catalog in Redis (TTL-based)
-- [ ] Cache invalidation on service update/create
-- [ ] Rate limiting on API endpoints with Redis + Bucket4j
-- [ ] Redis-based session storage (optional)
+- [x] Cache service catalog in Redis (TTL-based) — `getServiceById` cached; `Page<T>` methods deliberately NOT cached (see learning doc 01 "Pitfall")
+- [x] Cache invalidation on service update/create — `@CacheEvict` on `VendorServiceManagement` mutations
+- [x] Rate limiting on API endpoints with Redis + Bucket4j — login/register/refresh, distributed via Redis
+- [ ] Redis-based session storage (optional, deferred)
 
 ### Verify
-- [ ] Repeated catalog queries hit Redis (check logs/metrics)
-- [ ] Cache invalidates when vendor updates a service
-- [ ] Rate limiting returns 429 after threshold
+- [x] Repeated catalog queries hit Redis — `ServiceCatalogCachingTest` proves repository call count drops to 1 on cache hit
+- [x] Cache invalidates when vendor updates a service — `@CacheEvict(beforeInvocation=false)` tested
+- [x] Rate limiting returns 429 after threshold — `RateLimitFilterTest` (7 scenarios)
 
 ---
 
