@@ -10,11 +10,8 @@ target/
 .git/
 .github/
 
-# Documentation + AI working files — image should not carry docs.
+# Documentation — image should not carry docs.
 docs/
-
-
-
 
 # Local secrets — NEVER bake into an image. Compose reads these and injects as env at runtime.
 .env
