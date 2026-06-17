@@ -46,6 +46,14 @@ app:
   jwt:
     secret: ${JWT_SECRET}
 
+  # CORS allow-list for the Phase 7 frontend (Vercel + any preview deploys).
+  # ${APP_CORS_ALLOWED_ORIGINS} with NO default → fail-fast if unset. An empty value in prod would
+  # silently break the browser app (every request blocked), so we require the operator to set it
+  # explicitly. Example on Render: https://service-marketplace.vercel.app,https://*.vercel.app
+  # Wildcards work because SecurityConfig uses setAllowedOriginPatterns (not setAllowedOrigins).
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+
 # Stripe keys — required by StripeConfig (@NotBlank), so they MUST be set in any profile.
 # Repeated here only to make the prod contract explicit: no literal, env-only.
 stripe:
