@@ -185,7 +185,7 @@ This document maps the project build phases to learning milestones. Each phase p
 
 ## Phase 6: Production Readiness / DevOps
 **Goal:** App builds in CI, runs as a container, and is deployed live — the biggest portfolio gap.
-**Status:** ⏳ Next — see `docs/phase6-production-readiness-spec.md` (to be written)
+**Status:** ✅ Done — app is LIVE at https://marketplace-api-kehz.onrender.com (Render + Neon + Upstash). Score 9.05.
 
 ### Learn
 - CI/CD pipelines (GitHub Actions): build, test (with Testcontainers), cache
@@ -195,20 +195,25 @@ This document maps the project build phases to learning milestones. Each phase p
 - Cloud deployment (Railway / Render / Fly.io free tier)
 
 ### Build
-- [ ] `.github/workflows/ci.yml` — `mvn verify` on push/PR, Testcontainers in CI
-- [ ] Multi-stage `Dockerfile` for the app (build → runtime JRE)
-- [ ] `docker-compose` brings up app + postgres + redis together (full stack)
-- [ ] `application-prod.yml` + externalized secrets
-- [ ] Actuator metrics (`/actuator/prometheus`), structured logging
-- [ ] Commit `docs/api/openapi.yaml` (export from runtime Swagger)
-- [ ] Deploy to a free-tier cloud → live URL
-- [ ] README: CI badge + live demo / Swagger link
+- [x] `.github/workflows/ci.yml` — `mvn verify` on push/PR (H2 profile; Testcontainers-in-CI deferred)
+- [x] Multi-stage `Dockerfile` for the app (build → runtime JRE, non-root)
+- [x] `docker-compose` brings up app + postgres + redis together (full stack)
+- [x] `application-prod.yml` + externalized secrets (fail-fast, no defaults)
+- [x] Actuator metrics (`/actuator/prometheus`), structured JSON (ECS) logging
+- [x] Commit `docs/api/openapi.yaml` (export from runtime Swagger)
+- [x] Deploy to a free-tier cloud → live URL (Render + Neon + Upstash)
+- [x] README: CI badge + live demo / Swagger link
 
 ### Verify
-- [ ] CI is green on PR; failing test blocks merge
-- [ ] `docker build` + `docker compose up` runs the whole stack from scratch
-- [ ] Live URL serves the API + Swagger UI
-- [ ] `/actuator/health` is UP in prod
+- [x] CI is green on PR; failing test blocks merge
+- [x] `docker build` + `docker compose up` runs the whole stack from scratch
+- [x] Live URL serves the API + Swagger UI
+- [x] `/actuator/health` is UP in prod
+
+### Deferred to a future session
+- [ ] Testcontainers-in-CI (jsonb blocker is fixed via V10, so `BaseIntegrationTest` can now be wired in)
+- [ ] `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75` if the 512MB free tier OOMs
+- [ ] Remove the hardcoded JWT default in the common profile (prod is already fail-fast)
 
 ---
 
