@@ -20,8 +20,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -115,6 +117,24 @@ class ServiceControllerIntegrationTest {
             mockMvc.perform(get("/api/services?page=1&size=20"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(6));  // Remaining 6
+        }
+
+        @Test
+        @DisplayName("Should not leak @class type metadata in response (Jackson default-typing isolation)")
+        void shouldNotLeakAtClassInResponse() throws Exception {
+            // This guards against the bug where the Redis ObjectMapper (which has activateDefaultTyping)
+            // leaks into Spring MVC's HTTP message converter, causing every response to contain
+            // "@class":"org.springframework.data.domain.PageImpl" and typed-array wrappers like
+            // ["java.util.Collections$UnmodifiableRandomAccessList",[...]].
+            String body = mockMvc.perform(get("/api/services"))
+                    .andExpect(status().isOk())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+
+            assertThat(body)
+                    .as("REST response must not contain @class type metadata from Redis ObjectMapper")
+                    .doesNotContain("@class");
         }
 
         @Test
