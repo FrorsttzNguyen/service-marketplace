@@ -98,18 +98,32 @@ hardcoded fallback. `prod` is safe (overridden + fail-fast, verified), but the d
 JWTs with a public key. Drop the default someday so every profile fails-fast. (Out of Phase 6 scope.)
 
 ### Open decisions for Hien
-- Deploy target (Slice 5): Railway / Render / Fly.io — spec recommends **Render**.
+- ~~Deploy target (Slice 5): Railway / Render / Fly.io — spec recommends **Render**.~~ **RESOLVED → Render.**
 - Whether to do the optional Testcontainers-in-CI slice (jsonb no longer blocks it).
+
+## Slice 5 — deploy config (PR #14, OPEN, NOT merged)
+
+- **Branch:** `feat/phase6-deploy` → `main`. **Commit:** `3d266b8`. **PR:** https://github.com/FrorsttzNguyen/service-marketplace/pull/14
+- **What (config/docs only, NO deploy, NO merge):**
+  - `application-prod.yml`: `server.port: ${PORT:8080}` (Render injects PORT) + `spring.data.redis.ssl.enabled: ${REDIS_SSL:false}` (Upstash TLS flag).
+  - `render.yaml` (new): **web service only** (DB/Redis external managed tiers — Neon + Upstash). Docker runtime reusing Slice 2 image, plan free, `healthCheckPath: /actuator/health`. All secrets `sync: false`; `JWT_SECRET` `generateValue: true`.
+  - `README.md`: CI badge, Deployment section (Render Blueprint + Neon + Upstash + env-var table), Live URL + Swagger placeholders, Java 17+ → Java 21.
+- **Opus independent verification (all passed):**
+  - `./mvnw -B verify` → **308 tests, 0 failures, 0 errors, BUILD SUCCESS.**
+    - ⚠️ Local gotcha (NOT a PR defect): if `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` are exported in the shell (from `.env`), they shadow the H2 test profile → `Unable to determine Dialect` errors. Fix: `env -u SPRING_DATASOURCE_URL -u SPRING_DATASOURCE_USERNAME -u SPRING_DATASOURCE_PASSWORD ./mvnw -B verify`. CI runner is clean → unaffected.
+  - Prod boot with `PORT=9999` + `REDIS_SSL=false` + container Postgres/Redis → **Tomcat on port 9999**, `/actuator/health` → `{"status":"UP"}`. Proves `server.port:${PORT}` + `redis.ssl` flag don't break local.
+  - `render.yaml` + `application-prod.yml` parse as valid YAML.
+- **Review:** `docs/pr-14-review.md` — **APPROVE, no blocking findings.** Do NOT merge until Hien reviews.
+- **Hien-driven next step (the actual deploy, out of code scope):** Render dashboard → New → Blueprint → fill `sync: false` env vars (Neon datasource URL w/ `?sslmode=require`, Upstash Redis host/port/password, Stripe keys, optional admin creds). `JWT_SECRET` auto-generated. Then verify `/actuator/health` UP on live URL + fill README Live/Swagger placeholders.
 
 ## Quick-start prompt for next agent
 
 ```
-Read docs/phase6-production-readiness-spec.md + docs/session-notes/session-025.md.
+Read docs/phase6-production-readiness-spec.md + docs/session-notes/session-025.md + docs/pr-14-review.md.
 Phase 6: Slices 1 (CI #10), 4 (jsonb V10 #12), 2 (Docker #11), 3 (prod config + observability #13) — ALL
-DONE & merged, each reproduced/verified by Opus (compose stack boots, /actuator/health UP, prod profile JSON
-logs, prometheus secured, OpenAPI exported). main is production-shaped.
-NEXT = Slice 5 (deploy, Hien-driven): pick a free-tier host (spec recommends Render); GLM prepares host
-config (render.yaml) + documents required env vars (JWT_SECRET, STRIPE_*, ADMIN_*, DB/Redis); Hien performs
-the deploy; README gets CI badge + live URL + Swagger link; verify /actuator/health UP in prod.
-Optional: Testcontainers-in-CI (jsonb blocker is gone).
+DONE & merged. Slice 5 deploy config = PR #14 (feat/phase6-deploy, OPEN, NOT merged, APPROVED by Opus).
+GLM wrote render.yaml (web only, external Neon+Upstash) + application-prod.yml (PORT + redis.ssl flag) +
+README (CI badge, Deployment, Java 21). Opus verified: 308 green, prod boot on PORT=9999 /actuator/health
+UP, YAML valid. The actual RENDER DEPLOY is Hien-driven (dashboard), not code. NEXT: Hien reviews PR #14 →
+merge → Hien deploys on Render → fill README Live/Swagger placeholders. Optional: Testcontainers-in-CI.
 ```
