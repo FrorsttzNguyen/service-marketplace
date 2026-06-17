@@ -6,6 +6,7 @@ import com.hien.marketplace.infrastructure.security.RateLimitFilter;
 import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,6 +17,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Spring Security configuration for JWT-based authentication.
@@ -73,8 +80,21 @@ public class SecurityConfig {
      * rateLimitFilter is injected as a method param (Spring resolves the bean declared above).
      */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, RateLimitFilter rateLimitFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            RateLimitFilter rateLimitFilter,
+            CorsConfigurationSource corsConfigurationSource
+    ) throws Exception {
         http
+                // Enable CORS using the corsConfigurationSource bean below.
+                // WHY: the Phase 7 frontend (Next.js on Vercel, dev on http://localhost:3000) is a
+                // different origin than the API, so the browser will block cross-origin XHR/fetch
+                // unless the API sends the right Access-Control-Allow-* headers. Spring Security's
+                // .cors() hook delegates to CorsConfigurationSource and also auto-handles the
+                // OPTIONS preflight (a browser sends a preflight before the real request when the
+                // call uses Authorization headers, JSON content-type, etc.).
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+
                 // Disable CSRF - not needed for stateless JWT API
                 .csrf(AbstractHttpConfigurer::disable)
 
@@ -137,6 +157,71 @@ public class SecurityConfig {
                 .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * CORS configuration source — which browser origins may call this API.
+     *
+     * WHY an explicit allow-list (never "*" with credentials):
+     * - The API uses JWT in the Authorization header, so cross-origin requests from the browser
+     *   carry credentials in spirit. Returning Access-Control-Allow-Origin: * is illegal when
+     *   credentials are involved, and returning it blindly would also let any site make
+     *   authenticated calls on a logged-in user's behalf (CSRF-adjacent).
+     * - Instead we echo back the exact requesting Origin if it is in the allow-list. That is the
+     *   safe pattern Spring's CorsConfiguration#applyPermitDefaultValues + setAllowedOriginPatterns
+     *   implement under the hood.
+     *
+     * WHY configurable via app.cors.allowed-origins (comma-separated):
+     * - Dev (localhost:3000), preview deploys (*.vercel.app), and prod each have different
+     *   origins. Hardcoding would force a redeploy for every environment. An env-driven list lets
+     *   Render/Compose/Vercel set it without touching code.
+     * - Default empty → NO origins allowed. This is fail-closed: a misconfigured deploy does not
+     *   accidentally open the API to the whole internet.
+     *
+     * setAllowedOriginPatterns (not setAllowedOrigins):
+     * - Patterns support wildcards, so APP_CORS_ALLOWED_ORIGINS=https://*.vercel.app permits every
+     *   Vercel preview URL without listing each one. Plain setAllowedOrigins would reject the "*".
+     *
+     * Headers/methods: Authorization + Content-Type cover every REST endpoint we expose; the method
+     * list covers GET/POST/PUT/PATCH/DELETE + OPTIONS (preflight). Cache preflight for 1h to cut
+     * round-trips (browser max-age).
+     *
+     * @param allowedOrigins comma-separated origin list from app.cors.allowed-origins (may be empty)
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:}") String allowedOrigins
+    ) {
+        CorsConfiguration config = new CorsConfiguration();
+        // setAllowedOriginPatterns (not Origins) so wildcards like https://*.vercel.app work.
+        config.setAllowedOriginPatterns(parseOrigins(allowedOrigins));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        config.setAllowCredentials(true);
+        // Expose Authorization so a browser app could read it (we don't put JWT there today, but it
+        // keeps the contract open for future responses that set a refresh-token cookie header).
+        config.setExposedHeaders(List.of("Authorization"));
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Register for every path — same rules for all endpoints, role checks still apply afterwards.
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
+    /**
+     * Split "https://a.com, https://b.com" into a clean list, ignoring blanks.
+     * WHY a helper: env var lists are notoriously messy (trailing commas, spaces); splitting naively
+     * produces [""] which CorsConfiguration treats as "allow origin ''". Trim + filter empty.
+     */
+    private List<String> parseOrigins(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     /**

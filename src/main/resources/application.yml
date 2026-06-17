@@ -50,6 +50,14 @@ app:
     # Example behind a Docker/K8s load balancer: "10.0.0.0/8,172.16.0.0/12"
     trusted-proxies: ""
 
+  # CORS — which browser origins may call the API (Phase 7 frontend).
+  # Comma-separated, wildcards allowed via Spring's origin-pattern syntax, e.g.
+  #   APP_CORS_ALLOWED_ORIGINS=http://localhost:3000,https://*.vercel.app
+  # Empty (default) = FAIL CLOSED: no cross-origin browser requests allowed. Set this per environment
+  # via the APP_CORS_ALLOWED_ORIGINS env var (Render/Vercel/local .env). See SecurityConfig#corsConfigurationSource.
+  cors:
+    allowed-origins: ""
+
 # Actuator — production-ready monitoring endpoints
 management:
   endpoints:
