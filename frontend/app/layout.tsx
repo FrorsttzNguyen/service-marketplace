@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { Header } from "@/components/header";
 
 export const metadata: Metadata = {
   title: "Service Marketplace",
@@ -8,8 +9,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Root layout (server component). Wraps every route in the React Query provider
- * (a client island) so any page/component can `useQuery` against the API.
+ * Root layout (server component). Wraps every route in the React Query + Auth
+ * providers (a client island) and renders the shared header. Any page/component
+ * can `useQuery` / `useAuth` against the API.
  */
 export default function RootLayout({
   children,
@@ -17,7 +19,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <Header />
+          {children}
+        </Providers>
       </body>
     </html>
   );
