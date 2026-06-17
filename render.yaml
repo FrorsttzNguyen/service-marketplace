@@ -1,0 +1,87 @@
+# =============================================================================
+# Phase 6 Slice 5 — Render Blueprint (web service only).
+# See docs/phase6-production-readiness-spec.md (Slice 5) for the why.
+#
+# WHAT THIS FILE IS:
+#   A Render Blueprint (render.com/docs/blueprints) describes your service topology as code.
+#   On `render blueprint deploy` (or by linking the repo), Render reads this file and provisions
+#   exactly what's declared here — repeatable deploys, no manual dashboard clicks.
+#
+# WHY ONLY A `web` SERVICE (no `psql` / `redis` resources declared here):
+#   Postgres + Redis live on EXTERNAL managed free tiers — Neon (Postgres) and Upstash (Redis).
+#   Reasons: (1) Render's built-in Postgres/Redis free tiers have changed/retired over time, while
+#   Neon and Upstash have stable free tiers purpose-built for this; (2) externalizing state means
+#   the app can be redeployed/destroyed without touching data; (3) one Blueprint per concern.
+#   The app reaches them over the public internet via SPRING_DATASOURCE_* / SPRING_DATA_REDIS_*
+#   env vars (set manually in the Render dashboard — secrets must NOT live in this committed file).
+#
+# WHY `runtime: docker` + `dockerfilePath: ./Dockerfile`:
+#   We already have a hardened multi-stage Dockerfile (Slice 2): non-root user, slim JRE, dependency
+#   cache layer. Reusing it on Render means local `docker compose up` and prod run the SAME image —
+#   one source of truth, fewer "works on my machine" surprises. (Render's native "Docker" runtime
+#   builds + runs our Dockerfile verbatim.)
+#
+# WHY `plan: free`:
+#   This is a learning/portfolio project; the free tier is enough for a demo. Bump to a paid plan
+#   before real traffic (free tier sleeps after inactivity, has limited RAM).
+#
+# WHY every secret uses `sync: false`:
+#   `sync: false` tells Render "do NOT inherit from the linked repo's env group / parent — let me
+#   set this manually in the dashboard". This is the safe default for secrets: they end up only in
+#   Render's encrypted env store, never in git. `JWT_SECRET` uses `generateValue: true` so Render
+#   mints a strong random value on first deploy (still overridable manually afterwards).
+#
+# HEALTH CHECK: Render polls `healthCheckPath` and restarts the service on non-200.
+#   SecurityConfig already permits /actuator/health anonymously (Slice 3), so this works without auth.
+# =============================================================================
+
+services:
+  - type: web
+    name: marketplace-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      # --- Spring profile: activate prod (env-only secrets, validate, Flyway, ECS logs, TLS-aware Redis). ---
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+      # --- Redis TLS flag: Upstash requires TLS. Prod profile reads it as spring.data.redis.ssl.enabled. ---
+      - key: REDIS_SSL
+        value: "true"
+
+      # --- Neon (Postgres) connection. Set manually: Neon console → connection string.
+      # URL MUST end with ?sslmode=require (Neon enforces TLS); username/password from Neon. ---
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+
+      # --- Upstash (Redis) connection. Set manually: Upstash console → endpoint/port/password.
+      # Upstash gives both a TLS endpoint (port 6379 over TLS) and a non-TLS one; use the TLS one
+      # because REDIS_SSL=true above. ---
+      - key: SPRING_DATA_REDIS_HOST
+        sync: false
+      - key: SPRING_DATA_REDIS_PORT
+        sync: false
+      - key: SPRING_DATA_REDIS_PASSWORD
+        sync: false
+
+      # --- App secrets (set manually, never committed). ---
+      # JWT_SECRET: Render auto-generates a strong value on first deploy. Override later if desired.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      # --- Admin bootstrap (Phase 5.5): OPTIONAL. If either is blank, AdminBootstrap skips seeding.
+      # Set both only if you want an ADMIN user auto-created on startup. ---
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
