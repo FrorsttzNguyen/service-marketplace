@@ -145,8 +145,9 @@ services so they survive app redeploys:
 
 ### Live
 
-- **Live URL:** _TODO — fill after first Render deploy_
-- **Swagger / OpenAPI UI:** _TODO — `${LIVE_URL}/swagger-ui.html` after deploy_
+- **Live URL:** https://marketplace-api-kehz.onrender.com (Render free — sleeps after ~15 min idle; first request may cold-start ~50s)
+- **Health:** https://marketplace-api-kehz.onrender.com/actuator/health
+- **Swagger / OpenAPI UI:** https://marketplace-api-kehz.onrender.com/swagger-ui/index.html
 - **OpenAPI spec (committed):** [docs/api/openapi.yaml](docs/api/openapi.yaml)
 
 > Secrets are injected at runtime via Render's encrypted env store. The Docker image contains no
