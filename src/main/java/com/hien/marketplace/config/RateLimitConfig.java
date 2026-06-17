@@ -49,11 +49,18 @@ public class RateLimitConfig {
     public RedisClient rateLimitRedisClient(
             @Value("${spring.data.redis.host:localhost}") String host,
             @Value("${spring.data.redis.port:6379}") int port,
-            @Value("${spring.data.redis.password:}") String password
+            @Value("${spring.data.redis.password:}") String password,
+            @Value("${spring.data.redis.ssl.enabled:false}") boolean sslEnabled
     ) {
+        // Bucket4j builds its OWN Lettuce client here, separate from Spring's RedisConnectionFactory,
+        // so Spring's `spring.data.redis.ssl.enabled` does NOT apply to it — we must choose the scheme
+        // ourselves. rediss:// (TLS) is required by managed providers like Upstash that ONLY accept TLS;
+        // redis:// (plaintext) is for local/compose Redis. Without this, a TLS-only provider drops the
+        // handshake ("Connection closed prematurely") and the app fails to start.
+        String scheme = sslEnabled ? "rediss" : "redis";
         String uri = (password == null || password.isBlank())
-                ? "redis://" + host + ":" + port
-                : "redis://:" + password + "@" + host + ":" + port;
+                ? scheme + "://" + host + ":" + port
+                : scheme + "://:" + password + "@" + host + ":" + port;
         return RedisClient.create(uri);
     }
 
