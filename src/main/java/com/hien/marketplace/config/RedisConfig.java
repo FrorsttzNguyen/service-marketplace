@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,30 +42,40 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class RedisConfig {
 
     /**
-     * ObjectMapper shared by both the RedisTemplate value serializer and the RedisCacheManager.
+     * ObjectMapper used exclusively by Redis serializers (RedisTemplate and RedisCacheManager).
      *
-     * WHY a dedicated bean name "redisObjectMapper":
-     * - We do NOT want to override the primary ObjectMapper that Spring uses for REST JSON responses.
-     * - REST responses should NOT include "@class" type hints (security + size).
-     * - Cache values SHOULD include them (needed to reconstruct exact types on read).
-     * - A separate bean keeps these concerns isolated.
+     * WHY copy() from the primary MVC ObjectMapper:
+     * - objectMapper.copy() produces an independent instance that inherits all base configuration
+     *   (JavaTimeModule, feature flags, etc.) from the primary bean — so cached values serialize
+     *   java.time.* types the same way REST responses do, avoiding mismatches on cache read.
+     * - The copy is then configured with activateDefaultTyping so Redis can reconstruct concrete
+     *   types (e.g. ServiceResponse record) on cache HIT. This is intentional for Redis only.
+     * - The PRIMARY MVC ObjectMapper is left untouched — no "@class" ever appears in HTTP responses.
+     *
+     * WHY NOT @Primary:
+     * - This bean must never be used by Spring MVC's HTTP message converter.
+     * - JacksonConfig defines the @Primary objectMapper for MVC; this one is only reached via
+     *   @Qualifier("redisObjectMapper") in RedisTemplate and RedisCacheManager.
+     *
+     * WHY setVisibility(ALL, ANY):
+     * - Java records expose fields directly (no getters), so Jackson's default accessor scan
+     *   misses them. Setting visibility to ANY ensures fields are serialized even without getters.
      */
     @Bean("redisObjectMapper")
-    public ObjectMapper redisObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        // Support java.time.* and other Java 8 types in cached values.
-        mapper.registerModule(new JavaTimeModule());
-        // Serialize fields directly (ignore getters/setters mismatch on records).
-        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+    public ObjectMapper redisObjectMapper(ObjectMapper objectMapper) {
+        // Copy inherits base config (modules, features) without mutating the shared MVC mapper.
+        ObjectMapper redisCopy = objectMapper.copy();
+        // Serialize fields directly (needed for Java records which have no traditional getters).
+        redisCopy.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
         // Embed "@class": "<fqcn>" so deserialization knows the concrete type.
         // LaissezFaireSubTypeValidator is the validator Jackson requires when default typing is on;
         // it allows every subtype (acceptable for an internal cache, NOT for untrusted input).
-        mapper.activateDefaultTyping(
+        redisCopy.activateDefaultTyping(
                 LaissezFaireSubTypeValidator.instance,
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY
         );
-        return mapper;
+        return redisCopy;
     }
 
     /**
