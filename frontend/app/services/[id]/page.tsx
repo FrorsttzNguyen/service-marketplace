@@ -18,6 +18,7 @@ import { useService } from "@/lib/api/queries";
 import { ApiError } from "@/lib/api/client";
 import { ErrorState } from "@/components/error-state";
 import { ServiceDetailSkeleton } from "@/components/skeletons";
+import { BookingForm } from "@/components/booking-form";
 
 /** Human-readable label for the pricing-type enum. */
 function prettyPricingType(type: string): string {
@@ -197,6 +198,15 @@ export default function ServiceDetailPage() {
             </DetailRow>
           ) : null}
         </dl>
+
+        {/*
+          Booking form — only rendered once the service is loaded (we have a real id).
+          The component handles its own auth gate (logged-out → login CTA) and the
+          create-booking mutation + redirect to /bookings.
+        */}
+        {service?.id !== undefined ? (
+          <BookingForm serviceId={service.id} />
+        ) : null}
       </article>
     </DetailShell>
   );

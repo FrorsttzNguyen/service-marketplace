@@ -28,6 +28,12 @@ export function Header() {
         {/* While boot-rehydrating, render no auth controls to avoid a logged-out flicker. */}
         {isInitializing ? null : isAuthenticated ? (
           <div className="flex items-center gap-3 text-sm">
+            <Link
+              href="/bookings"
+              className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
+            >
+              My bookings
+            </Link>
             <span className="text-neutral-600 dark:text-neutral-400">
               {user?.fullName || user?.email || "Account"}
             </span>

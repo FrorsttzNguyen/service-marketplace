@@ -51,24 +51,28 @@ interface RequestOptions {
 
 /**
  * Core request executor. Centralizes URL building, token attachment, and the 401
- * refresh-and-retry so both GET and POST share the exact same behavior. `method`
- * is "GET" or "POST"; a body is only sent for POST.
+ * refresh-and-retry so GET/POST/PUT share the exact same behavior. A JSON body is
+ * sent only for methods that carry one (POST always; PUT only when provided).
  */
 async function request(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   path: string,
   body: unknown,
   options: RequestOptions,
 ): Promise<unknown> {
   const doFetch = (token: string | null): Promise<Response> => {
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (method === "POST") headers["Content-Type"] = "application/json";
+    // POST always sends a body; PUT sends one only when the caller provided it
+    // (e.g. PUT /api/bookings/{id}/cancel has no body — we must not set Content-Type
+    // on a bodyless request, or some servers/proxies reject it).
+    const hasBody = method === "POST" || (method === "PUT" && body !== undefined);
+    if (hasBody) headers["Content-Type"] = "application/json";
     if (token) headers.Authorization = `Bearer ${token}`;
 
     return fetch(`${BASE_URL}${path}${buildQueryString(options?.query)}`, {
       method,
       headers,
-      body: method === "POST" ? JSON.stringify(body) : undefined,
+      body: hasBody ? JSON.stringify(body) : undefined,
       signal: options?.signal,
       cache: "no-store",
     });
@@ -135,4 +139,24 @@ export async function apiPost(
   options?: Omit<RequestOptions, "query" | "body">,
 ): Promise<unknown> {
   return request("POST", path, body, options ?? {});
+}
+
+/**
+ * Perform a JSON PUT against the backend. Used by state-change endpoints that are
+ * idempotent-ish mutations, e.g. `PUT /api/bookings/{id}/cancel`.
+ *
+ * `body` is OPTIONAL — some PUT endpoints (cancel) take no request body. When omitted
+ * (undefined), no body and no Content-Type header are sent.
+ *
+ * Shares the exact same token-attach + 401-refresh-and-retry path as apiGet/apiPost.
+ *
+ * @param path API path with a leading slash, e.g. "/api/bookings/12/cancel".
+ * @param body Request body, or undefined for a bodyless PUT.
+ */
+export async function apiPut(
+  path: string,
+  body?: unknown,
+  options?: Omit<RequestOptions, "query" | "body">,
+): Promise<unknown> {
+  return request("PUT", path, body, options ?? {});
 }
