@@ -9,7 +9,6 @@
  * The base URL comes from NEXT_PUBLIC_API_BASE_URL (Next.js inlines `NEXT_PUBLIC_*`
  * env vars into the client bundle at build time, so it's available in the browser).
  */
-import type { paths } from "./schema";
 
 /**
  * Resolve the API base URL once. Trailing slashes are stripped so we can safely
@@ -69,15 +68,23 @@ interface GetOptions {
 }
 
 /**
- * Perform a typed GET against the backend.
+ * Perform a GET against the backend.
  *
- * @param path API path with a leading slash, e.g. "/api/services". Must exist on the
- *            generated `paths` type, which keeps callers honest with the OpenAPI spec.
- * @returns Parsed JSON. The generic `T` defaults to the response type derived from the
- *          generated schema for the given path, so most call sites need no annotation.
+ * @param path API path with a leading slash, e.g. "/api/services" (static) or
+ *            "/api/services/5" (dynamic — the `{id}` segment already substituted in).
+ *            `services.ts` substitutes path params, keeping this function format-agnostic.
+ * @returns Parsed JSON. Returned as `unknown` and narrowed at the call site (e.g.
+ *          `as Promise<ServicePage>`); the generated schema is the source of truth for
+ *          the shape, not the runtime value here.
+ *
+ * Why a plain `string` path (not `keyof paths`): the generated `paths` keys are the
+ * *templates* (`"/api/services/{id}"`), so a concrete path like `"/api/services/5"`
+ * wouldn't satisfy `keyof paths`. Widening to `string` unblocks dynamic routes without
+ * weakening real safety — the cast + the schema-derived aliases in `services.ts` are
+ * where the actual type guarantee lives.
  */
-export async function apiGet<P extends keyof paths>(
-  path: P,
+export async function apiGet(
+  path: string,
   options?: GetOptions,
 ): Promise<unknown> {
   const url = `${BASE_URL}${path}${buildQueryString(options?.query)}`;

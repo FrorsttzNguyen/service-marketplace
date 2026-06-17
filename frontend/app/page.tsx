@@ -1,25 +1,49 @@
 "use client";
 
 /**
- * Home route — the Phase 7 Slice 0 smoke page.
+ * Home route — the Service Catalog (Phase 7 Slice 1).
  *
- * Fetches `GET /api/services` (paginated) through the typed client + TanStack Query
- * and renders the total count + a list of service names. Each of the four query
- * states (loading / error / empty / success) is handled explicitly so this page is
- * the reference for how the rest of the app should talk to the API.
+ * The primary browse experience: paginated catalog, category filter chips, linked
+ * cards. Each of the four query states (loading / error / empty / success) is handled
+ * explicitly. This page is the reference for how the rest of the app talks to the API:
+ * typed client → React Query hook → presentational components.
  *
  * NOTE on cold starts: the live API (Render free tier) sleeps when idle. The first
- * request after idle can take 30–90s to wake up — that's expected, not a bug, and
- * the loading state below covers it.
+ * request after idle can take 30–90s to wake up — that's expected, not a bug, and the
+ * skeleton loading state covers it.
  */
-import { useServices } from "@/lib/api/queries";
+import { useState } from "react";
+import { useServicesCatalog, useCatalogCategories } from "@/lib/api/queries";
 import { ServiceList } from "@/components/service-list";
+import { CategoryFilter } from "@/components/category-filter";
+import { Pagination } from "@/components/pagination";
+import { ErrorState } from "@/components/error-state";
+import { CatalogSkeleton } from "@/components/skeletons";
+
+const PAGE_SIZE = 10;
 
 export default function HomePage() {
-  const { data, isPending, isError, error, refetch, isFetching } = useServices({
-    page: 0,
-    size: 10,
-  });
+  // The page owns browse state: which category is selected and which page we're on.
+  // Keeping it here (not in the URL) is fine for Slice 1; a later slice can lift it
+  // into search params for shareable links.
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
+
+  // Catalog query is filter-aware: pass categoryId to filter, null for the full list.
+  const catalog = useServicesCatalog({ categoryId, page, size: PAGE_SIZE });
+
+  // Category chips come from a separate query that derives distinct categories from a
+  // large catalog page. No `GET /api/categories` call — see useCatalogCategories.
+  const categoriesQuery = useCatalogCategories();
+
+  /** Switch category: reset to page 0 (a filtered view's page numbers differ). */
+  function handleSelectCategory(next: number | null) {
+    setCategoryId(next);
+    setPage(0);
+  }
+
+  const isLoading = catalog.isPending;
+  const isError = catalog.isError;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
@@ -30,44 +54,40 @@ export default function HomePage() {
         </p>
       </header>
 
-      {isPending ? (
-        <p
-          className="rounded border border-neutral-200 p-6 text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"
-          data-testid="loading-state"
-        >
-          Loading services… (the live API may take up to 90s to wake up on a cold
-          start.)
-        </p>
-      ) : isError ? (
-        <div
-          className="rounded border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-          data-testid="error-state"
-        >
-          <p className="font-semibold">Couldn&apos;t load services.</p>
-          <p className="mt-1 text-sm">
-            {error instanceof Error ? error.message : "Unknown error."}
-          </p>
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-            If you&apos;re running locally, this is often a CORS block: the live
-            Render API must allow <code>http://localhost:3000</code> via
-            <code> APP_CORS_ALLOWED_ORIGINS</code>.
-          </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="mt-4 rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-          >
-            Try again
-          </button>
-        </div>
-      ) : (
-        <>
-          {isFetching ? (
-            <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
-          ) : null}
-          <ServiceList page={data} />
-        </>
-      )}
+      {/* Category filter — hidden while categories haven't loaded or are empty. */}
+      <CategoryFilter
+        categories={categoriesQuery.data ?? []}
+        selectedCategoryId={categoryId}
+        onSelect={handleSelectCategory}
+        disabled={isLoading}
+      />
+
+      <div className="mt-6">
+        {isLoading ? (
+          <CatalogSkeleton />
+        ) : isError ? (
+          <ErrorState
+            error={catalog.error}
+            onRetry={() => catalog.refetch()}
+            title="Couldn't load services."
+          />
+        ) : (
+          <>
+            {catalog.isFetching ? (
+              <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
+            ) : null}
+            <ServiceList page={catalog.data} />
+            <Pagination
+              number={catalog.data?.number}
+              totalPages={catalog.data?.totalPages}
+              first={catalog.data?.first}
+              last={catalog.data?.last}
+              onPageChange={setPage}
+              disabled={catalog.isFetching}
+            />
+          </>
+        )}
+      </div>
     </main>
   );
 }
