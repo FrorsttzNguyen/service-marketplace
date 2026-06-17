@@ -42,6 +42,13 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /actuator/health
+    # Skip rebuilds for doc-only commits: the deployed image never changes when
+    # only Markdown / docs change, so a redeploy is pure waste (and on the free
+    # tier a slow cold boot can even time out the port scan and fail the deploy).
+    buildFilter:
+      ignoredPaths:
+        - "**/*.md"
+        - "docs/**"
     envVars:
       # --- Spring profile: activate prod (env-only secrets, validate, Flyway, ECS logs, TLS-aware Redis). ---
       - key: SPRING_PROFILES_ACTIVE
