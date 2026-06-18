@@ -1,5 +1,9 @@
 package com.hien.marketplace.interfaces.rest;
 
+import com.hien.marketplace.application.service.VendorDashboardService;
+import com.hien.marketplace.infrastructure.security.JwtAuthenticationFilter;
+import com.hien.marketplace.interfaces.dto.response.VendorEarningsResponse;
+import com.hien.marketplace.interfaces.dto.response.VendorStatsResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
  * WHY: Vendors need earnings and booking statistics.
  * Dashboard provides business insights.
  *
- * Note: Full implementation in Phase 3.
+ * Implemented in Phase 7 as read-only vendor analytics endpoints.
  */
 @RestController
 @RequestMapping("/api/vendor/dashboard")
@@ -24,20 +28,26 @@ import org.springframework.web.bind.annotation.*;
 @SecurityRequirement(name = "bearerAuth")
 public class VendorDashboardController {
 
+    private final VendorDashboardService vendorDashboardService;
+
     /**
      * Get vendor earnings summary.
      */
     @GetMapping("/earnings")
     @Operation(
             summary = "Get earnings",
-            description = "Get earnings summary for authenticated vendor (Phase 3)",
+            description = "Get earnings summary for authenticated vendor",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Earnings retrieved")
+                    @ApiResponse(responseCode = "200", description = "Earnings retrieved"),
+                    @ApiResponse(responseCode = "401", description = "Not authenticated"),
+                    @ApiResponse(responseCode = "403", description = "Not a vendor"),
+                    @ApiResponse(responseCode = "422", description = "Vendor profile not found")
             }
     )
-    public ResponseEntity<Void> getEarnings() {
-        // TODO: Phase 3 - Implement
-        return ResponseEntity.status(501).build();
+    public ResponseEntity<VendorEarningsResponse> getEarnings(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal
+    ) {
+        return ResponseEntity.ok(vendorDashboardService.getEarnings(principal.userId()));
     }
 
     /**
@@ -46,13 +56,17 @@ public class VendorDashboardController {
     @GetMapping("/stats")
     @Operation(
             summary = "Get statistics",
-            description = "Get booking statistics for authenticated vendor (Phase 3)",
+            description = "Get booking statistics for authenticated vendor",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Statistics retrieved")
+                    @ApiResponse(responseCode = "200", description = "Statistics retrieved"),
+                    @ApiResponse(responseCode = "401", description = "Not authenticated"),
+                    @ApiResponse(responseCode = "403", description = "Not a vendor"),
+                    @ApiResponse(responseCode = "422", description = "Vendor profile not found")
             }
     )
-    public ResponseEntity<Void> getStats() {
-        // TODO: Phase 3 - Implement
-        return ResponseEntity.status(501).build();
+    public ResponseEntity<VendorStatsResponse> getStats(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal
+    ) {
+        return ResponseEntity.ok(vendorDashboardService.getStats(principal.userId()));
     }
 }

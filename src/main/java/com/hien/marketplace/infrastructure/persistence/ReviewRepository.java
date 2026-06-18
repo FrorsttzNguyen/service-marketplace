@@ -15,4 +15,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     /** Number of reviews for a service — feeds ServiceResponse.totalReviews (catalog/detail). */
     long countByServiceId(Long serviceId);
+
+    long countByVendorId(Long vendorId);
 }

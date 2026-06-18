@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -36,6 +37,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByVendorId(Long vendorId);
 
+    @Query("select b.status as status, count(b) as count from Booking b where b.vendor.id = :vendorId group by b.status")
+    List<BookingStatusCount> countBookingsByStatusForVendor(Long vendorId);
+
+    @Query("select count(distinct b.customer.id) from Booking b where b.vendor.id = :vendorId")
+    long countDistinctCustomersByVendorId(Long vendorId);
+
     /**
      * Find bookings for vendor with eager loading of relationships.
      *
@@ -61,4 +68,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByServiceIdAndBookingDateAndStatusNot(
         Long serviceId, LocalDate bookingDate, BookingStatus status
     );
+
+    interface BookingStatusCount {
+        BookingStatus getStatus();
+        Long getCount();
+    }
 }
