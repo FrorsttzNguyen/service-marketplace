@@ -157,7 +157,7 @@ paths:
       summary: Confirm booking
       description: "Vendor confirms a pending booking, transitioning it to CONFIRMED.\
         \ Only the vendor who owns the service may confirm. Required for the book\
-        \ â pay flow: an Order can only be created from a CONFIRMED booking."
+        \ → pay flow: an Order can only be created from a CONFIRMED booking."
       operationId: confirmBooking
       parameters:
       - name: id
@@ -1120,7 +1120,7 @@ paths:
       tags:
       - Categories
       summary: List categories
-      description: Return all service categories. Public â used by the catalog filter
+      description: Return all service categories. Public — used by the catalog filter
         and the vendor create-service form.
       operationId: listCategories
       responses:
@@ -1718,13 +1718,13 @@ components:
           format: int64
         pageable:
           $ref: "#/components/schemas/PageableObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
         size:
           type: integer
           format: int32
@@ -1789,13 +1789,13 @@ components:
           format: int64
         pageable:
           $ref: "#/components/schemas/PageableObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
         size:
           type: integer
           format: int32
@@ -1851,13 +1851,13 @@ components:
           format: int64
         pageable:
           $ref: "#/components/schemas/PageableObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
         size:
           type: integer
           format: int32
