@@ -25,6 +25,10 @@
  * "New service" button toggles an inline form (validated client-side to match the
  * backend constraints) that creates a DRAFT, after which the vendor can Activate to
  * publish. All mutations invalidate the vendor-services family so the list refetches.
+ *
+ * Visual (Phase 7): PageHeader with a "+ New service" action; the inline form is an
+ * island; rows are island cards. Inputs use the Input/Select/Label/FieldError primitives;
+ * actions use Button; status uses ServiceStatusBadge.
  */
 import { useEffect, useState } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -49,6 +53,13 @@ import type {
   ServiceUpdateRequest,
   VendorService,
 } from "@/lib/api/vendor-services";
+import { Container, PageHeader } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input, Select, Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
+import { ServiceStatusBadge } from "@/components/ui/badge";
 
 const PAGE_SIZE = 10;
 
@@ -101,9 +112,7 @@ function VendorServicesContent() {
   // single form panel at the top of the list — simpler than per-row modals and keeps
   // the page compact. The form is the single source of truth for create/edit input.
   const [formState, setFormState] = useState<
-    | null
-    | { mode: "create" }
-    | { mode: "edit"; service: VendorService }
+    null | { mode: "create" } | { mode: "edit"; service: VendorService }
   >(null);
 
   const activateMutation = useActivateVendorService();
@@ -165,27 +174,19 @@ function VendorServicesContent() {
   const total = data?.totalElements ?? 0;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">My services</h1>
-          <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-            Create, edit, and publish the services you offer.
-          </p>
-        </div>
-        {/*
-          "New service" toggles the inline create form. Hidden while an edit form is
-          open (the two share the single form slot) to avoid confusing UX.
-        */}
-        <button
-          type="button"
-          onClick={() => setFormState({ mode: "create" })}
-          disabled={formState !== null}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
-        >
-          + New service
-        </button>
-      </header>
+    <Container width="default">
+      <PageHeader
+        title="My services"
+        subtitle="Create, edit, and publish the services you offer."
+        actions={
+          <Button
+            onClick={() => setFormState({ mode: "create" })}
+            disabled={formState !== null}
+          >
+            + New service
+          </Button>
+        }
+      />
 
       {/*
         The form panel. Rendered above the list so the vendor can create/edit without
@@ -215,21 +216,19 @@ function VendorServicesContent() {
       ) : (
         <>
           {isFetching ? (
-            <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
+            <p className="mb-4 text-sm text-muted-foreground">Refreshing…</p>
           ) : null}
 
           {services.length === 0 ? (
-            <div className="rounded border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-              <p className="text-neutral-500 dark:text-neutral-400">
-                You have no services yet. Create your first one to get started.
-              </p>
-            </div>
+            <Card padded className="py-10 text-center text-muted-foreground">
+              You have no services yet. Create your first one to get started.
+            </Card>
           ) : (
             <>
-              <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mb-4 text-sm text-muted-foreground">
                 {total} service{total === 1 ? "" : "s"}
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {services.map((service) => (
                   <ServiceRow
                     key={service.id ?? Math.random()}
@@ -259,22 +258,8 @@ function VendorServicesContent() {
           )}
         </>
       )}
-    </main>
+    </Container>
   );
-}
-
-/** Map a service status to a Tailwind color class for the badge. */
-function statusBadgeClass(status: ServiceStatus): string {
-  switch (status) {
-    case "DRAFT":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
-    case "ACTIVE":
-      return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
-    case "INACTIVE":
-      return "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-400";
-    default:
-      return "bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-400";
-  }
 }
 
 /** Format a price as currency. basePrice is a number (e.g. 12.5); currency is implicit USD. */
@@ -284,6 +269,24 @@ function formatPrice(amount: number | undefined): string {
     style: "currency",
     currency: "USD",
   }).format(amount);
+}
+
+/** Small dt/dd pair used in the meta grid. */
+function MetaCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm text-foreground">{children}</dd>
+    </div>
+  );
 }
 
 interface ServiceRowProps {
@@ -305,7 +308,7 @@ function ServiceRow({
   onEdit,
   editDisabled,
 }: ServiceRowProps) {
-  const status = service.status ?? "DRAFT";
+  const status: ServiceStatus = service.status ?? "DRAFT";
   const serviceId = service.id ?? 0;
   // Activate only makes sense for non-published services; Deactivate only for live ones.
   // The backend would also reject/no-op the wrong transition, so gating here avoids a
@@ -314,59 +317,36 @@ function ServiceRow({
   const canDeactivate = status === "ACTIVE";
 
   return (
-    <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <Card as="li" padded className="py-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">
+          <h3 className="font-semibold text-foreground">
             {service.title || `Service #${service.id ?? "?"}`}
           </h3>
           {service.categoryName ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {service.categoryName}
             </p>
           ) : null}
         </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(
-            status,
-          )}`}
-        >
-          {status}
-        </span>
+        <ServiceStatusBadge status={status} />
       </div>
 
       {service.description ? (
-        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400 line-clamp-2">
+        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
           {service.description}
         </p>
       ) : null}
 
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            Price
-          </dt>
-          <dd>
-            {formatPrice(service.basePrice)}
-            {service.pricingType === "HOURLY" ? " /hr" : ""}
-          </dd>
-        </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <MetaCell label="Price">
+          {formatPrice(service.basePrice)}
+          {service.pricingType === "HOURLY" ? " /hr" : ""}
+        </MetaCell>
         {service.durationHours ? (
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-neutral-400">
-              Duration
-            </dt>
-            <dd>{service.durationHours}h</dd>
-          </div>
+          <MetaCell label="Duration">{service.durationHours}h</MetaCell>
         ) : null}
-        {service.city ? (
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-neutral-400">
-              City
-            </dt>
-            <dd>{service.city}</dd>
-          </div>
-        ) : null}
+        {service.city ? <MetaCell label="City">{service.city}</MetaCell> : null}
       </dl>
 
       {/*
@@ -374,43 +354,43 @@ function ServiceRow({
         Deactivate are mutually exclusive by status. All three are disabled while a
         status action is in flight for THIS row (per-row gate, matching admin/vendors).
       */}
-      <div className="mt-3 flex flex-wrap gap-3">
-        <button
-          type="button"
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
           disabled={editDisabled || actionInFlight}
           onClick={() => onEdit(service)}
-          className="rounded border border-neutral-300 px-3 py-1 text-sm text-neutral-700 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-blue-400"
         >
           Edit
-        </button>
+        </Button>
         {canActivate ? (
-          <button
-            type="button"
-            disabled={actionInFlight}
+          <Button
+            variant="success"
+            size="sm"
+            isLoading={actionInFlight}
             onClick={() => onActivate(serviceId)}
-            className="rounded bg-green-600 px-3 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 dark:bg-green-700 dark:hover:bg-green-600"
           >
             {actionInFlight ? "Working…" : "Activate"}
-          </button>
+          </Button>
         ) : null}
         {canDeactivate ? (
-          <button
-            type="button"
+          <Button
+            variant="destructiveOutline"
+            size="sm"
             disabled={actionInFlight}
             onClick={() => onDeactivate(serviceId)}
-            className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
           >
             Deactivate
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {actionError ? (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="mt-3 text-sm text-danger" role="alert">
           {actionError}
         </p>
       ) : null}
-    </li>
+    </Card>
   );
 }
 
@@ -590,12 +570,14 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
   }
 
   return (
-    <form
+    <Card
+      as="form"
       onSubmit={handleSubmit}
-      className="mb-6 rounded-lg border border-neutral-300 p-4 dark:border-neutral-700"
+      padded
+      className="mb-6"
       aria-label={isEdit ? "Edit service" : "Create service"}
     >
-      <h2 className="mb-4 text-lg font-semibold">
+      <h2 className="mb-4 text-lg font-semibold text-foreground">
         {isEdit ? "Edit service" : "New service"}
       </h2>
 
@@ -607,16 +589,11 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
         error card to keep the form compact.
       */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Category"
-          required={!isEdit}
-          error={errors.categoryId}
-        >
-          <select
+        <Field label="Category" required={!isEdit} error={errors.categoryId}>
+          <Select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             disabled={isEdit || categoriesPending}
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           >
             <option value="">
               {categoriesPending ? "Loading…" : "Choose…"}
@@ -629,52 +606,49 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
                   {c.name}
                 </option>
               ))}
-          </select>
+          </Select>
           {isEdit ? (
-            <p className="mt-1 text-xs text-neutral-400">
+            <p className="mt-1.5 text-xs text-muted-foreground">
               Category can&apos;t be changed after creation.
             </p>
           ) : null}
         </Field>
 
         <Field label="Title" required error={errors.title}>
-          <input
+          <Input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={CONSTRAINTS.titleMax}
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
 
         <Field label="Pricing type" required className="sm:col-span-2">
-          <select
+          <Select
             value={pricingType}
             onChange={(e) => setPricingType(e.target.value as PricingType)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           >
             {PRICING_TYPES.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
 
         <Field label="Base price (USD)" required error={errors.basePrice}>
-          <input
+          <Input
             type="number"
             inputMode="decimal"
             step="0.01"
             min="0"
             value={basePrice}
             onChange={(e) => setBasePrice(e.target.value)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
 
         <Field label="Duration (hours)" error={errors.durationHours}>
-          <input
+          <Input
             type="number"
             inputMode="numeric"
             step="1"
@@ -682,43 +656,35 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
             value={durationHours}
             onChange={(e) => setDurationHours(e.target.value)}
             placeholder="optional"
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
 
         <Field label="City" error={errors.city} className="sm:col-span-2">
-          <input
+          <Input
             type="text"
             value={city}
             onChange={(e) => setCity(e.target.value)}
             maxLength={CONSTRAINTS.cityMax}
             placeholder="optional"
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
 
         <Field label="Address" error={errors.address} className="sm:col-span-2">
-          <input
+          <Input
             type="text"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             maxLength={CONSTRAINTS.addressMax}
             placeholder="optional"
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
 
-        <Field
-          label="Image URL"
-          error={errors.imageUrl}
-          className="sm:col-span-2"
-        >
-          <input
+        <Field label="Image URL" error={errors.imageUrl} className="sm:col-span-2">
+          <Input
             type="url"
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
             placeholder="optional"
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
 
@@ -727,43 +693,34 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
           error={errors.description}
           className="sm:col-span-2"
         >
-          <textarea
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={CONSTRAINTS.descriptionMax}
             rows={4}
             placeholder="optional"
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
         </Field>
       </div>
 
-      {submitError ? (
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
-          {submitError}
-        </p>
-      ) : null}
+      <FieldError className="mt-4">{submitError}</FieldError>
 
       <div className="mt-4 flex flex-wrap gap-3">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
-        >
+        <Button type="submit" isLoading={submitting}>
           {submitting
             ? "Saving…"
             : isEdit
               ? "Save changes"
               : "Create service"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
           onClick={onClose}
           disabled={submitting}
-          className="rounded border border-neutral-300 px-4 py-2 text-sm text-neutral-700 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-blue-400"
         >
           Cancel
-        </button>
+        </Button>
       </div>
 
       {/*
@@ -772,11 +729,11 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
         in create mode (an edit can't change status).
       */}
       {!isEdit ? (
-        <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="mt-3 text-xs text-muted-foreground">
           New services are saved as drafts. Activate after creating to publish them.
         </p>
       ) : null}
-    </form>
+    </Card>
   );
 }
 
@@ -803,17 +760,10 @@ function Field({
   }, [error]);
 
   return (
-    <label className={`block ${className ?? ""}`}>
-      <span className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-        {label}
-        {required ? <span className="text-red-500"> *</span> : null}
-      </span>
+    <div className={className}>
+      <Label required={required}>{label}</Label>
       {children}
-      {error ? (
-        <span className="mt-1 block text-xs text-red-600 dark:text-red-400">
-          {error}
-        </span>
-      ) : null}
-    </label>
+      <FieldError>{error}</FieldError>
+    </div>
   );
 }

@@ -15,10 +15,18 @@
  *   - Leave a review: COMPLETED only. Renders the inline <ReviewForm>, which POSTs to
  *     /api/reviews. A review is the terminal step of the booking lifecycle and can only
  *     be filed once per booking; the form treats a 422 "already reviewed" as success.
+ *
+ * Visual (Phase 7): each row is an island (Card). Status uses the BookingStatusBadge
+ * primitive (replaces the inline statusBadgeClass map). Actions use the Button
+ * primitive; "Pay now" is a real <Link> styled via buttonClasses so navigation stays a
+ * link.
  */
 import Link from "next/link";
 import type { Booking, BookingStatus } from "@/lib/api/bookings";
 import { ReviewForm } from "@/components/review-form";
+import { Card } from "@/components/ui/card";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { BookingStatusBadge } from "@/components/ui/badge";
 
 interface BookingCardProps {
   booking: Booking;
@@ -28,24 +36,6 @@ interface BookingCardProps {
   onCancel?: (id: number) => void;
   /** Error message from a failed cancel for THIS booking (e.g. the 422 message). */
   cancelError?: string | null;
-}
-
-/** Map a booking status to a Tailwind color class for the badge. */
-function statusBadgeClass(status: BookingStatus): string {
-  switch (status) {
-    case "PENDING":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
-    case "CONFIRMED":
-      return "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300";
-    case "IN_PROGRESS":
-      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300";
-    case "COMPLETED":
-      return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
-    case "CANCELLED":
-      return "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-400";
-    default:
-      return "bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-400";
-  }
 }
 
 /** Format a date-time ISO string as a readable local time, or "—" if missing/invalid. */
@@ -73,13 +63,31 @@ function formatPrice(amount: number | undefined, currency: string | undefined): 
   }
 }
 
+/** Small dt/dd pair used in the meta grid. */
+function MetaCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm text-foreground">{children}</dd>
+    </div>
+  );
+}
+
 export function BookingCard({
   booking,
   isCancelling = false,
   onCancel,
   cancelError = null,
 }: BookingCardProps) {
-  const status = booking.status ?? "PENDING";
+  const status: BookingStatus = booking.status ?? "PENDING";
   const canCancel = status === "PENDING" && onCancel !== undefined;
   // Pay-now is gated to CONFIRMED: only confirmed bookings can seed an order. The
   // checkout page will also enforce this server-side (422), but gating here avoids a
@@ -90,47 +98,34 @@ export function BookingCard({
   const canReview = status === "COMPLETED" && booking.id !== undefined;
 
   return (
-    <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <Card as="li" padded className="py-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">
+          <h3 className="font-semibold text-foreground">
             {booking.serviceTitle ?? `Service #${booking.serviceId ?? "?"}`}
           </h3>
           {booking.vendorName ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               by {booking.vendorName}
             </p>
           ) : null}
         </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(status)}`}
-        >
-          {status}
-        </span>
+        <BookingStatusBadge status={status} />
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">Start</dt>
-          <dd>{formatDateTime(booking.startTime)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">End</dt>
-          <dd>{formatDateTime(booking.endTime)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">Quantity</dt>
-          <dd>{booking.quantity ?? 1}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">Total</dt>
-          <dd>{formatPrice(booking.totalPrice, booking.currency)}</dd>
-        </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetaCell label="Start">{formatDateTime(booking.startTime)}</MetaCell>
+        <MetaCell label="End">{formatDateTime(booking.endTime)}</MetaCell>
+        <MetaCell label="Quantity">{booking.quantity ?? 1}</MetaCell>
+        <MetaCell label="Total">
+          {formatPrice(booking.totalPrice, booking.currency)}
+        </MetaCell>
       </dl>
 
       {booking.notes ? (
-        <p className="mt-3 rounded bg-neutral-50 p-2 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400">
-          <span className="font-medium">Note:</span> {booking.notes}
+        <p className="mt-4 rounded-2xl bg-muted/70 p-3 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Note:</span>{" "}
+          {booking.notes}
         </p>
       ) : null}
 
@@ -139,28 +134,29 @@ export function BookingCard({
         practice they're mutually exclusive by status (PENDING vs CONFIRMED), so only
         one renders at a time. The `gap-3` keeps spacing sane if that ever changes.
       */}
-      {(canCancel || canPay) ? (
-        <div className="mt-3 flex flex-wrap gap-3">
+      {canCancel || canPay ? (
+        <div className="mt-4 flex flex-wrap gap-3">
           {canCancel ? (
-            <button
-              type="button"
-              disabled={isCancelling}
+            <Button
+              variant="destructiveOutline"
+              size="sm"
+              isLoading={isCancelling}
               onClick={() => onCancel?.(booking.id ?? 0)}
-              className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
             >
               {isCancelling ? "Cancelling…" : "Cancel booking"}
-            </button>
+            </Button>
           ) : null}
 
           {/*
             Pay now → /checkout/<bookingId>. A <Link> (not a button) because it's pure
             navigation; the checkout route owns all the order/payment logic. Styled as
-            a solid button so it reads as the primary CTA for a CONFIRMED booking.
+            a solid button via buttonClasses so it reads as the primary CTA for a
+            CONFIRMED booking.
           */}
           {canPay ? (
             <Link
               href={`/checkout/${encodeURIComponent(booking.id as number)}`}
-              className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700"
+              className={buttonClasses({ variant: "primary", size: "sm" })}
             >
               Pay now
             </Link>
@@ -177,10 +173,10 @@ export function BookingCard({
       {canReview ? <ReviewForm bookingId={booking.id as number} /> : null}
 
       {cancelError ? (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="mt-3 text-sm text-danger" role="alert">
           {cancelError}
         </p>
       ) : null}
-    </li>
+    </Card>
   );
 }

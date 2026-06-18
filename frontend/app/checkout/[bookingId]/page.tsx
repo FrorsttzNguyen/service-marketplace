@@ -32,6 +32,10 @@
  * (create-order on mount, create-payment once orderId is known) is guarded by a ref
  * so it fires exactly once even under the double-invoke. In production the refs are a
  * harmless no-op.
+ *
+ * Visual (Phase 7): the order summary + payment form + status are each islands. The
+ * Stripe Elements mount, status branches, and refs are UNCHANGED — only the wrapper
+ * markup and Button styling changed.
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -50,6 +54,9 @@ import { useCreatePayment, usePaymentForOrder } from "@/lib/api/payments-queries
 import { useQueryClient } from "@tanstack/react-query";
 import { paymentKeys } from "@/lib/api/payments-queries";
 import { getStripe, getStripePublishableKey } from "@/lib/stripe/stripe-client";
+import { Container } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { Button, buttonClasses } from "@/components/ui/button";
 
 export default function CheckoutPage() {
   return (
@@ -251,15 +258,17 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
     return (
       <CheckoutShell>
         <OrderHeader order={order} />
-        <div
-          className="mt-6 rounded border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+        <Card
+          padded
+          className="mt-6 border-danger/30 bg-danger/10 text-danger"
           role="alert"
         >
           <p className="font-semibold">Couldn&apos;t start the payment.</p>
           <p className="mt-1 text-sm">{paymentCreateMsg}</p>
-          <button
-            type="button"
-            className="mt-4 rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          <Button
+            variant="destructive"
+            size="sm"
+            className="mt-4"
             onClick={() => {
               // Allow a retry of the payment-create step only.
               setPaymentCreateMsg(null);
@@ -288,8 +297,8 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
             }}
           >
             Try again
-          </button>
-        </div>
+          </Button>
+        </Card>
       </CheckoutShell>
     );
   }
@@ -327,9 +336,9 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
   return (
     <CheckoutShell>
       <OrderHeader order={order} />
-      <div className="mt-6 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
-        <h2 className="text-lg font-semibold">Pay with card</h2>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+      <Card padded className="mt-6">
+        <h2 className="text-lg font-semibold text-foreground">Pay with card</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Secure payment via Stripe.
         </p>
 
@@ -346,7 +355,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
               appearance: {
                 theme: "stripe",
                 variables: {
-                  borderRadius: "6px",
+                  borderRadius: "12px",
                 },
               },
             }}
@@ -359,7 +368,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
             />
           </Elements>
         </div>
-      </div>
+      </Card>
 
       {/*
         Secondary: backend status while the user is still on the form. Usually
@@ -367,7 +376,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
         before the payment is created.
       */}
       {statusQuery.data ? (
-        <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="mt-4 text-xs text-muted-foreground">
           Server payment status:{" "}
           <span className="font-mono">{statusQuery.data.status ?? "—"}</span>
         </p>
@@ -381,17 +390,17 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
 /** Page chrome: max-width container + back link to bookings. */
 function CheckoutShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
+    <Container width="checkout">
       <p className="mb-6">
         <Link
           href="/bookings"
-          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+          className={buttonClasses({ variant: "ghost", size: "sm" })}
         >
           ← Back to my bookings
         </Link>
       </p>
       {children}
-    </main>
+    </Container>
   );
 }
 
@@ -400,18 +409,13 @@ function OrderHeader({ order }: { order: Order }) {
   const amount = formatOrderAmount(order.totalAmount, order.currency);
   return (
     <header>
-      <h1 className="text-3xl font-bold tracking-tight">Checkout</h1>
-      <p className="mt-1 text-neutral-600 dark:text-neutral-400">
+      <h1 className="text-3xl font-bold tracking-tight text-foreground">Checkout</h1>
+      <p className="mt-1.5 text-muted-foreground">
         Pay{" "}
-        <strong className="text-neutral-900 dark:text-neutral-100">
-          {amount}
-        </strong>{" "}
-        for your booking.
+        <strong className="text-foreground">{amount}</strong> for your booking.
       </p>
       {order.id !== undefined ? (
-        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-          Order #{order.id}
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Order #{order.id}</p>
       ) : null}
     </header>
   );
@@ -449,12 +453,15 @@ function ExistingPaymentState({
 }) {
   const status = statusQuery.data?.status;
   return (
-    <div
-      className="mt-6 rounded border border-amber-300 bg-amber-50 p-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+    <Card
+      padded
+      className="mt-6 border-warning/30 bg-warning/10 text-warning"
       role="status"
       data-testid="payment-already-exists"
     >
-      <h2 className="text-lg font-semibold">A payment already exists for this order</h2>
+      <h2 className="text-lg font-semibold">
+        A payment already exists for this order
+      </h2>
       <p className="mt-1 text-sm">
         We can&apos;t reopen the card form for an existing payment in this version.
         Its current status is{" "}
@@ -475,21 +482,22 @@ function ExistingPaymentState({
         Known v1 limitation: resuming an in-progress payment isn&apos;t supported
         yet. If you believe this is an error, contact support with your order id.
       </p>
-    </div>
+    </Card>
   );
 }
 
 /** Config-error state when the Stripe publishable key isn't set. */
 function MissingStripeConfig() {
   return (
-    <div
-      className="rounded border border-amber-300 bg-amber-50 p-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+    <Card
+      padded
+      className="border-warning/30 bg-warning/10 text-warning"
       role="alert"
     >
       <h2 className="text-lg font-semibold">Payments aren&apos;t configured</h2>
       <p className="mt-1 text-sm">
         The app is missing the{" "}
-        <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/60">
+        <code className="rounded-pill bg-warning/15 px-1.5 py-0.5">
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
         </code>{" "}
         environment variable, so the checkout form can&apos;t load.
@@ -503,11 +511,11 @@ function MissingStripeConfig() {
       <p className="mt-3">
         <Link
           href="/bookings"
-          className="text-sm font-medium text-amber-800 underline dark:text-amber-300"
+          className="text-sm font-medium underline"
         >
           ← Back to my bookings
         </Link>
       </p>
-    </div>
+    </Card>
   );
 }

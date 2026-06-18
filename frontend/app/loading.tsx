@@ -1,4 +1,5 @@
 import { CatalogSkeleton } from "@/components/skeletons";
+import { Container } from "@/components/ui/container";
 
 /**
  * Route-level `loading.tsx`.
@@ -16,14 +17,14 @@ import { CatalogSkeleton } from "@/components/skeletons";
  */
 export default function Loading() {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <Container width="default">
       <header className="mb-8">
-        {/* Title placeholder mirrors the home page's <h1> height so the layout
+        {/* Title placeholder mirrors the home page's hero <h1> height so the layout
             doesn't jump once the real heading renders. */}
-        <div className="h-9 w-64 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
-        <div className="mt-2 h-4 w-72 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+        <div className="h-9 w-64 animate-pulse rounded-pill bg-muted" />
+        <div className="mt-2 h-4 w-72 animate-pulse rounded-pill bg-muted" />
       </header>
       <CatalogSkeleton />
-    </main>
+    </Container>
   );
 }

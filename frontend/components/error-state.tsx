@@ -7,8 +7,13 @@
  * Centralizing the error card (with its CORS hint, which is the most common local-dev
  * failure) keeps the message consistent and the page files short. The optional
  * `notFound` variant is for 404s, which read differently from a network/CORS failure.
+ *
+ * Visual (Phase 7): a danger-tinted island (Card) with a soft shadow. The retry button
+ * uses the destructive variant so it reads as a recovery action against the red error.
  */
 import { ApiError } from "@/lib/api/client";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface ErrorStateProps {
   error: unknown;
@@ -47,19 +52,18 @@ export function ErrorState({
   const showCorsHint = hint !== null && (hint ?? shouldShowCorsHint(error));
 
   return (
-    <div
-      className="rounded border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+    <Card
+      padded
+      className="border-danger/30 bg-danger/10 text-danger"
       data-testid={notFound ? "not-found-state" : "error-state"}
       role="alert"
     >
       <p className="font-semibold">
         {title ?? (notFound ? "Not found." : "Something went wrong.")}
       </p>
-      {!notFound ? (
-        <p className="mt-1 text-sm">{message}</p>
-      ) : null}
+      {!notFound ? <p className="mt-1 text-sm">{message}</p> : null}
       {showCorsHint ? (
-        <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+        <p className="mt-2 text-xs opacity-90">
           {hint ?? (
             <>
               If you&apos;re running locally, this is often a CORS block: the live
@@ -70,14 +74,15 @@ export function ErrorState({
         </p>
       ) : null}
       {onRetry ? (
-        <button
-          type="button"
+        <Button
+          variant="destructive"
+          size="sm"
+          className="mt-4"
           onClick={onRetry}
-          className="mt-4 rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
         >
           Try again
-        </button>
+        </Button>
       ) : null}
-    </div>
+    </Card>
   );
 }

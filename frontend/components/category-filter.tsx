@@ -10,8 +10,14 @@
  * Categories are NOT fetched here. The parent passes the derived list (from
  * `useCatalogCategories` → `deriveCategories`, which reads them off loaded service
  * rows). See services.ts: there is intentionally no `GET /api/categories` call.
+ *
+ * Visual (Phase 7): polished toggle pills. Active chip = filled primary with a soft
+ * shadow; inactive = subtle ghost that fills with the accent tint on hover. Same
+ * shape as the Button primitive for a consistent pill vocabulary.
  */
+import { type ReactNode } from "react";
 import type { Category } from "@/lib/api/services";
+import { cn } from "@/lib/utils";
 
 interface CategoryFilterProps {
   categories: Category[];
@@ -22,13 +28,16 @@ interface CategoryFilterProps {
   disabled?: boolean;
 }
 
-/** Shared classes for a chip; `active` toggles the filled vs outlined style. */
-function chipClasses(active: boolean, disabled: boolean): string {
+/** Shared classes for a chip; `active` toggles the filled vs ghost style. */
+function chipClasses(active: boolean): string {
   const base =
-    "rounded-full border px-3 py-1 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+    "rounded-pill px-4 py-1.5 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50";
   return active
-    ? `${base} border-blue-600 bg-blue-600 text-white`
-    : `${base} border-neutral-300 text-neutral-700 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:text-neutral-300`;
+    ? cn(base, "bg-primary text-primary-foreground shadow-island")
+    : cn(
+        base,
+        "bg-card text-muted-foreground border border-border/60 hover:border-primary/40 hover:bg-accent-soft hover:text-primary",
+      );
 }
 
 export function CategoryFilter({
@@ -49,30 +58,48 @@ export function CategoryFilter({
       role="group"
       aria-label="Filter by category"
     >
-      <button
-        type="button"
+      <ChipButton
         onClick={() => onSelect(null)}
         disabled={disabled}
-        aria-pressed={selectedCategoryId === null || selectedCategoryId === undefined}
-        className={chipClasses(
-          selectedCategoryId === null || selectedCategoryId === undefined,
-          disabled,
-        )}
+        pressed={selectedCategoryId === null || selectedCategoryId === undefined}
       >
         All
-      </button>
+      </ChipButton>
       {categories.map((category) => (
-        <button
+        <ChipButton
           key={category.id}
-          type="button"
           onClick={() => onSelect(category.id)}
           disabled={disabled}
-          aria-pressed={selectedCategoryId === category.id}
-          className={chipClasses(selectedCategoryId === category.id, disabled)}
+          pressed={selectedCategoryId === category.id}
         >
           {category.name}
-        </button>
+        </ChipButton>
       ))}
     </div>
+  );
+}
+
+/** Single chip button. Extracted so the active class is derived in one place. */
+function ChipButton({
+  pressed,
+  disabled,
+  onClick,
+  children,
+}: {
+  pressed: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      className={chipClasses(pressed)}
+    >
+      {children}
+    </button>
   );
 }

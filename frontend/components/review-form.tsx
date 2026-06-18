@@ -23,10 +23,16 @@
  *
  * The mutation (useCreateReview) invalidates the reviews family + the customer bookings
  * family on success, so the service-detail reviews list and "My bookings" both refresh.
+ *
+ * Visual (Phase 7): expanded form is a tinted sub-island inside the booking card. Stars
+ * reuse the StarRating amber palette so the picker matches the read-only display.
+ * Submit/Cancel use the Button primitive.
  */
 import { useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import { useCreateReview } from "@/lib/api/reviews-queries";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
 
 /** Backend constraint mirrored client-side for instant feedback. */
 const COMMENT_MAX = 2000;
@@ -50,10 +56,10 @@ export function ReviewForm({ bookingId }: ReviewFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   // Once settled (success OR "already reviewed"), the form stays collapsed with a thank-
- // you — re-opening isn't useful since the review is filed.
+  // you — re-opening isn't useful since the review is filed.
   if (done) {
     return (
-      <p className="mt-3 text-sm text-green-700 dark:text-green-400">
+      <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-success">
         Reviewed — thank you!
       </p>
     );
@@ -61,14 +67,14 @@ export function ReviewForm({ bookingId }: ReviewFormProps) {
 
   if (!open) {
     return (
-      <div className="mt-3">
-        <button
-          type="button"
+      <div className="mt-4">
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setOpen(true)}
-          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
         >
           Leave a review
-        </button>
+        </Button>
       </div>
     );
   }
@@ -123,7 +129,7 @@ export function ReviewForm({ bookingId }: ReviewFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-3 rounded border border-neutral-200 p-3 dark:border-neutral-800"
+      className="mt-4 rounded-2xl border border-border/60 bg-muted/50 p-4"
       aria-label="Leave a review"
     >
       {/*
@@ -132,8 +138,8 @@ export function ReviewForm({ bookingId }: ReviewFormProps) {
         button. aria-label communicates the value to assistive tech.
       */}
       <div>
-        <span className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          Your rating<span className="text-red-500"> *</span>
+        <span className="mb-1.5 block text-sm font-medium text-foreground">
+          Your rating<span className="ml-0.5 text-danger">*</span>
         </span>
         <div className="flex gap-1" role="group" aria-label="Star rating">
           {[1, 2, 3, 4, 5].map((star) => {
@@ -148,8 +154,8 @@ export function ReviewForm({ bookingId }: ReviewFormProps) {
                 onClick={() => setRating(star)}
                 className={
                   active
-                    ? "text-2xl leading-none text-amber-500"
-                    : "text-2xl leading-none text-neutral-300 hover:text-amber-400 dark:text-neutral-600"
+                    ? "text-2xl leading-none text-amber-500 transition-transform hover:scale-110"
+                    : "text-2xl leading-none text-muted-foreground/50 transition-colors hover:text-amber-400"
                 }
               >
                 ★
@@ -160,45 +166,41 @@ export function ReviewForm({ bookingId }: ReviewFormProps) {
       </div>
 
       <label className="mt-3 block">
-        <span className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          Comment <span className="text-neutral-400">(optional)</span>
+        <span className="mb-1.5 block text-sm font-medium text-foreground">
+          Comment <span className="font-normal text-muted-foreground">(optional)</span>
         </span>
-        <textarea
+        <Textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           maxLength={COMMENT_MAX}
           rows={3}
           disabled={submitting}
-          className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           placeholder="How was your experience?"
         />
       </label>
 
       {error ? (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="mt-2 text-sm text-danger" role="alert">
           {error}
         </p>
       ) : null}
 
       <div className="mt-3 flex flex-wrap gap-3">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
-        >
+        <Button type="submit" size="sm" isLoading={submitting}>
           {submitting ? "Submitting…" : "Submit review"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => {
             setOpen(false);
             setError(null);
           }}
           disabled={submitting}
-          className="rounded border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-blue-400"
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

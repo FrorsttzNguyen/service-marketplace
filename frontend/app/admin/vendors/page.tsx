@@ -23,6 +23,10 @@
  * other statuses are read-only (you can still see them via the filter). Mutations
  * invalidate the whole admin-vendor query family, so the list refetches and the vendor
  * leaves the PENDING view on success.
+ *
+ * Visual (Phase 7): PageHeader; status filter tabs are polished toggle pills (same
+ * vocabulary as the catalog category chips); rows are island cards; status uses
+ * VendorStatusBadge; actions use Button (success / destructiveOutline).
  */
 import { useState } from "react";
 import { RequireAuth } from "@/components/require-auth";
@@ -39,6 +43,11 @@ import type {
   VendorAdmin,
   VendorVerificationStatus,
 } from "@/lib/api/admin";
+import { Container, PageHeader } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { VendorStatusBadge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -140,18 +149,17 @@ function AdminVendorsContent() {
   const total = data?.totalElements ?? 0;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Vendor approvals</h1>
-        <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-          Review vendors applying to sell on the marketplace.
-        </p>
-      </header>
+    <Container width="default">
+      <PageHeader
+        title="Vendor approvals"
+        subtitle="Review vendors applying to sell on the marketplace."
+      />
 
       {/*
-        Status filter tabs. Rendered as a row of buttons (not a <select>) so the active
-        state is visible at a glance and the tabs are keyboard-reachable as buttons. The
-        aria-pressed pattern communicates the active tab to screen readers.
+        Status filter tabs. Rendered as a row of pill buttons (not a <select>) so the
+        active state is visible at a glance and the tabs are keyboard-reachable as
+        buttons. The aria-pressed pattern communicates the active tab to screen readers.
+        Same pill vocabulary as the catalog category chips.
       */}
       <div
         className="mb-6 flex flex-wrap gap-2"
@@ -166,11 +174,12 @@ function AdminVendorsContent() {
               type="button"
               aria-pressed={active}
               onClick={() => changeStatus(filter.value)}
-              className={
+              className={cn(
+                "rounded-pill px-4 py-1.5 text-sm font-medium transition-all",
                 active
-                  ? "rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white"
-                  : "rounded-full border border-neutral-300 px-3 py-1 text-sm text-neutral-700 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-blue-400"
-              }
+                  ? "bg-primary text-primary-foreground shadow-island"
+                  : "border border-border/60 bg-card text-muted-foreground hover:border-primary/40 hover:bg-accent-soft hover:text-primary",
+              )}
             >
               {filter.label}
             </button>
@@ -189,21 +198,19 @@ function AdminVendorsContent() {
       ) : (
         <>
           {isFetching ? (
-            <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
+            <p className="mb-4 text-sm text-muted-foreground">Refreshing…</p>
           ) : null}
 
           {vendors.length === 0 ? (
-            <div className="rounded border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-              <p className="text-neutral-500 dark:text-neutral-400">
-                No vendors{status ? ` with status ${status}` : ""}.
-              </p>
-            </div>
+            <Card padded className="py-10 text-center text-muted-foreground">
+              No vendors{status ? ` with status ${status}` : ""}.
+            </Card>
           ) : (
             <>
-              <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mb-4 text-sm text-muted-foreground">
                 {total} vendor{total === 1 ? "" : "s"}
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {vendors.map((vendor) => (
                   <VendorRow
                     key={vendor.vendorId ?? Math.random()}
@@ -234,7 +241,7 @@ function AdminVendorsContent() {
           )}
         </>
       )}
-    </main>
+    </Container>
   );
 }
 
@@ -247,26 +254,30 @@ interface VendorRowProps {
   onReject: (vendorId: number) => void;
 }
 
-/** Map a verification status to a Tailwind color class for the badge. */
-function statusBadgeClass(status: VendorVerificationStatus): string {
-  switch (status) {
-    case "PENDING":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
-    case "APPROVED":
-      return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
-    case "REJECTED":
-      return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
-    default:
-      return "bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-400";
-  }
-}
-
 /** Format a date-time ISO string as a readable local date, or "—" if missing/invalid. */
 function formatDate(iso: string | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** Small dt/dd pair used in the meta grid. */
+function MetaCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm text-foreground">{children}</dd>
+    </div>
+  );
 }
 
 function VendorRow({
@@ -277,7 +288,7 @@ function VendorRow({
   onApprove,
   onReject,
 }: VendorRowProps) {
-  const status = vendor.verificationStatus ?? "PENDING";
+  const status: VendorVerificationStatus = vendor.verificationStatus ?? "PENDING";
   // Both buttons are disabled while any action is in flight for THIS vendor. We don't
   // globally disable all rows because an admin reviewing a queue may want to action
   // several vendors in parallel — but two actions on the SAME vendor would race, so we
@@ -286,77 +297,51 @@ function VendorRow({
   const vendorId = vendor.vendorId ?? 0;
 
   return (
-    <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <Card as="li" padded className="py-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">
+          <h3 className="font-semibold text-foreground">
             {vendor.businessName || `Vendor #${vendor.vendorId ?? "?"}`}
           </h3>
           {vendor.email ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              {vendor.email}
-            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{vendor.email}</p>
           ) : null}
         </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(
-            status,
-          )}`}
-        >
-          {status}
-        </span>
+        <VendorStatusBadge status={status} />
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            Applied
-          </dt>
-          <dd>{formatDate(vendor.createdAt)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            Vendor ID
-          </dt>
-          <dd>{vendor.vendorId ?? "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            User ID
-          </dt>
-          <dd>{vendor.userId ?? "—"}</dd>
-        </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <MetaCell label="Applied">{formatDate(vendor.createdAt)}</MetaCell>
+        <MetaCell label="Vendor ID">{vendor.vendorId ?? "—"}</MetaCell>
+        <MetaCell label="User ID">{vendor.userId ?? "—"}</MetaCell>
       </dl>
 
       {actionable ? (
-        <div className="mt-3 flex flex-wrap gap-3">
-          <button
-            type="button"
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button
+            variant="success"
+            size="sm"
             disabled={disabled}
             onClick={() => onApprove(vendorId)}
-            className="rounded bg-green-600 px-3 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 dark:bg-green-700 dark:hover:bg-green-600"
           >
             {actionInFlight ? "Working…" : "Approve"}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="destructiveOutline"
+            size="sm"
             disabled={disabled}
             onClick={() => onReject(vendorId)}
-            className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
           >
             Reject
-          </button>
+          </Button>
         </div>
       ) : null}
 
       {actionError ? (
-        <p
-          className="mt-2 text-sm text-red-600 dark:text-red-400"
-          role="alert"
-        >
+        <p className="mt-3 text-sm text-danger" role="alert">
           {actionError}
         </p>
       ) : null}
-    </li>
+    </Card>
   );
 }

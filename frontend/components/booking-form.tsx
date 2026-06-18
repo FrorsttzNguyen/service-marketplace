@@ -17,6 +17,9 @@
  *
  * Client validation mirrors the backend: both times required, start not in the past,
  * end after start. The server response is still the source of truth.
+ *
+ * Visual (Phase 7): the form is its own island below the article; auth-gate CTA is
+ * a smaller, calmer island. Inputs use the Input/Textarea/Label/FieldError primitives.
  */
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -24,6 +27,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useCreateBooking } from "@/lib/api/bookings-queries";
 import { ApiError } from "@/lib/api/client";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
 
 interface BookingFormProps {
   serviceId: number;
@@ -52,26 +60,26 @@ export function BookingForm({ serviceId }: BookingFormProps) {
   if (!isAuthenticated) {
     const redirect = `/services/${serviceId}`;
     return (
-      <div className="mt-8 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
-        <h2 className="text-lg font-semibold">Book this service</h2>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+      <Card padded>
+        <h2 className="text-lg font-semibold text-foreground">Book this service</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           You need an account to book.{" "}
           <Link
             href={`/login?redirect=${encodeURIComponent(redirect)}`}
-            className="text-blue-600 hover:underline dark:text-blue-400"
+            className="font-medium text-primary hover:underline"
           >
             Log in
           </Link>{" "}
           or{" "}
           <Link
             href={`/register?redirect=${encodeURIComponent(redirect)}`}
-            className="text-blue-600 hover:underline dark:text-blue-400"
+            className="font-medium text-primary hover:underline"
           >
             sign up
           </Link>
           .
         </p>
-      </div>
+      </Card>
     );
   }
 
@@ -152,105 +160,79 @@ export function BookingForm({ serviceId }: BookingFormProps) {
   }
 
   return (
-    <div className="mt-8 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
-      <h2 className="text-lg font-semibold">Book this service</h2>
+    <Card padded>
+      <h2 className="text-lg font-semibold text-foreground">Book this service</h2>
 
       {submitError ? (
-        <p
-          className="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+        <div
+          className="mt-4 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger"
           role="alert"
         >
           {describeSubmitError(submitError)}
-        </p>
+        </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="mt-4 space-y-4" noValidate>
+      <form onSubmit={handleSubmit} className="mt-5 space-y-5" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="startTime" className="mb-1 block text-sm font-medium">
-              Start time
-            </label>
-            <input
+            <Label htmlFor="startTime">Start time</Label>
+            <Input
               id="startTime"
               type="datetime-local"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
               aria-invalid={!!errors.startTime}
             />
-            {errors.startTime ? (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                {errors.startTime}
-              </p>
-            ) : null}
+            <FieldError>{errors.startTime}</FieldError>
           </div>
 
           <div>
-            <label htmlFor="endTime" className="mb-1 block text-sm font-medium">
-              End time
-            </label>
-            <input
+            <Label htmlFor="endTime">End time</Label>
+            <Input
               id="endTime"
               type="datetime-local"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
               aria-invalid={!!errors.endTime}
             />
-            {errors.endTime ? (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                {errors.endTime}
-              </p>
-            ) : null}
+            <FieldError>{errors.endTime}</FieldError>
           </div>
         </div>
 
         <div>
-          <label htmlFor="quantity" className="mb-1 block text-sm font-medium">
-            Quantity
-          </label>
-          <input
+          <Label htmlFor="quantity">Quantity</Label>
+          <Input
             id="quantity"
             type="number"
             min={1}
             step={1}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
             aria-invalid={!!errors.quantity}
           />
-          {errors.quantity ? (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-              {errors.quantity}
-            </p>
-          ) : null}
+          <FieldError>{errors.quantity}</FieldError>
         </div>
 
         <div>
-          <label htmlFor="notes" className="mb-1 block text-sm font-medium">
-            Notes <span className="text-neutral-400">(optional)</span>
-          </label>
-          <textarea
+          <Label htmlFor="notes" hint="(optional)">
+            Notes
+          </Label>
+          <Textarea
             id="notes"
             rows={3}
             maxLength={1000}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
           />
-          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Up to 1000 characters.
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={createBooking.isPending}
-          className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button type="submit" isLoading={createBooking.isPending}>
           {createBooking.isPending ? "Booking…" : "Request booking"}
-        </button>
+        </Button>
       </form>
-    </div>
+    </Card>
   );
 }

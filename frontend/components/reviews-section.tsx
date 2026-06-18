@@ -20,22 +20,18 @@
  * from the service row, not from this list — they're a separate aggregate and may lag
  * (the catalog mapper currently reports totalReviews as 0). Don't try to reconcile them
  * here; this list is the source of truth for what's actually been written.
+ *
+ * Visual (Phase 7): the section is its own island; each review is a sub-island card
+ * using the StarRating primitive (no more hand-rolled ★/☆ strings).
  */
 import { useServiceReviews } from "@/lib/api/reviews-queries";
 import type { Review } from "@/lib/api/reviews";
 import { ErrorState } from "@/components/error-state";
+import { Card } from "@/components/ui/card";
+import { StarRating } from "@/components/ui/star-rating";
 
 interface ReviewsSectionProps {
   serviceId: number;
-}
-
-/** Render `count` filled stars followed by the remainder empty, as a compact string. */
-function renderStars(rating: number | undefined): string {
-  const n =
-    typeof rating === "number" && rating >= 1 && rating <= 5
-      ? Math.round(rating)
-      : 0;
-  return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
 /** Format a date-time ISO string as a readable local date, or "—" if missing/invalid. */
@@ -47,37 +43,27 @@ function formatDate(iso: string | undefined): string {
 }
 
 function ReviewCard({ review }: { review: Review }) {
-  // rating may be absent on a malformed row; fall back to "—" so the layout never breaks.
+  // rating may be absent on a malformed row; StarRating handles undefined as 0/unrated.
   const rating = review.rating;
   return (
-    <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <Card as="li" padded className="py-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {/*
-            Stars rendered as text (★/☆). Using glyphs (not an icon lib) keeps the
-            bundle unchanged and matches the catalog's existing ⭐ usage. Amber for the
-            filled stars reads as a rating at a glance.
-          */}
-          <span
-            className="text-sm text-amber-500"
-            aria-label={rating !== undefined ? `${rating} out of 5` : "unrated"}
-          >
-            {renderStars(rating)}
-          </span>
-          <span className="text-sm font-medium">
+        <div className="flex items-center gap-3">
+          <StarRating value={rating} />
+          <span className="text-sm font-semibold text-foreground">
             {review.customerName ?? "Anonymous customer"}
           </span>
         </div>
-        <time className="text-xs text-neutral-400">
+        <time className="text-xs text-muted-foreground">
           {formatDate(review.createdAt)}
         </time>
       </div>
       {review.comment ? (
-        <p className="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+        <p className="mt-3 text-sm leading-relaxed text-foreground/90">
           {review.comment}
         </p>
       ) : null}
-    </li>
+    </Card>
   );
 }
 
@@ -88,11 +74,11 @@ export function ReviewsSection({ serviceId }: ReviewsSectionProps) {
   const reviews = data ?? [];
 
   return (
-    <section className="mt-10" aria-label="Reviews">
-      <h2 className="mb-4 text-xl font-semibold tracking-tight">
+    <section className="mt-2" aria-label="Reviews">
+      <h2 className="mb-4 text-xl font-bold tracking-tight text-foreground">
         Reviews{" "}
         {reviews.length > 0 ? (
-          <span className="text-neutral-400">({reviews.length})</span>
+          <span className="text-muted-foreground">({reviews.length})</span>
         ) : null}
       </h2>
 
@@ -102,13 +88,10 @@ export function ReviewsSection({ serviceId }: ReviewsSectionProps) {
         <div aria-busy="true" aria-label="Loading reviews">
           <div className="space-y-3">
             {[0, 1].map((i) => (
-              <div
-                key={i}
-                className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-              >
-                <div className="h-4 w-1/3 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
-                <div className="mt-3 h-3 w-full animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
-              </div>
+              <Card key={i} padded className="py-5">
+                <div className="h-4 w-1/3 animate-pulse rounded-pill bg-muted" />
+                <div className="mt-3 h-3 w-full animate-pulse rounded-pill bg-muted" />
+              </Card>
             ))}
           </div>
         </div>
@@ -119,16 +102,13 @@ export function ReviewsSection({ serviceId }: ReviewsSectionProps) {
           title="Couldn't load reviews."
         />
       ) : reviews.length === 0 ? (
-        <div className="rounded border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+        <Card padded className="py-8 text-center text-sm text-muted-foreground">
           No reviews yet.
-        </div>
+        </Card>
       ) : (
         <ul className="space-y-3">
           {reviews.map((review) => (
-            <ReviewCard
-              key={review.id ?? Math.random()}
-              review={review}
-            />
+            <ReviewCard key={review.id ?? Math.random()} review={review} />
           ))}
         </ul>
       )}

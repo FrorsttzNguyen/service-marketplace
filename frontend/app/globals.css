@@ -2,27 +2,95 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Semantic design tokens (Phase 7 "Fresh & friendly, soft rounded islands").
+ *
+ * Colors are stored as space-separated RGB triplets (e.g. "99 102 241") so the
+ * Tailwind config can compose them with `<alpha-value>` (see tailwind.config.ts):
+ *   rgb(var(--primary) / <alpha-value>)  →  rgb(99 102 241 / 0.5)
+ * This is the standard Tailwind v3 pattern for themable colors.
+ *
+ * Light: a very soft indigo/slate wash for the page; bright near-white islands;
+ * an indigo→violet primary. Dark: a deep desaturated navy wash; slightly lifted
+ * islands; a brighter violet primary so it pops on dark.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* Tell the browser this page supports both color schemes so NATIVE controls
-     (scrollbars, <input type=date>, form autofill) pick the right theme. */
+  /* Page wash — a gentle indigo/slate tint, not pure white. */
+  --background: 244 245 252; /* slate-50 leaning indigo */
+  --foreground: 30 27 46; /* near-black with a violet cast */
+
+  /* The elevated "island" surface — brighter than the wash so cards read as
+     floating islands. */
+  --card: 255 255 255;
+  --card-foreground: 30 27 46;
+
+  /* Faint separators + secondary text. */
+  --border: 226 228 240;
+  --muted: 241 242 250;
+  --muted-foreground: 100 105 130;
+
+  /* Primary accent — indigo (vibrant but tasteful, not neon). */
+  --primary: 99 102 241; /* indigo-500 */
+  --primary-foreground: 255 255 255;
+
+  /* Soft accent tints for badges / hover fills. */
+  --accent-soft: 238 242 255; /* indigo-50 */
+  --accent-strong: 219 225 255; /* indigo-100-ish */
+
+  /* Status colors (semantic hooks for badges/states). */
+  --success: 22 163 74; /* green-600 */
+  --success-foreground: 255 255 255;
+  --warning: 217 119 6; /* amber-600 */
+  --warning-foreground: 255 255 255;
+  --danger: 220 38 38; /* red-600 */
+  --danger-foreground: 255 255 255;
+
+  /* Tell native controls (scrollbars, date pickers, autofill) which scheme this
+     is so they match the page. */
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Page wash — deep desaturated navy/charcoal (NOT pure black). */
+    --background: 14 16 28;
+    --foreground: 233 235 248;
+
+    /* Islands lifted above the wash (a touch lighter + cooler). */
+    --card: 24 27 42;
+    --card-foreground: 233 235 248;
+
+    --border: 42 46 66;
+    --muted: 32 36 54;
+    --muted-foreground: 156 162 192;
+
+    /* Primary pops brighter on dark so CTAs stay legible. */
+    --primary: 129 140 248; /* indigo-400 */
+    --primary-foreground: 20 22 38;
+
+    --accent-soft: 38 36 64; /* indigo-950-ish */
+    --accent-strong: 55 53 96;
+
+    --success: 34 197 94; /* green-500 */
+    --success-foreground: 8 12 22;
+    --warning: 245 158 11; /* amber-500 */
+    --warning-foreground: 20 16 6;
+    --danger: 248 113 113; /* red-400 */
+    --danger-foreground: 20 8 8;
   }
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: rgb(var(--foreground));
+  background: rgb(var(--background));
+  /* next/font wires `--font-inter` onto <html>; fall back to the native stack
+     while it loads so there's no FOIT. */
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, sans-serif;
+    var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /*
@@ -39,9 +107,12 @@ body {
  * navigation — mouse clicks won't show it, keeping the mouse UX clean while
  * keeping keyboard navigation accessible (WCAG 2.4.7 Focus Visible). The offset
  * keeps the ring from sitting on top of the element's own border.
+ *
+ * The color follows the primary token (indigo/violet) so it reads on both
+ * light and dark backgrounds.
  */
 :focus-visible {
-  outline: 2px solid #2563eb; /* blue-600, matches the app's primary */
+  outline: 2px solid rgb(var(--primary));
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 4px;
 }

@@ -26,6 +26,10 @@
  * only reports the Stripe client result; the success UI trusts it.
  *
  * TEST CARD: 4242 4242 4242 4242, any future expiry, any CVC, any ZIP.
+ *
+ * Visual (Phase 7): the Stripe iframe container is a soft rounded panel that matches
+ * the Input primitive's border radius; the Pay button + the error box use the Button /
+ * danger-tint styling. Stripe mount + confirm logic UNCHANGED.
  */
 import { useState, type FormEvent } from "react";
 import {
@@ -34,6 +38,7 @@ import {
   useStripe,
 } from "@stripe/react-stripe-js";
 import type { PaymentIntent } from "@stripe/stripe-js";
+import { Button } from "@/components/ui/button";
 
 interface CheckoutFormProps {
   /**
@@ -124,7 +129,7 @@ export function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
         It's a Stripe-hosted iframe — the card data never touches our JS, which is the
         core of Stripe's PCI compliance story. We just style the container.
       */}
-      <div className="rounded border border-neutral-300 p-3 dark:border-neutral-700">
+      <div className="rounded-2xl border border-border bg-muted/40 p-3">
         <PaymentElement
           // Show card brand icons + accessible labels; Stripe defaults are fine.
           options={{ layout: { type: "tabs", defaultCollapsed: false } }}
@@ -132,25 +137,29 @@ export function CheckoutForm({ onSuccess, onError }: CheckoutFormProps) {
       </div>
 
       {errorMessage ? (
-        <p
-          className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+        <div
+          className="rounded-2xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
           role="alert"
         >
           {errorMessage}
-        </p>
+        </div>
       ) : null}
 
-      <button
+      <Button
         type="submit"
+        size="lg"
+        fullWidth
         disabled={notReady || submitting}
-        className="w-full rounded bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        isLoading={submitting}
       >
-        {submitting ? "Processing…" : notReady ? "Loading…" : "Pay"}
-      </button>
+        {/* When submitting, the spinner shows next to this label ("Processing…").
+            notReady (no spinner) shows "Loading…" while Stripe.js initializes. */}
+        {notReady && !submitting ? "Loading…" : submitting ? "Processing…" : "Pay"}
+      </Button>
 
-      <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
+      <p className="text-center text-xs text-muted-foreground">
         Test mode — use{" "}
-        <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-800">
+        <code className="rounded-pill bg-muted px-1.5 py-0.5">
           4242 4242 4242 4242
         </code>
         , any future expiry, any CVC, any ZIP.

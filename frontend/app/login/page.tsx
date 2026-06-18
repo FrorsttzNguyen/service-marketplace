@@ -10,6 +10,10 @@
  *   - other ApiError → show its message; network/CORS failures get the CORS hint.
  *
  * On success, redirect to `?redirect=` target or the catalog.
+ *
+ * Visual (Phase 7): a single centered island (narrow container) holding the title +
+ * error + form + footer link. Inputs use the Input/Label/FieldError primitives; the
+ * submit button is a full-width primary Button with a loading state.
  */
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,6 +22,12 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { ErrorState } from "@/components/error-state";
 import { validateEmail } from "@/lib/auth/validation";
+import { Container } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
 
 /**
  * Page entry — wraps the form in a Suspense boundary. This is required because the
@@ -76,78 +86,69 @@ function LoginForm() {
       return submitError.message;
     }
     // Non-ApiError (network/CORS) → show the shared error card with the CORS hint.
-    return (
-      <ErrorState error={submitError} title="Couldn't log in." />
-    );
+    return <ErrorState error={submitError} title="Couldn't log in." />;
   }
 
   return (
-    <main className="mx-auto max-w-sm px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">Log in</h1>
+    <Container width="narrow">
+      <Card padded>
+        <h1 className="mb-6 text-2xl font-bold tracking-tight text-foreground">
+          Log in
+        </h1>
 
-      {submitError && !(submitError instanceof ApiError) ? (
-        <div className="mb-6">{renderSubmitError()}</div>
-      ) : submitError ? (
-        <p
-          className="mb-6 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-          role="alert"
-        >
-          {renderSubmitError()}
+        {submitError && !(submitError instanceof ApiError) ? (
+          <div className="mb-6">{renderSubmitError()}</div>
+        ) : submitError ? (
+          <div
+            className="mb-6 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger"
+            role="alert"
+          >
+            {renderSubmitError()}
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              aria-invalid={!!errors.email}
+            />
+            <FieldError>{errors.email}</FieldError>
+          </div>
+
+          <div>
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={!!errors.password}
+            />
+            <FieldError>{errors.password}</FieldError>
+          </div>
+
+          <Button type="submit" fullWidth isLoading={isSubmitting}>
+            {isSubmitting ? "Logging in…" : "Log in"}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/register"
+            className="font-medium text-primary hover:underline"
+          >
+            Sign up
+          </Link>
         </p>
-      ) : null}
-
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-            aria-invalid={!!errors.email}
-          />
-          {errors.email ? (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>
-          ) : null}
-        </div>
-
-        <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-            aria-invalid={!!errors.password}
-          />
-          {errors.password ? (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>
-          ) : null}
-        </div>
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isSubmitting ? "Logging in…" : "Log in"}
-        </button>
-      </form>
-
-      <p className="mt-6 text-center text-sm text-neutral-600 dark:text-neutral-400">
-        Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-blue-600 hover:underline dark:text-blue-400">
-          Sign up
-        </Link>
-      </p>
-    </main>
+      </Card>
+    </Container>
   );
 }

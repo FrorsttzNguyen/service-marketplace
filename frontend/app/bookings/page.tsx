@@ -8,6 +8,9 @@
  * is gated to PENDING-only inside <BookingCard>, and on click we run the cancel
  * mutation. A 422 (status changed under us) surfaces the server message and the
  * invalidation-on-success refetches the list with the true status.
+ *
+ * Visual (Phase 7): PageHeader + island list of booking cards. Empty state is a soft
+ * dashed island with a CTA back to the catalog.
  */
 import { useState } from "react";
 import Link from "next/link";
@@ -18,6 +21,9 @@ import { ErrorState } from "@/components/error-state";
 import { CatalogSkeleton } from "@/components/skeletons";
 import { ApiError } from "@/lib/api/client";
 import { useMyBookings, useCancelBooking } from "@/lib/api/bookings-queries";
+import { Container, PageHeader } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { buttonClasses } from "@/components/ui/button";
 
 const PAGE_SIZE = 10;
 
@@ -46,9 +52,7 @@ function BookingsContent() {
 
   function handleCancel(id: number) {
     // Simple confirm — good enough for a portfolio app; a real app would use a modal.
-    if (
-      !window.confirm("Cancel this booking? This usually can't be undone.")
-    ) {
+    if (!window.confirm("Cancel this booking? This usually can't be undone.")) {
       return;
     }
     setCancellingId(id);
@@ -64,9 +68,7 @@ function BookingsContent() {
         setCancelErrorId(id);
         // 422 = status changed; show the server's message and let the refetch fix the UI.
         setCancelErrorMsg(
-          err instanceof ApiError
-            ? err.message
-            : "Couldn't cancel this booking.",
+          err instanceof ApiError ? err.message : "Couldn't cancel this booking.",
         );
       },
     });
@@ -76,15 +78,11 @@ function BookingsContent() {
   const total = data?.totalElements ?? 0;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">My bookings</h1>
-          <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-            Services you&apos;ve requested.
-          </p>
-        </div>
-      </header>
+    <Container width="default">
+      <PageHeader
+        title="My bookings"
+        subtitle="Services you've requested."
+      />
 
       {isPending ? (
         <CatalogSkeleton />
@@ -97,27 +95,29 @@ function BookingsContent() {
       ) : (
         <>
           {isFetching ? (
-            <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
+            <p className="mb-4 text-sm text-muted-foreground">Refreshing…</p>
           ) : null}
 
           {bookings.length === 0 ? (
-            <div className="rounded border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-              <p className="text-neutral-500 dark:text-neutral-400">
-                You have no bookings yet.
-              </p>
+            <Card padded className="py-10 text-center">
+              <p className="text-muted-foreground">You have no bookings yet.</p>
               <Link
                 href="/"
-                className="mt-3 inline-block text-blue-600 hover:underline dark:text-blue-400"
+                className={buttonClasses({
+                  variant: "primary",
+                  size: "sm",
+                  className: "mt-4",
+                })}
               >
                 Browse services →
               </Link>
-            </div>
+            </Card>
           ) : (
             <>
-              <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mb-4 text-sm text-muted-foreground">
                 {total} booking{total === 1 ? "" : "s"}
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {bookings.map((booking) => (
                   <BookingCard
                     key={booking.id ?? Math.random()}
@@ -142,6 +142,6 @@ function BookingsContent() {
           )}
         </>
       )}
-    </main>
+    </Container>
   );
 }

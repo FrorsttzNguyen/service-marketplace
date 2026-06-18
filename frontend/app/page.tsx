@@ -11,6 +11,10 @@
  * NOTE on cold starts: the live API (Render free tier) sleeps when idle. The first
  * request after idle can take 30–90s to wake up — that's expected, not a bug, and the
  * skeleton loading state covers it.
+ *
+ * Visual (Phase 7): a soft hero island (gradient tint + headline + subcopy + the
+ * category chips) sits above the catalog grid; both float as separate rounded islands
+ * on the tinted page wash.
  */
 import { useState } from "react";
 import { useServicesCatalog, useCatalogCategories } from "@/lib/api/queries";
@@ -19,6 +23,7 @@ import { CategoryFilter } from "@/components/category-filter";
 import { Pagination } from "@/components/pagination";
 import { ErrorState } from "@/components/error-state";
 import { CatalogSkeleton } from "@/components/skeletons";
+import { Container } from "@/components/ui/container";
 
 const PAGE_SIZE = 10;
 
@@ -46,23 +51,42 @@ export default function HomePage() {
   const isError = catalog.isError;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Service Marketplace</h1>
-        <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-          Browse services from local providers.
+    <Container width="default">
+      {/*
+        Hero island — a soft indigo→violet gradient over the bright card surface,
+        with the page headline + subcopy + the category chips nested inside. The
+        gradient is subtle (low opacity stops) so it stays readable and
+        portfolio-appropriate, not neon. It's its own island so it reads as the
+        page's welcome banner, visually distinct from the catalog grid below.
+      */}
+      <section
+        aria-label="Welcome"
+        className="mb-8 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-accent-soft via-card to-accent-soft p-6 shadow-island sm:p-10"
+      >
+        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+          Local pros, one click away
         </p>
-      </header>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          Service Marketplace
+        </h1>
+        <p className="mt-2 max-w-xl text-muted-foreground">
+          Browse services from local providers — from home cleaning to
+          photography and more.
+        </p>
 
-      {/* Category filter — hidden while categories haven't loaded or are empty. */}
-      <CategoryFilter
-        categories={categoriesQuery.data ?? []}
-        selectedCategoryId={categoryId}
-        onSelect={handleSelectCategory}
-        disabled={isLoading}
-      />
+        {/* Category filter — nested in the hero so the chips share its island.
+            Hidden while categories haven't loaded or are empty. */}
+        <div className="mt-6">
+          <CategoryFilter
+            categories={categoriesQuery.data ?? []}
+            selectedCategoryId={categoryId}
+            onSelect={handleSelectCategory}
+            disabled={isLoading}
+          />
+        </div>
+      </section>
 
-      <div className="mt-6">
+      <div>
         {isLoading ? (
           <CatalogSkeleton />
         ) : isError ? (
@@ -74,7 +98,7 @@ export default function HomePage() {
         ) : (
           <>
             {catalog.isFetching ? (
-              <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
+              <p className="mb-4 text-sm text-muted-foreground">Refreshing…</p>
             ) : null}
             <ServiceList page={catalog.data} />
             <Pagination
@@ -88,6 +112,6 @@ export default function HomePage() {
           </>
         )}
       </div>
-    </main>
+    </Container>
   );
 }
