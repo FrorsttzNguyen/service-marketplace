@@ -1,7 +1,23 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Header } from "@/components/header";
+
+/*
+ * Friendly rounded body font via next/font (Inter).
+ *
+ * next/font self-hosts the font (no Google Fonts request at runtime → no layout
+ * shift, no privacy hit). `variable` exposes the loaded font family as the
+ * `--font-inter` CSS variable on <html>, which globals.css + tailwind.config.ts
+ * both reference as the sans default. `display: "swap"` lets text render in the
+ * fallback immediately and swap once Inter arrives.
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 /**
  * Root metadata.
@@ -51,7 +67,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
         <Providers>
           <Header />

@@ -11,6 +11,12 @@
  *   - any other error → generic error state with the local-dev CORS hint, since the
  *     most common local failure is a browser CORS block (surfaces as a TypeError
  *     before any HTTP status).
+ *
+ * Visual (Phase 7): the article body, the booking form, and the reviews section are
+ * each their own island. The detail rows live inside a tidy `<dl>` card. NOTE on the
+ * Rating row: the catalog `totalReviews` is backend-hardcoded 0 right now, so we DERIVE
+ * the count from the reviews list length when convenient (the reviews section passes
+ * nothing back; here we just show the average without a contradictory "(0 reviews)").
  */
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -20,6 +26,10 @@ import { ErrorState } from "@/components/error-state";
 import { ServiceDetailSkeleton } from "@/components/skeletons";
 import { BookingForm } from "@/components/booking-form";
 import { ReviewsSection } from "@/components/reviews-section";
+import { Container } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { StarRating } from "@/components/ui/star-rating";
+import { buttonClasses } from "@/components/ui/button";
 
 /** Human-readable label for the pricing-type enum. */
 function prettyPricingType(type: string): string {
@@ -52,9 +62,11 @@ function DetailRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between gap-4 py-2 border-b border-neutral-100 dark:border-neutral-900">
-      <dt className="text-sm text-neutral-500 dark:text-neutral-400">{label}</dt>
-      <dd className="text-sm font-medium text-right">{children}</dd>
+    <div className="flex justify-between gap-4 border-b border-border/60 py-2.5 last:border-0">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-right text-sm font-medium text-foreground">
+        {children}
+      </dd>
     </div>
   );
 }
@@ -139,36 +151,50 @@ export default function ServiceDetailPage() {
         ? prettyPricingType(service.pricingType)
         : null;
 
+  const hasRating =
+    typeof service?.averageRating === "number" && service.averageRating > 0;
+
   return (
     <DetailShell>
-      <article>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {service?.title ?? "Untitled service"}
-        </h1>
-        {service?.vendorName ? (
-          <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-            by {service.vendorName}
-          </p>
-        ) : null}
+      {/*
+        Article island — the service's headline + image + description + detail rows
+        + booking form all live inside one big rounded island with generous padding,
+        so the whole "service" reads as one content block floating on the wash.
+      */}
+      <Card padded className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {service?.title ?? "Untitled service"}
+          </h1>
+          {service?.vendorName ? (
+            <p className="mt-1.5 text-muted-foreground">
+              by {service.vendorName}
+            </p>
+          ) : null}
+        </div>
 
         {service?.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={service.imageUrl}
             alt={service.title ?? "Service image"}
-            className="mt-6 h-48 w-full rounded-lg border border-neutral-200 object-cover dark:border-neutral-800"
+            className="h-56 w-full rounded-2xl border border-border/60 object-cover shadow-island sm:h-64"
           />
         ) : null}
 
         {service?.description ? (
-          <p className="mt-6 leading-relaxed text-neutral-700 dark:text-neutral-300">
+          <p className="leading-relaxed text-foreground/90">
             {service.description}
           </p>
         ) : (
-          <p className="mt-6 italic text-neutral-400">No description provided.</p>
+          <p className="italic text-muted-foreground">No description provided.</p>
         )}
 
-        <dl className="mt-8">
+        {/*
+          Detail rows island-within-island: a tinted panel separates the meta grid
+          from the prose above. Soft shadow + rounded corners keep it readable.
+        */}
+        <dl className="rounded-2xl bg-muted/60 p-5">
           {price ? <DetailRow label="Price">{price}</DetailRow> : null}
           {service?.pricingType ? (
             <DetailRow label="Pricing">
@@ -186,29 +212,36 @@ export default function ServiceDetailPage() {
           {service?.address ? (
             <DetailRow label="Address">{service.address}</DetailRow>
           ) : null}
-          {service?.city ? <DetailRow label="City">{service.city}</DetailRow> : null}
-          {service?.averageRating !== undefined &&
-          service?.averageRating !== null ? (
+          {service?.city ? (
+            <DetailRow label="City">{service.city}</DetailRow>
+          ) : null}
+          {/*
+            Rating row: show stars + average. We deliberately OMIT the
+            "(N reviews)" suffix because the catalog totalReviews is
+            backend-hardcoded 0 right now, which would read as a contradiction
+            against the actual reviews list below. The ReviewsSection header
+            shows the true count derived from the list length.
+          */}
+          {hasRating ? (
             <DetailRow label="Rating">
-              ⭐ {service.averageRating.toFixed(1)}
-              {service?.totalReviews !== undefined && service?.totalReviews !== null
-                ? ` (${service.totalReviews} review${
-                    service.totalReviews === 1 ? "" : "s"
-                  })`
-                : ""}
+              <span className="inline-flex items-center gap-2">
+                <StarRating value={service?.averageRating} />
+                <span>{service?.averageRating?.toFixed(1)}</span>
+              </span>
             </DetailRow>
           ) : null}
         </dl>
+      </Card>
 
-        {/*
-          Booking form — only rendered once the service is loaded (we have a real id).
-          The component handles its own auth gate (logged-out → login CTA) and the
-          create-booking mutation + redirect to /bookings.
-        */}
-        {service?.id !== undefined ? (
-          <BookingForm serviceId={service.id} />
-        ) : null}
-      </article>
+      {/*
+        Booking form — only rendered once the service is loaded (we have a real id).
+        The component handles its own auth gate (logged-out → login CTA) and the
+        create-booking mutation + redirect to /bookings. It renders as its own
+        island below the article so the form reads as a distinct action area.
+      */}
+      {service?.id !== undefined ? (
+        <BookingForm serviceId={service.id} />
+      ) : null}
 
       {/*
         Public reviews list — rendered below the article. Uses the PUBLIC
@@ -226,16 +259,16 @@ export default function ServiceDetailPage() {
 /** Shared page chrome (max width container + back link) for every detail-page state. */
 function DetailShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <Container width="default">
       <p className="mb-6">
         <Link
           href="/"
-          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+          className={buttonClasses({ variant: "ghost", size: "sm" })}
         >
           ← Back to catalog
         </Link>
       </p>
-      {children}
-    </main>
+      <div className="space-y-6">{children}</div>
+    </Container>
   );
 }

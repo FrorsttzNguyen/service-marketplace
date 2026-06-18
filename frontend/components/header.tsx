@@ -16,9 +16,35 @@
  * which in turn depends on /me being called during rehydrate (see token-store.rehydrate).
  * Without that wiring, an admin/vendor reloading any page would briefly appear role-less
  * and the links would flicker off; rehydrate now populates the role before this renders.
+ *
+ * Visual (Phase 7 polish): the bar is a floating rounded "island" — a bright card
+ * that sits on the tinted page wash with a soft shadow and generous spacing. It is
+ * sticky so it stays in view while scrolling. Brand wordmark uses the primary
+ * accent on hover; auth controls use Button (ghost + primary) so they match the
+ * rest of the app.
  */
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/auth-context";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+/** Subtle nav link: muted, hovers to primary. Used for the role-gated links. */
+function NavLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-pill px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent-soft hover:text-primary"
+    >
+      {children}
+    </Link>
+  );
+}
 
 export function Header() {
   const { user, isAuthenticated, isInitializing, logout } = useAuth();
@@ -29,48 +55,46 @@ export function Header() {
   const isVendor = user?.role === "VENDOR";
 
   return (
-    <header className="border-b border-neutral-200 dark:border-neutral-800">
+    // Sticky container: floats above page content. The inner island is the
+    // bright card; the outer sticky wrapper provides the top offset + bg blur.
+    <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-md">
       {/*
-        The nav uses flex-wrap so on a narrow phone (~375px) the auth controls
-        wrap below the brand instead of overflowing horizontally (which would
-        cause a horizontal scrollbar or crammed, overlapping text). `gap-x-4`
-        + `gap-y-2` keep spacing sane across both wrapped lines.
+        The nav "island" — a bright rounded card with a soft shadow, centered
+        with the rest of the page content and separated from the top edge.
+        `flex-wrap` so on a narrow phone (~375px) the auth controls wrap below
+        the brand instead of overflowing horizontally.
       */}
       <nav
-        className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
+        className={cn(
+          "mx-auto mt-3 flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-border/60 bg-card px-4 py-3 shadow-island sm:px-6",
+        )}
         aria-label="Primary"
       >
+        {/* Brand wordmark with a small dot mark for a friendlier feel. */}
         <Link
           href="/"
-          className="font-semibold tracking-tight hover:text-blue-600 dark:hover:text-blue-400"
+          className="flex items-center gap-2 font-semibold tracking-tight text-foreground transition-colors hover:text-primary"
         >
+          <span
+            aria-hidden="true"
+            className="inline-block h-2.5 w-2.5 rounded-pill bg-primary shadow-island"
+          />
           Service Marketplace
         </Link>
 
         {/* While boot-rehydrating, render no auth controls to avoid a logged-out flicker. */}
         {isInitializing ? null : isAuthenticated ? (
+          // Authed row: role-gated nav links + account name + Log out.
           // `flex-wrap` here too: name + "My bookings" + "Admin" + "Log out" can wrap on
           // very small screens. `items-center` keeps them vertically aligned.
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
-            <Link
-              href="/bookings"
-              className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
-            >
-              My bookings
-            </Link>
+          <div className="flex flex-wrap items-center justify-end gap-x-1 gap-y-1 text-sm">
+            <NavLink href="/bookings">My bookings</NavLink>
             {/*
               Admin link — only for ADMIN-role users. Non-admins never see the entry
               point, and even if they typed the URL directly, RequireAuth requireRole +
               the server's 403 would stop them. Gating the link is UX, not security.
             */}
-            {isAdmin ? (
-              <Link
-                href="/admin/vendors"
-                className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
-              >
-                Admin
-              </Link>
-            ) : null}
+            {isAdmin ? <NavLink href="/admin/vendors">Admin</NavLink> : null}
             {/*
               Vendor links — only for VENDOR-role users. Two direct links mirror how
               "My bookings" is a direct link: the vendor's two workspaces (manage their
@@ -79,48 +103,37 @@ export function Header() {
             */}
             {isVendor ? (
               <>
-                <Link
-                  href="/vendor/services"
-                  className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
-                >
-                  My services
-                </Link>
-                <Link
-                  href="/vendor/bookings"
-                  className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
-                >
-                  Bookings
-                </Link>
+                <NavLink href="/vendor/services">My services</NavLink>
+                <NavLink href="/vendor/bookings">Bookings</NavLink>
               </>
             ) : null}
-            <span className="text-neutral-600 dark:text-neutral-400">
+            <span className="px-2 text-muted-foreground">
               {user?.fullName || user?.email || "Account"}
             </span>
-            <button
-              type="button"
-              onClick={logout}
-              className="rounded border border-neutral-300 px-3 py-1 hover:border-blue-400 hover:text-blue-600 dark:border-neutral-700 dark:hover:text-blue-400"
-            >
+            <Button variant="ghost" size="sm" onClick={logout}>
               Log out
-            </button>
+            </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
+          // Logged-out row: Log in (ghost) + Sign up (primary).
+          // Real navigation stays a real <Link> (accessible, middle-clickable);
+          // `buttonClasses` styles it exactly like a Button of that variant/size.
+          <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-sm">
             <Link
               href="/login"
-              className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
+              className={buttonClasses({ variant: "ghost", size: "sm" })}
             >
               Log in
             </Link>
             <Link
               href="/register"
-              className="rounded bg-blue-600 px-3 py-1 font-medium text-white hover:bg-blue-700"
+              className={buttonClasses({ variant: "primary", size: "sm" })}
             >
               Sign up
             </Link>
           </div>
         )}
       </nav>
-    </header>
+    </div>
   );
 }

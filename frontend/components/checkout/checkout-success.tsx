@@ -18,10 +18,17 @@
  * backend status as secondary info ("server confirmation pending" if it hasn't caught
  * up). We never block the success UI on the backend status — that would make local dev
  * look broken when the payment actually succeeded.
+ *
+ * Visual (Phase 7): the success card is a green-tinted island; the backend status uses
+ * the Badge primitive with tone variants instead of the inline color map. Links are
+ * styled via buttonClasses so they read as clear CTAs.
  */
 import Link from "next/link";
 import type { PaymentIntent } from "@stripe/stripe-js";
 import type { Payment, PaymentStatus } from "@/lib/api/payments";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { buttonClasses } from "@/components/ui/button";
 
 interface CheckoutSuccessProps {
   /** The confirmed PaymentIntent from the Stripe client. Source of the amount. */
@@ -63,17 +70,17 @@ function describeBackendStatus(status: PaymentStatus | undefined): string {
   }
 }
 
-/** Tailwind class for the backend-status pill, colored by status. */
-function backendStatusClass(status: PaymentStatus | undefined): string {
+/** Backend status → badge tone. Replaces the inline color map. */
+function backendStatusTone(status: PaymentStatus | undefined): BadgeTone {
   switch (status) {
     case "SUCCEEDED":
-      return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
+      return "success";
     case "FAILED":
-      return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
+      return "danger";
     case "PROCESSING":
     case "PENDING":
     default:
-      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
+      return "warning";
   }
 }
 
@@ -86,8 +93,9 @@ export function CheckoutSuccess({
   const backendStatus = backendPayment?.status;
 
   return (
-    <div
-      className="rounded-lg border border-green-300 bg-green-50 p-6 dark:border-green-900 dark:bg-green-950/40"
+    <Card
+      padded
+      className="border-success/30 bg-success/10"
       data-testid="checkout-success"
       role="status"
     >
@@ -96,10 +104,10 @@ export function CheckoutSuccess({
           ✅
         </span>
         <div className="flex-1">
-          <h2 className="text-lg font-semibold text-green-900 dark:text-green-200">
+          <h2 className="text-lg font-semibold text-success">
             Payment successful
           </h2>
-          <p className="mt-1 text-sm text-green-800 dark:text-green-300">
+          <p className="mt-1 text-sm text-success/90">
             Charged{" "}
             <strong>
               {formatAmount(
@@ -116,21 +124,15 @@ export function CheckoutSuccess({
             local-dev state until Stripe CLI forwards the webhook.
           */}
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-            <span
-              className={`rounded-full px-2 py-0.5 font-medium ${backendStatusClass(
-                backendStatus,
-              )}`}
-            >
+            <Badge tone={backendStatusTone(backendStatus)}>
               {describeBackendStatus(backendStatus)}
-            </span>
+            </Badge>
             {isPolling && backendStatus !== "SUCCEEDED" ? (
-              <span className="text-green-700 dark:text-green-400">
-                checking server…
-              </span>
+              <span className="text-success/80">checking server…</span>
             ) : null}
           </div>
 
-          <dl className="mt-4 space-y-1 text-sm text-green-900 dark:text-green-200">
+          <dl className="mt-4 space-y-1 text-sm text-success/90">
             {orderId !== undefined ? (
               <div className="flex justify-between gap-4">
                 <dt className="opacity-70">Order</dt>
@@ -139,28 +141,30 @@ export function CheckoutSuccess({
             ) : null}
             <div className="flex justify-between gap-4">
               <dt className="opacity-70">Stripe reference</dt>
-              <dd className="font-mono text-xs">
-                {paymentIntent.id ?? "—"}
-              </dd>
+              <dd className="font-mono text-xs">{paymentIntent.id ?? "—"}</dd>
             </div>
           </dl>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/bookings"
-              className="rounded bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800"
+              className={buttonClasses({ variant: "success", size: "sm" })}
             >
               Back to my bookings
             </Link>
             <Link
               href="/"
-              className="rounded border border-green-700 px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-950/40"
+              className={buttonClasses({
+                variant: "ghost",
+                size: "sm",
+                className: "text-success hover:bg-success/15",
+              })}
             >
               Browse more services
             </Link>
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

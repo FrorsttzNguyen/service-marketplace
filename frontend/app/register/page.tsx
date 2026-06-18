@@ -11,6 +11,10 @@
  *   - other ApiError → its message; network/CORS → shared error card with hint.
  *
  * On success, redirect to `?redirect=` target or the catalog.
+ *
+ * Visual (Phase 7): a single centered island (narrow container) with the form fields
+ * and a checkbox row for "register as vendor". Inputs use the Input/Label/FieldError
+ * primitives; the submit button is a full-width primary Button.
  */
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -24,6 +28,12 @@ import {
   validatePassword,
   validatePhoneNumber,
 } from "@/lib/auth/validation";
+import { Container } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
 
 interface FieldErrors {
   fullName?: string;
@@ -100,85 +110,93 @@ function RegisterForm() {
   }
 
   return (
-    <main className="mx-auto max-w-sm px-4 py-10">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">Create an account</h1>
+    <Container width="narrow">
+      <Card padded>
+        <h1 className="mb-6 text-2xl font-bold tracking-tight text-foreground">
+          Create an account
+        </h1>
 
-      {submitError && !(submitError instanceof ApiError) ? (
-        <div className="mb-6">{renderSubmitError()}</div>
-      ) : submitError ? (
-        <p
-          className="mb-6 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-          role="alert"
-        >
-          {renderSubmitError()}
-        </p>
-      ) : null}
+        {submitError && !(submitError instanceof ApiError) ? (
+          <div className="mb-6">{renderSubmitError()}</div>
+        ) : submitError ? (
+          <div
+            className="mb-6 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger"
+            role="alert"
+          >
+            {renderSubmitError()}
+          </div>
+        ) : null}
 
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <FieldInput
-          id="fullName"
-          label="Full name"
-          type="text"
-          autoComplete="name"
-          value={fullName}
-          onChange={setFullName}
-          error={errors.fullName}
-        />
-        <FieldInput
-          id="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={setEmail}
-          error={errors.email}
-        />
-        <FieldInput
-          id="password"
-          label="Password"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={setPassword}
-          error={errors.password}
-          help="At least 8 characters with an uppercase letter, a lowercase letter, and a digit."
-        />
-        <FieldInput
-          id="phoneNumber"
-          label="Phone number"
-          type="tel"
-          autoComplete="tel"
-          value={phoneNumber}
-          onChange={setPhoneNumber}
-          error={errors.phoneNumber}
-          help="E.164 format, e.g. +14155550123."
-        />
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={registerAsVendor}
-            onChange={(e) => setRegisterAsVendor(e.target.checked)}
+        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <FieldInput
+            id="fullName"
+            label="Full name"
+            type="text"
+            autoComplete="name"
+            value={fullName}
+            onChange={setFullName}
+            error={errors.fullName}
           />
-          Register as a service provider (vendor)
-        </label>
+          <FieldInput
+            id="email"
+            label="Email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={setEmail}
+            error={errors.email}
+          />
+          <FieldInput
+            id="password"
+            label="Password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={setPassword}
+            error={errors.password}
+            help="At least 8 characters with an uppercase letter, a lowercase letter, and a digit."
+          />
+          <FieldInput
+            id="phoneNumber"
+            label="Phone number"
+            type="tel"
+            autoComplete="tel"
+            value={phoneNumber}
+            onChange={setPhoneNumber}
+            error={errors.phoneNumber}
+            help="E.164 format, e.g. +14155550123."
+          />
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isSubmitting ? "Creating account…" : "Create account"}
-        </button>
-      </form>
+          {/* Vendor opt-in checkbox. Kept as a native checkbox inside a tinted
+              pill so it reads as a single affordance distinct from the inputs. */}
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-muted/60 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={registerAsVendor}
+              onChange={(e) => setRegisterAsVendor(e.target.checked)}
+              className="h-4 w-4 rounded accent-[rgb(var(--primary))]"
+            />
+            <span className="font-medium text-foreground">
+              Register as a service provider (vendor)
+            </span>
+          </label>
 
-      <p className="mt-6 text-center text-sm text-neutral-600 dark:text-neutral-400">
-        Already have an account?{" "}
-        <Link href="/login" className="text-blue-600 hover:underline dark:text-blue-400">
-          Log in
-        </Link>
-      </p>
-    </main>
+          <Button type="submit" fullWidth isLoading={isSubmitting}>
+            {isSubmitting ? "Creating account…" : "Create account"}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-primary hover:underline"
+          >
+            Log in
+          </Link>
+        </p>
+      </Card>
+    </Container>
   );
 }
 
@@ -204,24 +222,19 @@ function FieldInput({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-sm font-medium">
-        {label}
-      </label>
-      <input
+      <Label htmlFor={id}>{label}</Label>
+      <Input
         id={id}
         type={type}
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
         aria-invalid={!!error}
       />
       {help && !error ? (
-        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{help}</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">{help}</p>
       ) : null}
-      {error ? (
-        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
-      ) : null}
+      <FieldError>{error}</FieldError>
     </div>
   );
 }

@@ -7,7 +7,12 @@
  * against `totalPages`, which can be 0 for an empty result). The center shows
  * `number + 1` (human-friendly, 1-based) of `totalPages`. Resets to page 0 are the
  * parent's job (it owns page state); this component just emits page deltas.
+ *
+ * Visual (Phase 7): prev/next are ghost pill buttons; the page indicator is wrapped
+ * in a subtle pill so the whole control reads as one rounded island of its own.
  */
+import { Button } from "@/components/ui/button";
+
 interface PaginationProps {
   /** Current page (0-based from Spring). */
   number?: number;
@@ -35,28 +40,31 @@ export function Pagination({
 
   return (
     <nav
-      className="mt-8 flex items-center justify-center gap-4 text-sm"
+      className="mt-8 flex items-center justify-center gap-3 text-sm"
       aria-label="Pagination"
     >
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => onPageChange(Math.max(0, number - 1))}
         disabled={prevDisabled}
-        className="rounded border border-neutral-300 px-3 py-1.5 text-neutral-700 hover:border-blue-400 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300"
       >
         ← Previous
-      </button>
-      <span className="text-neutral-600 dark:text-neutral-400" data-testid="page-info">
+      </Button>
+      <span
+        className="rounded-pill bg-card px-4 py-1.5 font-medium text-muted-foreground shadow-island"
+        data-testid="page-info"
+      >
         Page {number + 1} of {totalPages}
       </span>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => onPageChange(Math.min(totalPages - 1, number + 1))}
         disabled={nextDisabled}
-        className="rounded border border-neutral-300 px-3 py-1.5 text-neutral-700 hover:border-blue-400 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300"
       >
         Next →
-      </button>
+      </Button>
     </nav>
   );
 }

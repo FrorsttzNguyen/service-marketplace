@@ -31,6 +31,9 @@
  * The row component is vendor-specific (it shows the CUSTOMER name and offers lifecycle
  * actions), so it lives in this file rather than reusing the customer <BookingCard> —
  * same data shape, different actions + emphasis.
+ *
+ * Visual (Phase 7): island list of vendor booking rows; status uses BookingStatusBadge;
+ * actions use the Button primitive.
  */
 import { useState } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -46,6 +49,10 @@ import {
   useVendorBookings,
 } from "@/lib/api/vendor-bookings-queries";
 import type { Booking, BookingStatus } from "@/lib/api/bookings";
+import { Container, PageHeader } from "@/components/ui/container";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { BookingStatusBadge } from "@/components/ui/badge";
 
 const PAGE_SIZE = 10;
 
@@ -146,14 +153,11 @@ function VendorBookingsContent() {
   const total = data?.totalElements ?? 0;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Bookings</h1>
-        <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-          Requests customers have made on your services. Advance them through confirm →
-          start → complete.
-        </p>
-      </header>
+    <Container width="default">
+      <PageHeader
+        title="Bookings"
+        subtitle="Requests customers have made on your services. Advance them through confirm → start → complete."
+      />
 
       {isPending ? (
         <CatalogSkeleton />
@@ -166,22 +170,20 @@ function VendorBookingsContent() {
       ) : (
         <>
           {isFetching ? (
-            <p className="mb-4 text-sm text-neutral-500">Refreshing…</p>
+            <p className="mb-4 text-sm text-muted-foreground">Refreshing…</p>
           ) : null}
 
           {bookings.length === 0 ? (
-            <div className="rounded border border-dashed border-neutral-300 p-8 text-center dark:border-neutral-700">
-              <p className="text-neutral-500 dark:text-neutral-400">
-                No bookings yet. When a customer books one of your services, it&apos;ll
-                appear here.
-              </p>
-            </div>
+            <Card padded className="py-10 text-center text-muted-foreground">
+              No bookings yet. When a customer books one of your services, it&apos;ll
+              appear here.
+            </Card>
           ) : (
             <>
-              <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mb-4 text-sm text-muted-foreground">
                 {total} booking{total === 1 ? "" : "s"}
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {bookings.map((booking) => (
                   <VendorBookingRow
                     key={booking.id ?? Math.random()}
@@ -208,26 +210,8 @@ function VendorBookingsContent() {
           )}
         </>
       )}
-    </main>
+    </Container>
   );
-}
-
-/** Map a booking status to a Tailwind color class for the badge. */
-function statusBadgeClass(status: BookingStatus): string {
-  switch (status) {
-    case "PENDING":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
-    case "CONFIRMED":
-      return "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300";
-    case "IN_PROGRESS":
-      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300";
-    case "COMPLETED":
-      return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
-    case "CANCELLED":
-      return "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-400";
-    default:
-      return "bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-400";
-  }
 }
 
 /** Format a date-time ISO string as a readable local time, or "—" if missing/invalid. */
@@ -253,6 +237,24 @@ function formatPrice(
     // Unknown currency code → show raw amount.
     return `${amount} ${currency ?? ""}`.trim();
   }
+}
+
+/** Small dt/dd pair used in the meta grid. */
+function MetaCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm text-foreground">{children}</dd>
+    </div>
+  );
 }
 
 interface VendorBookingRowProps {
@@ -313,7 +315,7 @@ function VendorBookingRow({
   onStart,
   onComplete,
 }: VendorBookingRowProps) {
-  const status = booking.status ?? "PENDING";
+  const status: BookingStatus = booking.status ?? "PENDING";
   const action = actionForStatus(
     status,
     booking.id,
@@ -323,10 +325,10 @@ function VendorBookingRow({
   );
 
   return (
-    <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <Card as="li" padded className="py-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">
+          <h3 className="font-semibold text-foreground">
             {booking.serviceTitle ?? `Service #${booking.serviceId ?? "?"}`}
           </h3>
           {/*
@@ -335,74 +337,52 @@ function VendorBookingRow({
             the request is from.
           */}
           {booking.customerName ? (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               from {booking.customerName}
             </p>
           ) : null}
         </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(
-            status,
-          )}`}
-        >
-          {status}
-        </span>
+        <BookingStatusBadge status={status} />
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            Start
-          </dt>
-          <dd>{formatDateTime(booking.startTime)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">End</dt>
-          <dd>{formatDateTime(booking.endTime)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            Quantity
-          </dt>
-          <dd>{booking.quantity ?? 1}</dd>
-        </div>
-        <div>
-          <dt className="text-xs uppercase tracking-wide text-neutral-400">
-            Total
-          </dt>
-          <dd>{formatPrice(booking.totalPrice, booking.currency)}</dd>
-        </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetaCell label="Start">{formatDateTime(booking.startTime)}</MetaCell>
+        <MetaCell label="End">{formatDateTime(booking.endTime)}</MetaCell>
+        <MetaCell label="Quantity">{booking.quantity ?? 1}</MetaCell>
+        <MetaCell label="Total">
+          {formatPrice(booking.totalPrice, booking.currency)}
+        </MetaCell>
       </dl>
 
       {booking.notes ? (
-        <p className="mt-3 rounded bg-neutral-50 p-2 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400">
-          <span className="font-medium">Note:</span> {booking.notes}
+        <p className="mt-4 rounded-2xl bg-muted/70 p-3 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Note:</span>{" "}
+          {booking.notes}
         </p>
       ) : null}
 
       {/*
         Single status-appropriate action button. The label + in-flight label come from
         `actionForStatus` so Confirm/Start/Complete each read naturally. Disabled (and
-        showing the gerund) while any action is mid-flight for THIS row.
+        showing the gerund via isLoading) while any action is mid-flight for THIS row.
       */}
       {action ? (
-        <div className="mt-3 flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled={actionInFlight}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button
+            size="sm"
+            isLoading={actionInFlight}
             onClick={action.onClick}
-            className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
           >
             {actionInFlight ? action.inFlightLabel : action.label}
-          </button>
+          </Button>
         </div>
       ) : null}
 
       {actionError ? (
-        <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p className="mt-3 text-sm text-danger" role="alert">
           {actionError}
         </p>
       ) : null}
-    </li>
+    </Card>
   );
 }
