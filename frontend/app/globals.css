@@ -5,6 +5,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Tell the browser this page supports both color schemes so NATIVE controls
+     (scrollbars, <input type=date>, form autofill) pick the right theme. */
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,4 +23,25 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
     Cantarell, sans-serif;
+}
+
+/*
+ * Visible focus for keyboard users.
+ *
+ * Tailwind's preflight does NOT remove outlines, but several components style
+ * hover/active states without re-declaring focus, and a few buttons rely on the
+ * browser default ring — which varies wildly across browsers and can be near-
+ * invisible on dark backgrounds. Rather than scatter `focus-visible:ring-*`
+ * classes across every component, we declare ONE consistent keyboard focus ring
+ * globally.
+ *
+ * We use `:focus-visible` (not `:focus`) so the ring only appears for KEYBOARD
+ * navigation — mouse clicks won't show it, keeping the mouse UX clean while
+ * keeping keyboard navigation accessible (WCAG 2.4.7 Focus Visible). The offset
+ * keeps the ring from sitting on top of the element's own border.
+ */
+:focus-visible {
+  outline: 2px solid #2563eb; /* blue-600, matches the app's primary */
+  outline-offset: 2px;
+  border-radius: 2px;
 }

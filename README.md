@@ -153,6 +153,77 @@ services so they survive app redeploys:
 > Secrets are injected at runtime via Render's encrypted env store. The Docker image contains no
 > credentials, so it is safe to push to a public registry.
 
+## Frontend (Phase 7)
+
+The web client is a **Next.js App Router** application written in **TypeScript**, styled with
+**Tailwind CSS**, with **TanStack Query** for server-state (catalog, bookings, orders, payments) and
+**Stripe Elements** for the checkout card form. It is deployed on **Vercel** as a static + edge
+runtime in front of the Spring backend above.
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS |
+| Server state | TanStack Query |
+| Payments | Stripe.js + Stripe React Elements (test mode) |
+| API typing | Generated from `docs/api/openapi.yaml` via `openapi-typescript` |
+| Hosting | Vercel |
+
+The API client is **generated** from the committed OpenAPI spec, so every backend DTO the frontend
+reads is type-checked against the contract — a backend field rename shows up as a compile error on
+the next `npm run gen:api`. There is no hand-rolled API DTO layer.
+
+### Frontend local dev
+
+```bash
+cd frontend
+npm install
+
+# Create a .env.local (git-ignored) with:
+#   NEXT_PUBLIC_API_BASE_URL          backend base URL
+#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  Stripe pk_test_... key (test mode)
+# A .env.example with these keys and notes ships in frontend/.
+
+npm run gen:api   # regenerate the typed client from ../docs/api/openapi.yaml (no-op if spec unchanged)
+npm run dev       # http://localhost:3000
+```
+
+Point `NEXT_PUBLIC_API_BASE_URL` at your local backend (`http://localhost:8080`) or the live Render
+URL for end-to-end testing against the deployed API.
+
+### Frontend scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Next dev server on :3000 |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build |
+| `npm run typecheck` | `tsc --noEmit` type check |
+| `npm run gen:api` | Regenerate `lib/api/schema.d.ts` from the OpenAPI spec |
+| `npm run lint` | `next lint` |
+
+### Frontend deployment (Vercel)
+
+1. Push the repo to GitHub.
+2. In Vercel, **New Project → Import** the repo, set the **Root Directory** to `frontend`.
+3. Set the same two environment variables in Vercel's project settings:
+   - `NEXT_PUBLIC_API_BASE_URL` — backend base URL (e.g. the Render URL above)
+   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — Stripe **publishable** key (`pk_test_...` for test mode)
+4. Deploy. Vercel runs `next build` automatically.
+
+> Only `NEXT_PUBLIC_*` values belong in the frontend. The Stripe **secret** key and webhook secret
+> live on the **backend** only.
+
+### Live (frontend)
+
+- **Live URL:** <!-- LIVE_URL -->
+- **Screenshot:** <!-- SCREENSHOT -->
+
+<!-- The two placeholders above are intentional: fill LIVE_URL with the deployed Vercel URL after
+     import, and SCREENSHOT with a committed image path once you capture one. Do not ship a
+     fabricated URL or a screenshot reference that doesn't exist yet. -->
+
 ## Documentation Index
 
 - [System Design Document](docs/system-design.md)
