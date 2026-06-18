@@ -4,11 +4,16 @@
  * Booking row — one entry in the "My bookings" list.
  *
  * Shows the service title, vendor, time window (formatted), status badge, price, and
- * quantity. The Cancel button appears ONLY for PENDING bookings (the backend rejects
- * cancel for any other status with 422); clicking it calls the cancel mutation, which
- * the parent wires up. A 422 (status changed under us) surfaces the server message and
- * the parent refetches.
+ * quantity. Two status-gated actions:
+ *   - Cancel: PENDING only (the backend rejects cancel for any other status with 422).
+ *     Clicking it calls the cancel mutation the parent wires up. A 422 (status changed
+ *     under us) surfaces the server message and the parent refetches.
+ *   - Pay now: CONFIRMED only. A booking must be CONFIRMED before an order can be
+ *     created from it (the backend rejects POST /api/orders with 422 otherwise). The
+ *     button is a plain link to /checkout/<bookingId> — the checkout page handles the
+ *     order → payment → Stripe flow.
  */
+import Link from "next/link";
 import type { Booking, BookingStatus } from "@/lib/api/bookings";
 
 interface BookingCardProps {
@@ -72,6 +77,10 @@ export function BookingCard({
 }: BookingCardProps) {
   const status = booking.status ?? "PENDING";
   const canCancel = status === "PENDING" && onCancel !== undefined;
+  // Pay-now is gated to CONFIRMED: only confirmed bookings can seed an order. The
+  // checkout page will also enforce this server-side (422), but gating here avoids a
+  // pointless navigation for PENDING/COMPLETED/CANCELLED rows.
+  const canPay = status === "CONFIRMED" && booking.id !== undefined;
 
   return (
     <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
@@ -118,16 +127,37 @@ export function BookingCard({
         </p>
       ) : null}
 
-      {canCancel ? (
-        <div className="mt-3">
-          <button
-            type="button"
-            disabled={isCancelling}
-            onClick={() => onCancel?.(booking.id ?? 0)}
-            className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
-          >
-            {isCancelling ? "Cancelling…" : "Cancel booking"}
-          </button>
+      {/*
+        Actions row. We lay Cancel + Pay now side by side when both apply — but in
+        practice they're mutually exclusive by status (PENDING vs CONFIRMED), so only
+        one renders at a time. The `gap-3` keeps spacing sane if that ever changes.
+      */}
+      {(canCancel || canPay) ? (
+        <div className="mt-3 flex flex-wrap gap-3">
+          {canCancel ? (
+            <button
+              type="button"
+              disabled={isCancelling}
+              onClick={() => onCancel?.(booking.id ?? 0)}
+              className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              {isCancelling ? "Cancelling…" : "Cancel booking"}
+            </button>
+          ) : null}
+
+          {/*
+            Pay now → /checkout/<bookingId>. A <Link> (not a button) because it's pure
+            navigation; the checkout route owns all the order/payment logic. Styled as
+            a solid button so it reads as the primary CTA for a CONFIRMED booking.
+          */}
+          {canPay ? (
+            <Link
+              href={`/checkout/${encodeURIComponent(booking.id as number)}`}
+              className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Pay now
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
