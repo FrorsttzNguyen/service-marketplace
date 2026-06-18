@@ -10,17 +10,14 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
  * Explicit primary ObjectMapper for Spring MVC HTTP message conversion.
  *
  * WHY this class exists:
- * When spring.data.redis.host is configured, RedisConfig creates a "redisObjectMapper" bean
- * of type ObjectMapper (needed for Redis cache serialization with default typing).
- * Spring Boot's JacksonAutoConfiguration uses @ConditionalOnMissingBean on its ObjectMapper
- * factory method, so when it sees ANY ObjectMapper bean already exists, it skips creating
- * the clean auto-configured one. Spring MVC then falls back to using the Redis mapper —
- * which has activateDefaultTyping enabled — and "@class" type metadata leaks into every
- * HTTP response.
+ * Spring MVC's HTTP responses must use a CLEAN mapper with no default typing — "@class" metadata
+ * must never leak into REST payloads. Declaring an explicit @Primary ObjectMapper here guarantees
+ * MVC always has a clean, well-configured mapper and pins it as primary if any other ObjectMapper
+ * bean ever appears.
  *
- * The fix: declare an explicit @Primary ObjectMapper here (always active, no @ConditionalOnProperty)
- * so Spring MVC always has a clean, well-configured mapper regardless of Redis being present.
- * RedisConfig then builds its redis-specific mapper from a copy of this one.
+ * NOTE: Redis cache serialization does NOT use this bean. GenericJackson2JsonRedisSerializer owns
+ * its own internal mapper (see RedisConfig#cacheJsonSerializer) where default typing lives, so the
+ * "@class"-leak risk is structurally impossible — the two concerns never share a mapper.
  *
  * WHY Jackson2ObjectMapperBuilder (not new ObjectMapper()):
  * - Spring Boot's builder applies all auto-configuration (java.time support, feature flags,

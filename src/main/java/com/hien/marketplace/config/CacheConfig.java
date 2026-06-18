@@ -1,6 +1,5 @@
 package com.hien.marketplace.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.KeyGenerator;
@@ -75,11 +74,8 @@ public class CacheConfig {
     @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "spring.data.redis.host")
     public RedisCacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
-            @Qualifier("redisObjectMapper") ObjectMapper redisObjectMapper
+            @Qualifier("redisJsonSerializer") GenericJackson2JsonRedisSerializer jsonSerializer
     ) {
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-                new GenericJackson2JsonRedisSerializer(redisObjectMapper);
-
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 // Prefix every key so our entries don't collide with rate-limit keys or other apps.
                 // computePrefixWith sets a converter applied to every cache name; result is
