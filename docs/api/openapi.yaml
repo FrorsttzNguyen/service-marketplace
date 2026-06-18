@@ -114,6 +114,42 @@ paths:
           description: Not your service
       security:
       - bearerAuth: []
+  /api/bookings/{id}/start:
+    put:
+      tags:
+      - Bookings
+      summary: Start service
+      description: Vendor marks a CONFIRMED booking as IN_PROGRESS when the service
+        begins. Only the vendor who owns the service may start it.
+      operationId: startService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Service started
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "404":
+          description: Booking not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "422":
+          description: "Not your service, or status doesn't allow start"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+      security:
+      - bearerAuth: []
   /api/bookings/{id}/confirm:
     put:
       tags:
@@ -145,6 +181,43 @@ paths:
                 $ref: "#/components/schemas/BookingResponse"
         "422":
           description: "Not your service, or status doesn't allow confirm"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+      security:
+      - bearerAuth: []
+  /api/bookings/{id}/complete:
+    put:
+      tags:
+      - Bookings
+      summary: Complete service
+      description: Vendor marks an IN_PROGRESS booking as COMPLETED once the service
+        is done. Only the vendor who owns the service may complete it. A booking must
+        be COMPLETED before the customer can review it.
+      operationId: completeService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Service completed
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "404":
+          description: Booking not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "422":
+          description: "Not your service, or status doesn't allow complete"
           content:
             '*/*':
               schema:
@@ -329,15 +402,40 @@ paths:
       tags:
       - Reviews
       summary: Create review
-      description: Leave a review for a completed booking (Phase 3)
+      description: Leave a review for a booking the caller owns. The booking must
+        be COMPLETED and not already reviewed.
       operationId: createReview
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewCreateRequest"
+        required: true
       responses:
         "201":
           description: Review created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
+        "400":
+          description: Invalid input
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
         "404":
           description: Booking not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
         "422":
-          description: Booking not completed
+          description: "Not your booking, not completed, or already reviewed"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
       security:
       - bearerAuth: []
   /api/refunds:
@@ -791,7 +889,7 @@ paths:
       tags:
       - Reviews
       summary: Get vendor reviews
-      description: List all reviews for a vendor (Phase 3)
+      description: "List all reviews for a vendor, newest first."
       operationId: getVendorReviews
       parameters:
       - name: vendorId
@@ -803,14 +901,18 @@ paths:
       responses:
         "200":
           description: Reviews retrieved
-      security:
-      - bearerAuth: []
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReviewResponse"
   /api/reviews/service/{serviceId}:
     get:
       tags:
       - Reviews
       summary: Get service reviews
-      description: List all reviews for a service (Phase 3)
+      description: "List all reviews for a service, newest first."
       operationId: getServiceReviews
       parameters:
       - name: serviceId
@@ -822,8 +924,12 @@ paths:
       responses:
         "200":
           description: Reviews retrieved
-      security:
-      - bearerAuth: []
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReviewResponse"
   /api/refunds/{id}:
     get:
       tags:
@@ -1295,6 +1401,56 @@ components:
       - categoryId
       - pricingType
       - title
+    ReviewCreateRequest:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+          format: int64
+        rating:
+          type: integer
+          format: int32
+          maximum: 5
+          minimum: 1
+        comment:
+          type: string
+          maxLength: 2000
+          minLength: 0
+      required:
+      - bookingId
+      - rating
+    ReviewResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        bookingId:
+          type: integer
+          format: int64
+        serviceId:
+          type: integer
+          format: int64
+        serviceTitle:
+          type: string
+        customerId:
+          type: integer
+          format: int64
+        customerName:
+          type: string
+        vendorId:
+          type: integer
+          format: int64
+        vendorName:
+          type: string
+        rating:
+          type: integer
+          format: int32
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     RefundRequest:
       type: object
       properties:

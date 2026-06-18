@@ -145,4 +145,59 @@ public class BookingController {
         BookingResponse booking = bookingService.confirmBooking(principal.userId(), id);
         return ResponseEntity.ok(booking);
     }
+
+    /**
+     * Start service (Vendor action).
+     *
+     * WHY exposed here: the booking lifecycle is PENDING -> CONFIRMED -> IN_PROGRESS -> COMPLETED.
+     * A review can only be left on a COMPLETED booking, so the vendor needs a way to advance a
+     * CONFIRMED booking to IN_PROGRESS. The service method BookingService.startService already
+     * implements the vendor ownership check + state machine transition — this is just REST wiring,
+     * mirroring confirmBooking's shape.
+     */
+    @PutMapping("/{id}/start")
+    @Operation(
+            summary = "Start service",
+            description = "Vendor marks a CONFIRMED booking as IN_PROGRESS when the service begins. " +
+                    "Only the vendor who owns the service may start it.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Service started"),
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "422", description = "Not your service, or status doesn't allow start")
+            }
+    )
+    public ResponseEntity<BookingResponse> startService(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        BookingResponse booking = bookingService.startService(principal.userId(), id);
+        return ResponseEntity.ok(booking);
+    }
+
+    /**
+     * Complete service (Vendor action).
+     *
+     * WHY exposed here: completing a booking is the precondition for the customer to leave a review.
+     * BookingService.completeService already enforces vendor ownership + the IN_PROGRESS -> COMPLETED
+     * state machine transition — this endpoint is just the REST wiring.
+     */
+    @PutMapping("/{id}/complete")
+    @Operation(
+            summary = "Complete service",
+            description = "Vendor marks an IN_PROGRESS booking as COMPLETED once the service is done. " +
+                    "Only the vendor who owns the service may complete it. " +
+                    "A booking must be COMPLETED before the customer can review it.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Service completed"),
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "422", description = "Not your service, or status doesn't allow complete")
+            }
+    )
+    public ResponseEntity<BookingResponse> completeService(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        BookingResponse booking = bookingService.completeService(principal.userId(), id);
+        return ResponseEntity.ok(booking);
+    }
 }
