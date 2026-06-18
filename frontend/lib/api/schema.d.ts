@@ -28,6 +28,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/bookings/{id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Start service
+         * @description Vendor marks a CONFIRMED booking as IN_PROGRESS when the service begins. Only the vendor who owns the service may start it.
+         */
+        put: operations["startService"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bookings/{id}/confirm": {
         parameters: {
             query?: never;
@@ -38,9 +58,29 @@ export interface paths {
         get?: never;
         /**
          * Confirm booking
-         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book -> pay flow: an Order can only be created from a CONFIRMED booking.
+         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book → pay flow: an Order can only be created from a CONFIRMED booking.
          */
         put: operations["confirmBooking"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bookings/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Complete service
+         * @description Vendor marks an IN_PROGRESS booking as COMPLETED once the service is done. Only the vendor who owns the service may complete it. A booking must be COMPLETED before the customer can review it.
+         */
+        put: operations["completeService"];
         post?: never;
         delete?: never;
         options?: never;
@@ -143,7 +183,7 @@ export interface paths {
         put?: never;
         /**
          * Create review
-         * @description Leave a review for a completed booking (Phase 3)
+         * @description Leave a review for a booking the caller owns. The booking must be COMPLETED and not already reviewed.
          */
         post: operations["createReview"];
         delete?: never;
@@ -439,7 +479,7 @@ export interface paths {
         };
         /**
          * Get vendor reviews
-         * @description List all reviews for a vendor (Phase 3)
+         * @description List all reviews for a vendor, newest first.
          */
         get: operations["getVendorReviews"];
         put?: never;
@@ -459,7 +499,7 @@ export interface paths {
         };
         /**
          * Get service reviews
-         * @description List all reviews for a service (Phase 3)
+         * @description List all reviews for a service, newest first.
          */
         get: operations["getServiceReviews"];
         put?: never;
@@ -595,7 +635,7 @@ export interface paths {
         };
         /**
          * List categories
-         * @description Return all service categories. Public - used by the catalog filter and the vendor create-service form.
+         * @description Return all service categories. Public — used by the catalog filter and the vendor create-service form.
          */
         get: operations["listCategories"];
         put?: never;
@@ -751,6 +791,33 @@ export interface components {
             city?: string;
             imageUrl?: string;
         };
+        ReviewCreateRequest: {
+            /** Format: int64 */
+            bookingId: number;
+            /** Format: int32 */
+            rating: number;
+            comment?: string;
+        };
+        ReviewResponse: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            bookingId?: number;
+            /** Format: int64 */
+            serviceId?: number;
+            serviceTitle?: string;
+            /** Format: int64 */
+            customerId?: number;
+            customerName?: string;
+            /** Format: int64 */
+            vendorId?: number;
+            vendorName?: string;
+            /** Format: int32 */
+            rating?: number;
+            comment?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
         RefundRequest: {
             /** Format: int64 */
             amountCents?: number;
@@ -881,10 +948,10 @@ export interface components {
             /** Format: int64 */
             totalElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            /** Format: int32 */
-            numberOfElements?: number;
             first?: boolean;
             last?: boolean;
+            /** Format: int32 */
+            numberOfElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ServiceResponse"][];
@@ -922,10 +989,10 @@ export interface components {
             /** Format: int64 */
             totalElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            /** Format: int32 */
-            numberOfElements?: number;
             first?: boolean;
             last?: boolean;
+            /** Format: int32 */
+            numberOfElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["BookingResponse"][];
@@ -955,10 +1022,10 @@ export interface components {
             /** Format: int64 */
             totalElements?: number;
             pageable?: components["schemas"]["PageableObject"];
-            /** Format: int32 */
-            numberOfElements?: number;
             first?: boolean;
             last?: boolean;
+            /** Format: int32 */
+            numberOfElements?: number;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["VendorAdminResponse"][];
@@ -1054,6 +1121,46 @@ export interface operations {
             };
         };
     };
+    startService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service started */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Booking not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Not your service, or status doesn't allow start */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+        };
+    };
     confirmBooking: {
         parameters: {
             query?: never;
@@ -1084,6 +1191,46 @@ export interface operations {
                 };
             };
             /** @description Not your service, or status doesn't allow confirm */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+        };
+    };
+    completeService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Booking not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Not your service, or status doesn't allow complete */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1305,28 +1452,47 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewCreateRequest"];
+            };
+        };
         responses: {
             /** @description Review created */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReviewResponse"];
+                };
             };
             /** @description Booking not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["ReviewResponse"];
+                };
             };
-            /** @description Booking not completed */
+            /** @description Not your booking, not completed, or already reviewed */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["ReviewResponse"];
+                };
             };
         };
     };
@@ -1885,7 +2051,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["ReviewResponse"][];
+                };
             };
         };
     };
@@ -1905,7 +2073,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["ReviewResponse"][];
+                };
             };
         };
     };

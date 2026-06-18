@@ -3,40 +3,46 @@
 /**
  * Vendor — incoming bookings (`/vendor/bookings`).
  *
- * The backend's two vendor-side booking endpoints power this page:
- *   - GET /api/bookings/vendor?page&size  (list bookings on this vendor's services,
- *                                         ALL statuses)
- *   - PUT /api/bookings/{id}/confirm      (PENDING → CONFIRMED)
+ * The vendor drives the booking lifecycle forward through three bodyless PUTs, plus a
+ * paginated list of every booking on their services (all statuses):
+ *   - GET    /api/bookings/vendor?page&size  (list, ALL statuses)
+ *   - PUT    /api/bookings/{id}/confirm      (PENDING     → CONFIRMED)
+ *   - PUT    /api/bookings/{id}/start        (CONFIRMED   → IN_PROGRESS)
+ *   - PUT    /api/bookings/{id}/complete     (IN_PROGRESS → COMPLETED)
  *
- * This is the missing half of the "book → confirm → pay" flow: a customer books
- * (creates a PENDING booking) on the public catalog, the vendor confirms it here, and
- * ONLY then can the customer pay (an Order requires a CONFIRMED booking). With this
- * page the whole flow is now clickable end-to-end in the browser.
- *
- * SCOPE NOTE: the backend exposes ONLY `confirm` to the vendor UI. start/complete are
- * NOT wired here (they transition via other flows) — do not call any start/complete
- * endpoint.
+ * Full lifecycle: PENDING → CONFIRMED → IN_PROGRESS → COMPLETED (CANCELLED is a side
+ * exit the customer can take from PENDING). Each row shows the single action button
+ * appropriate to its status — Confirm / Start / Complete — and COMPLETED + CANCELLED
+ * rows are read-only. Completing is the final vendor step and is also what unblocks the
+ * customer to leave a review (a review requires a COMPLETED booking).
  *
  * Gated two ways (mirrors /vendor/services + /admin/vendors):
  *   - Client route guard: <RequireAuth requireRole="VENDOR"> redirects non-vendors home.
  *     Depends on the /me-in-rehydrate wiring so `user.role` survives a reload.
- *   - Server-side: both endpoints require a VENDOR-role JWT (and confirm requires the
- *     booking's service to belong to this vendor). 403 is the real security boundary.
+ *   - Server-side: every endpoint requires a VENDOR-role JWT (and the transition
+ *     endpoints require the booking's service to belong to this vendor). 403 is the real
+ *     security boundary.
  *
  * UI shape mirrors "My bookings": loading skeleton → error card (with retry) → empty
- * state → list of rows + pagination. Each PENDING row gets a Confirm button (per-row
- * spinner + error). The row component is vendor-specific (it shows the CUSTOMER name
- * and offers Confirm), so it lives in this file rather than reusing the customer
- * <BookingCard> — same data shape, different actions + emphasis.
+ * state → list of rows + pagination. Each actionable row gets one button (per-row
+ * spinner + per-row error). The per-row state is generalized to cover all three
+ * transitions: a single `actioningId` (only one row spins at a time) +
+ * `actionErrorId`/`actionErrorMsg` so a 403/404/422 message lands on the right row.
+ * The row component is vendor-specific (it shows the CUSTOMER name and offers lifecycle
+ * actions), so it lives in this file rather than reusing the customer <BookingCard> —
+ * same data shape, different actions + emphasis.
  */
 import { useState } from "react";
+import type { UseMutationResult } from "@tanstack/react-query";
 import { RequireAuth } from "@/components/require-auth";
 import { Pagination } from "@/components/pagination";
 import { ErrorState } from "@/components/error-state";
 import { CatalogSkeleton } from "@/components/skeletons";
 import { ApiError } from "@/lib/api/client";
 import {
+  useCompleteBooking,
   useConfirmBooking,
+  useStartBooking,
   useVendorBookings,
 } from "@/lib/api/vendor-bookings-queries";
 import type { Booking, BookingStatus } from "@/lib/api/bookings";
@@ -57,42 +63,83 @@ function VendorBookingsContent() {
     useVendorBookings({ page, size: PAGE_SIZE });
 
   const confirmMutation = useConfirmBooking();
+  const startMutation = useStartBooking();
+  const completeMutation = useCompleteBooking();
 
-  // Track WHICH booking is currently confirming (only one button spins at a time) and
-  // the per-row error so a 403/404/422 message shows next to the right row, not globally.
-  // Mirrors the customer-side cancel state in app/bookings/page.tsx.
-  const [confirmingId, setConfirmingId] = useState<number | null>(null);
-  const [confirmErrorId, setConfirmErrorId] = useState<number | null>(null);
-  const [confirmErrorMsg, setConfirmErrorMsg] = useState<string | null>(null);
+  // Per-row action state, generalized across all three transitions: only one row's
+  // button spins at a time (`actioningId`), and a 403/404/422 message lands on the row
+  // that produced it (`actionErrorId`/`actionErrorMsg`). Mirrors the customer-side
+  // cancel state in app/bookings/page.tsx, just shared across confirm/start/complete.
+  const [actioningId, setActioningId] = useState<number | null>(null);
+  const [actionErrorId, setActionErrorId] = useState<number | null>(null);
+  const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
 
-  function handleConfirm(id: number) {
-    // Confirming lets the customer pay — it's a commitment, so a quick confirm is
-    // appropriate (matches the app's window.confirm pattern elsewhere).
-    if (!window.confirm("Confirm this booking? The customer can then pay.")) {
-      return;
-    }
-    setConfirmingId(id);
-    setConfirmErrorId(null);
-    setConfirmErrorMsg(null);
-    confirmMutation.mutate(id, {
+  /**
+   * Run one of the three lifecycle transitions on a booking. All three mutations share
+   * the same `(id: number) => Booking` shape and the same success/error handling, so a
+   * single dispatcher covers them without three near-identical handlers. On a 422
+   * ("status changed under us" / "not your service" / wrong source status) we surface
+   * the server message; the hook's invalidation-on-success refetches the list with the
+   * true status.
+   *
+   * `verb` is only used to build the fallback error message ("Couldn't {verb} this
+   * booking.") when the server didn't send one. Each transition's in-flight button
+   * label is computed in the row from the status, not passed through here.
+   */
+  function runTransition(
+    id: number,
+    mutation: UseMutationResult<Booking, unknown, number>,
+    verb: string,
+    prompt: string,
+  ) {
+    if (!window.confirm(prompt)) return;
+    setActioningId(id);
+    setActionErrorId(null);
+    setActionErrorMsg(null);
+    mutation.mutate(id, {
       onSuccess: () => {
-        setConfirmingId(null);
-        // invalidation in the hook refetches the list automatically; the row's Confirm
-        // button disappears (it's PENDING-gated) and the status flips to CONFIRMED.
+        setActioningId(null);
+        // invalidation in the hook refetches the list automatically; the row's button
+        // flips to the next transition (or disappears for COMPLETED).
       },
       onError: (err: unknown) => {
-        setConfirmingId(null);
-        setConfirmErrorId(id);
-        // 422 = status changed (e.g. customer cancelled between our list render and the
-        // click, or it was already confirmed); show the server's message and let the
-        // refetch fix the UI.
-        setConfirmErrorMsg(
-          err instanceof ApiError
-            ? err.message
-            : "Couldn't confirm this booking.",
+        setActioningId(null);
+        setActionErrorId(id);
+        // 422 = the status no longer allows this transition (race with the customer, or
+        // the row was already advanced); show the server's message and let the refetch
+        // fix the UI.
+        setActionErrorMsg(
+          err instanceof ApiError ? err.message : `Couldn't ${verb} this booking.`,
         );
       },
     });
+  }
+
+  function handleConfirm(id: number) {
+    runTransition(
+      id,
+      confirmMutation,
+      "confirm",
+      "Confirm this booking? The customer can then pay.",
+    );
+  }
+
+  function handleStart(id: number) {
+    runTransition(
+      id,
+      startMutation,
+      "start",
+      "Start this booking? It will be marked as in progress.",
+    );
+  }
+
+  function handleComplete(id: number) {
+    runTransition(
+      id,
+      completeMutation,
+      "complete",
+      "Complete this booking? The customer will be able to leave a review.",
+    );
   }
 
   const bookings = data?.content ?? [];
@@ -103,8 +150,8 @@ function VendorBookingsContent() {
       <header className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Bookings</h1>
         <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-          Requests customers have made on your services. Confirm pending ones to let
-          them pay.
+          Requests customers have made on your services. Advance them through confirm →
+          start → complete.
         </p>
       </header>
 
@@ -139,11 +186,13 @@ function VendorBookingsContent() {
                   <VendorBookingRow
                     key={booking.id ?? Math.random()}
                     booking={booking}
-                    isConfirming={confirmingId === booking.id}
-                    confirmError={
-                      confirmErrorId === booking.id ? confirmErrorMsg : null
+                    actionInFlight={actioningId === booking.id}
+                    actionError={
+                      actionErrorId === booking.id ? actionErrorMsg : null
                     }
                     onConfirm={handleConfirm}
+                    onStart={handleStart}
+                    onComplete={handleComplete}
                   />
                 ))}
               </ul>
@@ -208,21 +257,70 @@ function formatPrice(
 
 interface VendorBookingRowProps {
   booking: Booking;
-  isConfirming: boolean;
-  confirmError: string | null;
+  actionInFlight: boolean;
+  actionError: string | null;
   onConfirm: (id: number) => void;
+  onStart: (id: number) => void;
+  onComplete: (id: number) => void;
+}
+
+/**
+ * Decide the single action (if any) a vendor can take on a booking given its status.
+ * The backend rejects a transition from the wrong source status with 422, so gating the
+ * button to the correct status here avoids a pointless round-trip AND keeps each row's
+ * affordance unambiguous: exactly one next step, or none for terminal states.
+ *
+ * Returns `{ label, onClick, inFlightLabel }` or `null` for read-only rows.
+ */
+function actionForStatus(
+  status: BookingStatus,
+  bookingId: number | undefined,
+  onConfirm: (id: number) => void,
+  onStart: (id: number) => void,
+  onComplete: (id: number) => void,
+): { label: string; inFlightLabel: string; onClick: () => void } | null {
+  if (bookingId === undefined) return null;
+  switch (status) {
+    case "PENDING":
+      return {
+        label: "Confirm",
+        inFlightLabel: "Confirming…",
+        onClick: () => onConfirm(bookingId),
+      };
+    case "CONFIRMED":
+      return {
+        label: "Start",
+        inFlightLabel: "Starting…",
+        onClick: () => onStart(bookingId),
+      };
+    case "IN_PROGRESS":
+      return {
+        label: "Complete",
+        inFlightLabel: "Completing…",
+        onClick: () => onComplete(bookingId),
+      };
+    // COMPLETED + CANCELLED are terminal — no vendor action. Read-only.
+    default:
+      return null;
+  }
 }
 
 function VendorBookingRow({
   booking,
-  isConfirming,
-  confirmError,
+  actionInFlight,
+  actionError,
   onConfirm,
+  onStart,
+  onComplete,
 }: VendorBookingRowProps) {
   const status = booking.status ?? "PENDING";
-  // Confirm only makes sense for PENDING — the backend rejects it otherwise (422). The
-  // vendor sees historical rows (CONFIRMED/COMPLETED/CANCELLED) read-only.
-  const canConfirm = status === "PENDING" && booking.id !== undefined;
+  const action = actionForStatus(
+    status,
+    booking.id,
+    onConfirm,
+    onStart,
+    onComplete,
+  );
 
   return (
     <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
@@ -282,22 +380,27 @@ function VendorBookingRow({
         </p>
       ) : null}
 
-      {canConfirm ? (
+      {/*
+        Single status-appropriate action button. The label + in-flight label come from
+        `actionForStatus` so Confirm/Start/Complete each read naturally. Disabled (and
+        showing the gerund) while any action is mid-flight for THIS row.
+      */}
+      {action ? (
         <div className="mt-3 flex flex-wrap gap-3">
           <button
             type="button"
-            disabled={isConfirming}
-            onClick={() => onConfirm(booking.id ?? 0)}
+            disabled={actionInFlight}
+            onClick={action.onClick}
             className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
           >
-            {isConfirming ? "Confirming…" : "Confirm"}
+            {actionInFlight ? action.inFlightLabel : action.label}
           </button>
         </div>
       ) : null}
 
-      {confirmError ? (
+      {actionError ? (
         <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
-          {confirmError}
+          {actionError}
         </p>
       ) : null}
     </li>

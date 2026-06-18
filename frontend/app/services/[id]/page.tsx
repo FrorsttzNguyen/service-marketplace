@@ -19,6 +19,7 @@ import { ApiError } from "@/lib/api/client";
 import { ErrorState } from "@/components/error-state";
 import { ServiceDetailSkeleton } from "@/components/skeletons";
 import { BookingForm } from "@/components/booking-form";
+import { ReviewsSection } from "@/components/reviews-section";
 
 /** Human-readable label for the pricing-type enum. */
 function prettyPricingType(type: string): string {
@@ -208,6 +209,16 @@ export default function ServiceDetailPage() {
           <BookingForm serviceId={service.id} />
         ) : null}
       </article>
+
+      {/*
+        Public reviews list — rendered below the article. Uses the PUBLIC
+        GET /api/reviews/service/{id}, so it shows for logged-out visitors too. Rendered
+        only when we have a valid service id; the section handles its own
+        loading/error/empty states.
+      */}
+      {service?.id !== undefined ? (
+        <ReviewsSection serviceId={service.id} />
+      ) : null}
     </DetailShell>
   );
 }

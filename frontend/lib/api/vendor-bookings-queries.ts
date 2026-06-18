@@ -22,8 +22,10 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import {
+  completeBooking,
   confirmBooking,
   listVendorBookings,
+  startBooking,
   type VendorBookingPage,
 } from "./vendor-bookings";
 import type { Booking } from "./bookings";
@@ -83,6 +85,50 @@ export function useConfirmBooking(): UseMutationResult<
     onSuccess: () => {
       // Broad invalidation within the vendor namespace: a confirm changes every page
       // of the vendor's list (the row's status flips), so we don't pin to the current page.
+      void queryClient.invalidateQueries({ queryKey: vendorBookingKeys.all });
+    },
+  });
+}
+
+/**
+ * Start a confirmed booking by id (PUT /api/bookings/{id}/start). On success,
+ * invalidates the vendor-bookings family so the list re-fetches with the new
+ * IN_PROGRESS status (and the row's button flips from "Start" to "Complete").
+ *
+ * Same contract + invalidation shape as `useConfirmBooking` — the only difference is
+ * the transition (CONFIRMED → IN_PROGRESS) and the source-status gate on the page.
+ */
+export function useStartBooking(): UseMutationResult<
+  Booking,
+  unknown,
+  number // booking id
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => startBooking({ id }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: vendorBookingKeys.all });
+    },
+  });
+}
+
+/**
+ * Complete an in-progress booking by id (PUT /api/bookings/{id}/complete). On success,
+ * invalidates the vendor-bookings family so the list re-fetches with the new COMPLETED
+ * status (the row becomes read-only — COMPLETED has no further vendor action).
+ *
+ * Completing is the final vendor step and is what unblocks the customer's review flow,
+ * so this transition is the natural endpoint of the vendor pipeline.
+ */
+export function useCompleteBooking(): UseMutationResult<
+  Booking,
+  unknown,
+  number // booking id
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => completeBooking({ id }),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: vendorBookingKeys.all });
     },
   });
