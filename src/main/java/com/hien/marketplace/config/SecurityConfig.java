@@ -114,6 +114,7 @@ public class SecurityConfig {
                                 .requestMatchers(
                                         "/api/auth/**",  // Register, login, refresh
                                         "/api/services/**",  // Public service catalog
+                                        "/api/categories",  // Public category reference data
                                         "/api/reviews/service/**",  // Public reviews
                                         "/api/reviews/vendor/**",  // Public vendor reviews
                                         "/api/webhooks/stripe",  // Stripe webhook (PUBLIC - security via signature)
