@@ -1,6 +1,7 @@
 package com.hien.marketplace.application.service;
 
 import com.hien.marketplace.application.exception.AuthenticationException;
+import com.hien.marketplace.interfaces.dto.response.UserResponse;
 import com.hien.marketplace.application.exception.DuplicateResourceException;
 import com.hien.marketplace.application.mapper.UserMapper;
 import com.hien.marketplace.domain.common.PhoneNumber;
@@ -172,5 +173,21 @@ public class AuthService {
 
         // Step 5: Return response
         return new TokenRefreshResponse(accessToken, jwtUtils.getAccessTokenExpiration());
+    }
+
+    /**
+     * Return the current authenticated user's profile (the "who am I" endpoint).
+     *
+     * WHY: refresh only returns a new access token (no profile), so after a page reload the client
+     * has a valid session but no user info (name/role). The frontend calls this on boot to rehydrate
+     * the profile — and role-gated routes (vendor/admin) need the role to be known after a reload.
+     *
+     * @param userId the authenticated user's id (from the JWT principal)
+     */
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthenticationException("User not found"));
+        return userMapper.toResponse(user);
     }
 }

@@ -1029,6 +1029,28 @@ paths:
                 $ref: "#/components/schemas/PageBookingResponse"
       security:
       - bearerAuth: []
+  /api/auth/me:
+    get:
+      tags:
+      - Authentication
+      summary: Get current user
+      description: Return the authenticated user's profile from the JWT.
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+      security:
+      - bearerAuth: []
   /api/admin/vendors:
     get:
       tags:
@@ -1601,6 +1623,36 @@ components:
           $ref: "#/components/schemas/SortObject"
         empty:
           type: boolean
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        email:
+          type: string
+        phoneNumber:
+          type: string
+        role:
+          type: string
+          enum:
+          - CUSTOMER
+          - VENDOR
+          - ADMIN
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - SUSPENDED
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     PageVendorAdminResponse:
       type: object
       properties:
