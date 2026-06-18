@@ -17,7 +17,16 @@ export function Header() {
 
   return (
     <header className="border-b border-neutral-200 dark:border-neutral-800">
-      <nav className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
+      {/*
+        The nav uses flex-wrap so on a narrow phone (~375px) the auth controls
+        wrap below the brand instead of overflowing horizontally (which would
+        cause a horizontal scrollbar or crammed, overlapping text). `gap-x-4`
+        + `gap-y-2` keep spacing sane across both wrapped lines.
+      */}
+      <nav
+        className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
+        aria-label="Primary"
+      >
         <Link
           href="/"
           className="font-semibold tracking-tight hover:text-blue-600 dark:hover:text-blue-400"
@@ -27,7 +36,9 @@ export function Header() {
 
         {/* While boot-rehydrating, render no auth controls to avoid a logged-out flicker. */}
         {isInitializing ? null : isAuthenticated ? (
-          <div className="flex items-center gap-3 text-sm">
+          // `flex-wrap` here too: name + "My bookings" + "Log out" can wrap on
+          // very small screens. `items-center` keeps them vertically aligned.
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
             <Link
               href="/bookings"
               className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
@@ -46,7 +57,7 @@ export function Header() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
             <Link
               href="/login"
               className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
