@@ -4,7 +4,7 @@
  * Booking row — one entry in the "My bookings" list.
  *
  * Shows the service title, vendor, time window (formatted), status badge, price, and
- * quantity. Two status-gated actions:
+ * quantity. Status-gated actions:
  *   - Cancel: PENDING only (the backend rejects cancel for any other status with 422).
  *     Clicking it calls the cancel mutation the parent wires up. A 422 (status changed
  *     under us) surfaces the server message and the parent refetches.
@@ -12,9 +12,13 @@
  *     created from it (the backend rejects POST /api/orders with 422 otherwise). The
  *     button is a plain link to /checkout/<bookingId> — the checkout page handles the
  *     order → payment → Stripe flow.
+ *   - Leave a review: COMPLETED only. Renders the inline <ReviewForm>, which POSTs to
+ *     /api/reviews. A review is the terminal step of the booking lifecycle and can only
+ *     be filed once per booking; the form treats a 422 "already reviewed" as success.
  */
 import Link from "next/link";
 import type { Booking, BookingStatus } from "@/lib/api/bookings";
+import { ReviewForm } from "@/components/review-form";
 
 interface BookingCardProps {
   booking: Booking;
@@ -81,6 +85,9 @@ export function BookingCard({
   // checkout page will also enforce this server-side (422), but gating here avoids a
   // pointless navigation for PENDING/COMPLETED/CANCELLED rows.
   const canPay = status === "CONFIRMED" && booking.id !== undefined;
+  // Review is gated to COMPLETED (a review requires a completed booking). We need a real
+  // booking id to POST /api/reviews; without one there's nothing to review.
+  const canReview = status === "COMPLETED" && booking.id !== undefined;
 
   return (
     <li className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
@@ -160,6 +167,14 @@ export function BookingCard({
           ) : null}
         </div>
       ) : null}
+
+      {/*
+        Review affordance for COMPLETED bookings. The form manages its own open/submit/
+        settled state (including the optimistic "already reviewed" → 422 handling), so we
+        just hand it the booking id. Rendered below the cancel/pay row, but since review
+        is COMPLETED-gated and those are PENDING/CONFIRMED-gated, only one ever shows.
+      */}
+      {canReview ? <ReviewForm bookingId={booking.id as number} /> : null}
 
       {cancelError ? (
         <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
