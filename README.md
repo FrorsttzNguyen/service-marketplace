@@ -217,12 +217,9 @@ URL for end-to-end testing against the deployed API.
 
 ### Live (frontend)
 
-- **Live URL:** <!-- LIVE_URL -->
-- **Screenshot:** <!-- SCREENSHOT -->
+- **Live URL:** https://service-marketplace-alpha.vercel.app
 
-<!-- The two placeholders above are intentional: fill LIVE_URL with the deployed Vercel URL after
-     import, and SCREENSHOT with a committed image path once you capture one. Do not ship a
-     fabricated URL or a screenshot reference that doesn't exist yet. -->
+![Service Marketplace — catalog](docs/images/frontend-catalog.png)
 
 ## Documentation Index
 
