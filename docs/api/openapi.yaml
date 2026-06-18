@@ -792,11 +792,33 @@ paths:
       tags:
       - Vendor Dashboard
       summary: Get statistics
-      description: Get booking statistics for authenticated vendor (Phase 3)
+      description: Get booking statistics for authenticated vendor
       operationId: getStats
       responses:
         "200":
           description: Statistics retrieved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorStatsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorStatsResponse"
+        "403":
+          description: Not a vendor
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorStatsResponse"
+        "422":
+          description: Vendor profile not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorStatsResponse"
       security:
       - bearerAuth: []
   /api/vendor/dashboard/earnings:
@@ -804,11 +826,33 @@ paths:
       tags:
       - Vendor Dashboard
       summary: Get earnings
-      description: Get earnings summary for authenticated vendor (Phase 3)
+      description: Get earnings summary for authenticated vendor
       operationId: getEarnings
       responses:
         "200":
           description: Earnings retrieved
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorEarningsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorEarningsResponse"
+        "403":
+          description: Not a vendor
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorEarningsResponse"
+        "422":
+          description: Vendor profile not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/VendorEarningsResponse"
       security:
       - bearerAuth: []
   /api/services:
@@ -1716,8 +1760,6 @@ components:
         totalElements:
           type: integer
           format: int64
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
         first:
           type: boolean
         last:
@@ -1725,6 +1767,8 @@ components:
         numberOfElements:
           type: integer
           format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -1766,6 +1810,58 @@ components:
           type: boolean
         empty:
           type: boolean
+    VendorStatsResponse:
+      type: object
+      properties:
+        totalServices:
+          type: integer
+          format: int32
+        activeServices:
+          type: integer
+          format: int32
+        totalBookings:
+          type: integer
+          format: int32
+        pendingBookings:
+          type: integer
+          format: int32
+        confirmedBookings:
+          type: integer
+          format: int32
+        completedBookings:
+          type: integer
+          format: int32
+        cancelledBookings:
+          type: integer
+          format: int32
+        averageRating:
+          type: number
+        totalReviews:
+          type: integer
+          format: int32
+        bookingsByStatus:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        totalCustomers:
+          type: integer
+          format: int32
+    VendorEarningsResponse:
+      type: object
+      properties:
+        totalEarnings:
+          type: number
+        pendingPayouts:
+          type: number
+        paidOut:
+          type: number
+        currency:
+          type: string
+        earningsByMonth:
+          type: object
+          additionalProperties:
+            type: number
     CategoryResponse:
       type: object
       properties:
@@ -1787,8 +1883,6 @@ components:
         totalElements:
           type: integer
           format: int64
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
         first:
           type: boolean
         last:
@@ -1796,6 +1890,8 @@ components:
         numberOfElements:
           type: integer
           format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -1849,8 +1945,6 @@ components:
         totalElements:
           type: integer
           format: int64
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
         first:
           type: boolean
         last:
@@ -1858,6 +1952,8 @@ components:
         numberOfElements:
           type: integer
           format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32

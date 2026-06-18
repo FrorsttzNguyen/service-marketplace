@@ -35,6 +35,10 @@ public interface ServiceRepository extends JpaRepository<ServiceEntity, Long>,
 
     List<ServiceEntity> findByVendorId(Long vendorId);
 
+    long countByVendorId(Long vendorId);
+
+    long countByVendorIdAndStatus(Long vendorId, ServiceStatus status);
+
     List<ServiceEntity> findByCategoryId(Long categoryId);
 
     List<ServiceEntity> findByStatus(ServiceStatus status);

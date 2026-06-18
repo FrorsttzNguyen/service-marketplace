@@ -379,7 +379,7 @@ export interface paths {
         };
         /**
          * Get statistics
-         * @description Get booking statistics for authenticated vendor (Phase 3)
+         * @description Get booking statistics for authenticated vendor
          */
         get: operations["getStats"];
         put?: never;
@@ -399,7 +399,7 @@ export interface paths {
         };
         /**
          * Get earnings
-         * @description Get earnings summary for authenticated vendor (Phase 3)
+         * @description Get earnings summary for authenticated vendor
          */
         get: operations["getEarnings"];
         put?: never;
@@ -947,11 +947,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
             first?: boolean;
             last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ServiceResponse"][];
@@ -976,6 +976,39 @@ export interface components {
             unsorted?: boolean;
             empty?: boolean;
         };
+        VendorStatsResponse: {
+            /** Format: int32 */
+            totalServices?: number;
+            /** Format: int32 */
+            activeServices?: number;
+            /** Format: int32 */
+            totalBookings?: number;
+            /** Format: int32 */
+            pendingBookings?: number;
+            /** Format: int32 */
+            confirmedBookings?: number;
+            /** Format: int32 */
+            completedBookings?: number;
+            /** Format: int32 */
+            cancelledBookings?: number;
+            averageRating?: number;
+            /** Format: int32 */
+            totalReviews?: number;
+            bookingsByStatus?: {
+                [key: string]: number;
+            };
+            /** Format: int32 */
+            totalCustomers?: number;
+        };
+        VendorEarningsResponse: {
+            totalEarnings?: number;
+            pendingPayouts?: number;
+            paidOut?: number;
+            currency?: string;
+            earningsByMonth?: {
+                [key: string]: number;
+            };
+        };
         CategoryResponse: {
             /** Format: int64 */
             id?: number;
@@ -988,11 +1021,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
             first?: boolean;
             last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["BookingResponse"][];
@@ -1021,11 +1054,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
             first?: boolean;
             last?: boolean;
             /** Format: int32 */
             numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["VendorAdminResponse"][];
@@ -1936,7 +1969,36 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["VendorStatsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VendorStatsResponse"];
+                };
+            };
+            /** @description Not a vendor */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VendorStatsResponse"];
+                };
+            };
+            /** @description Vendor profile not found */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VendorStatsResponse"];
+                };
             };
         };
     };
@@ -1954,7 +2016,36 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                };
+            };
+            /** @description Not a vendor */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                };
+            };
+            /** @description Vendor profile not found */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                };
             };
         };
     };

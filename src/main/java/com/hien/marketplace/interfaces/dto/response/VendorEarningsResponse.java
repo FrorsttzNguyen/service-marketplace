@@ -14,8 +14,8 @@ import java.util.Map;
  */
 public record VendorEarningsResponse(
     BigDecimal totalEarnings,
-    BigDecimal pendingPayouts,  // Completed but not yet paid out
-    BigDecimal paidOut,
+    BigDecimal pendingPayouts,  // Paid orders not yet fulfilled (PAID status)
+    BigDecimal paidOut,  // Fulfilled order subtotals (FULFILLED status)
     String currency,
     Map<String, BigDecimal> earningsByMonth  // "2026-01" -> 1500.00
 ) {

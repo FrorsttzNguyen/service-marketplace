@@ -5,8 +5,8 @@
  *   - Logged out → "Log in" + "Sign up" links.
  *   - Logged in  → the user's name + a "Log out" button.
  *   - Admin user → an extra "Admin" link to /admin/vendors.
- *   - Vendor user → two extra links: "My services" + "Bookings" (vendor side) to
- *     /vendor/services and /vendor/bookings.
+ *   - Vendor user → three extra links: "Dashboard" + "My services" + "Bookings"
+ *     (vendor side) to /vendor/dashboard, /vendor/services, and /vendor/bookings.
  *   - Initializing → nothing (avoid a flash of logged-out controls during rehydrate).
  *
  * The access token is intentionally never read here — only the non-secret user
@@ -96,13 +96,14 @@ export function Header() {
             */}
             {isAdmin ? <NavLink href="/admin/vendors">Admin</NavLink> : null}
             {/*
-              Vendor links — only for VENDOR-role users. Two direct links mirror how
-              "My bookings" is a direct link: the vendor's two workspaces (manage their
-              services, handle incoming bookings). Same gating rationale as Admin: UX,
-              not security — RequireAuth requireRole="VENDOR" + the server's 403 enforce.
+              Vendor links — only for VENDOR-role users. Direct links mirror how
+              "My bookings" is a direct link: dashboard overview, service management,
+              and incoming bookings. Same gating rationale as Admin: UX, not security —
+              RequireAuth requireRole="VENDOR" + the server's 403 enforce.
             */}
             {isVendor ? (
               <>
+                <NavLink href="/vendor/dashboard">Dashboard</NavLink>
                 <NavLink href="/vendor/services">My services</NavLink>
                 <NavLink href="/vendor/bookings">Bookings</NavLink>
               </>
