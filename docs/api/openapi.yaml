@@ -286,6 +286,42 @@ paths:
                 $ref: "#/components/schemas/ServiceResponse"
       security:
       - bearerAuth: []
+  /api/vendor/services/{id}/activate:
+    post:
+      tags:
+      - Vendor Service Management
+      summary: Activate service
+      description: Activate (publish) a service owned by the authenticated vendor
+        so it appears in the public catalog
+      operationId: activateService
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Service activated
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "404":
+          description: Service not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+        "422":
+          description: Not your service
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+      security:
+      - bearerAuth: []
   /api/reviews:
     post:
       tags:
@@ -1483,15 +1519,15 @@ components:
         totalElements:
           type: integer
           format: int64
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -1542,15 +1578,15 @@ components:
         totalElements:
           type: integer
           format: int64
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -1574,15 +1610,15 @@ components:
         totalElements:
           type: integer
           format: int64
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32

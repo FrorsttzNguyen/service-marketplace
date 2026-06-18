@@ -137,4 +137,28 @@ public class VendorServiceController {
         vendorServiceManagement.deactivateService(principal.userId(), id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Activate (publish) a service.
+     *
+     * A service is created as DRAFT and the public catalog only lists ACTIVE services, so a vendor
+     * needs this to make a service visible. Symmetric counterpart of deactivate.
+     */
+    @PostMapping("/{id}/activate")
+    @Operation(
+            summary = "Activate service",
+            description = "Activate (publish) a service owned by the authenticated vendor so it appears in the public catalog",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Service activated"),
+                    @ApiResponse(responseCode = "404", description = "Service not found"),
+                    @ApiResponse(responseCode = "422", description = "Not your service")
+            }
+    )
+    public ResponseEntity<ServiceResponse> activateService(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        ServiceResponse service = vendorServiceManagement.activateService(principal.userId(), id);
+        return ResponseEntity.ok(service);
+    }
 }
