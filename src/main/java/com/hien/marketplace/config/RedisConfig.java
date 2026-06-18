@@ -2,8 +2,7 @@ package com.hien.marketplace.config;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,40 +41,40 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class RedisConfig {
 
     /**
-     * ObjectMapper used exclusively by Redis serializers (RedisTemplate and RedisCacheManager).
+     * Build the JSON serializer used for BOTH the RedisTemplate values and the @Cacheable cache
+     * (see CacheConfig). Shared as a static factory so the regression test can exercise the EXACT
+     * construction the app uses (RedisCacheSerializationTest), guarding against config drift.
      *
-     * WHY copy() from the primary MVC ObjectMapper:
-     * - objectMapper.copy() produces an independent instance that inherits all base configuration
-     *   (JavaTimeModule, feature flags, etc.) from the primary bean — so cached values serialize
-     *   java.time.* types the same way REST responses do, avoiding mismatches on cache read.
-     * - The copy is then configured with activateDefaultTyping so Redis can reconstruct concrete
-     *   types (e.g. ServiceResponse record) on cache HIT. This is intentional for Redis only.
-     * - The PRIMARY MVC ObjectMapper is left untouched — no "@class" ever appears in HTTP responses.
-     *
-     * WHY NOT @Primary:
-     * - This bean must never be used by Spring MVC's HTTP message converter.
-     * - JacksonConfig defines the @Primary objectMapper for MVC; this one is only reached via
-     *   @Qualifier("redisObjectMapper") in RedisTemplate and RedisCacheManager.
-     *
-     * WHY setVisibility(ALL, ANY):
-     * - Java records expose fields directly (no getters), so Jackson's default accessor scan
-     *   misses them. Setting visibility to ANY ensures fields are serialized even without getters.
+     * WHY no-arg constructor + configure() (this is the bug fix):
+     * - The no-arg GenericJackson2JsonRedisSerializer sets up its OWN default typing, which writes a
+     *   top-level "@class" on every cached object AND reads it back symmetrically.
+     * - The previous code instead passed a hand-built ObjectMapper with
+     *   activateDefaultTyping(..., As.PROPERTY). That produced ASYMMETRIC output: nested non-final
+     *   values got a ["fqcn", value] wrapper but the ROOT object had NO "@class". On a cache HIT the
+     *   read side (which reads into Object with default typing on) then failed with
+     *   "missing type id property '@class'" → every cache hit returned HTTP 500. It was latent
+     *   because the in-memory test cache doesn't serialize, and prod cache hits only happen within
+     *   the TTL window.
+     * - configure() only ADDS what the no-arg mapper lacks: JavaTimeModule (for LocalDateTime in the
+     *   cached DTOs) and field visibility (Java records expose fields, not getters). It does NOT
+     *   touch the typing setup, so the symmetric "@class" handling is preserved.
      */
-    @Bean("redisObjectMapper")
-    public ObjectMapper redisObjectMapper(ObjectMapper objectMapper) {
-        // Copy inherits base config (modules, features) without mutating the shared MVC mapper.
-        ObjectMapper redisCopy = objectMapper.copy();
-        // Serialize fields directly (needed for Java records which have no traditional getters).
-        redisCopy.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        // Embed "@class": "<fqcn>" so deserialization knows the concrete type.
-        // LaissezFaireSubTypeValidator is the validator Jackson requires when default typing is on;
-        // it allows every subtype (acceptable for an internal cache, NOT for untrusted input).
-        redisCopy.activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance,
-                ObjectMapper.DefaultTyping.NON_FINAL,
-                com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY
-        );
-        return redisCopy;
+    public static GenericJackson2JsonRedisSerializer cacheJsonSerializer() {
+        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
+        serializer.configure(mapper -> {
+            mapper.registerModule(new JavaTimeModule());
+            mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        });
+        return serializer;
+    }
+
+    /**
+     * Shared JSON serializer bean for Redis values (RedisTemplate + RedisCacheManager).
+     * Conditional via the class-level @ConditionalOnProperty, so it only exists when Redis is wired.
+     */
+    @Bean("redisJsonSerializer")
+    public GenericJackson2JsonRedisSerializer redisJsonSerializer() {
+        return cacheJsonSerializer();
     }
 
     /**
@@ -86,14 +85,12 @@ public class RedisConfig {
     @Bean
     public RedisTemplate<String, Object> redisTemplate(
             RedisConnectionFactory connectionFactory,
-            @Qualifier("redisObjectMapper") ObjectMapper redisObjectMapper
+            @Qualifier("redisJsonSerializer") GenericJackson2JsonRedisSerializer jsonSerializer
     ) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-                new GenericJackson2JsonRedisSerializer(redisObjectMapper);
 
         // Keys are always strings (cache names, rate-limit keys).
         template.setKeySerializer(stringSerializer);
