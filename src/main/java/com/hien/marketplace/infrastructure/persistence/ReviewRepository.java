@@ -12,4 +12,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByServiceId(Long serviceId);
 
     boolean existsByBookingId(Long bookingId);
+
+    /** Number of reviews for a service — feeds ServiceResponse.totalReviews (catalog/detail). */
+    long countByServiceId(Long serviceId);
 }

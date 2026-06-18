@@ -121,6 +121,9 @@ class ServiceCatalogCachingTest {
     void differentIdsCacheSeparately() {
         ServiceEntity svc2 = org.mockito.Mockito.mock(ServiceEntity.class);
         org.mockito.Mockito.when(svc2.getStatus()).thenReturn(ServiceStatus.ACTIVE);
+        // enrichServiceResponse maps every entity → response (MapStruct never returns null in prod),
+        // so the second entity needs a non-null mapping too.
+        when(serviceMapper.toResponse(svc2)).thenReturn(sampleResponse);
         when(serviceRepository.findById(1L)).thenReturn(Optional.of(sampleService));
         when(serviceRepository.findById(2L)).thenReturn(Optional.of(svc2));
 

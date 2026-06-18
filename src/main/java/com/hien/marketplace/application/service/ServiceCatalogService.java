@@ -5,6 +5,7 @@ import com.hien.marketplace.application.mapper.ServiceMapper;
 import com.hien.marketplace.config.CacheConfig;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
+import com.hien.marketplace.infrastructure.persistence.ReviewRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
 import com.hien.marketplace.interfaces.dto.response.ServiceResponse;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class ServiceCatalogService {
 
     private final ServiceRepository serviceRepository;
     private final ServiceMapper serviceMapper;
+    private final ReviewRepository reviewRepository;
 
     /**
      * Get all active services with pagination.
@@ -158,6 +160,30 @@ public class ServiceCatalogService {
             );
         }
 
-        return response;
+        // Inject the REAL review count. The mapper defaults totalReviews to 0 (ServiceEntity stores
+        // averageRating but not a count), which made the UI show a contradictory "5.0 (0 reviews)".
+        // This runs inside the @Cacheable detail path + the list query, so the count is cached too
+        // (no extra query on a cache hit). totalBookings stays 0 — separate backlog item.
+        int totalReviews = (int) reviewRepository.countByServiceId(service.getId());
+        return new ServiceResponse(
+                response.id(),
+                response.vendorId(),
+                response.vendorName(),
+                response.categoryId(),
+                response.categoryName(),
+                response.title(),
+                response.description(),
+                response.pricingType(),
+                response.basePrice(),
+                response.durationHours(),
+                response.address(),
+                response.city(),
+                response.imageUrl(),
+                response.status(),
+                response.averageRating(),
+                totalReviews,
+                response.totalBookings(),
+                response.createdAt()
+        );
     }
 }
