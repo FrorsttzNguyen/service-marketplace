@@ -51,11 +51,12 @@ interface RequestOptions {
 
 /**
  * Core request executor. Centralizes URL building, token attachment, and the 401
- * refresh-and-retry so GET/POST/PUT share the exact same behavior. A JSON body is
- * sent only for methods that carry one (POST always; PUT only when provided).
+ * refresh-and-retry so GET/POST/PUT/DELETE share the exact same behavior. A JSON body
+ * is sent only for methods that carry one (POST always; PUT only when provided; GET
+ * and DELETE never carry a body).
  */
 async function request(
-  method: "GET" | "POST" | "PUT",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body: unknown,
   options: RequestOptions,
@@ -105,6 +106,11 @@ async function request(
   if (!response.ok) {
     throw await toApiError(response);
   }
+
+  // DELETE (and any other method that may return 204 No Content) has no body to parse.
+  // `response.json()` would throw on an empty body, so for DELETE we resolve void. The
+  // caller (vendor-services deactivator) doesn't need a payload — a 2xx IS the success.
+  if (method === "DELETE") return undefined;
 
   return response.json();
 }
@@ -159,4 +165,25 @@ export async function apiPut(
   options?: Omit<RequestOptions, "query" | "body">,
 ): Promise<unknown> {
   return request("PUT", path, body, options ?? {});
+}
+
+/**
+ * Perform a DELETE against the backend. Used by soft-delete/state-change endpoints
+ * that the backend models as DELETE, e.g. `DELETE /api/vendor/services/{id}` (which
+ * deactivates → INACTIVE; the row is NOT hard-deleted despite the HTTP verb).
+ *
+ * DELETE never carries a request body here. The request executor resolves `void`
+ * on success because DELETE endpoints in this API return 204 No Content — there's
+ * no JSON to parse.
+ *
+ * Shares the exact same token-attach + 401-refresh-and-retry path as apiGet/apiPost/apiPut.
+ *
+ * @param path API path with a leading slash, e.g. "/api/vendor/services/42".
+ * @returns Resolves `undefined` on success (204 No Content has no body).
+ */
+export async function apiDelete(
+  path: string,
+  options?: Omit<RequestOptions, "query" | "body">,
+): Promise<unknown> {
+  return request("DELETE", path, undefined, options ?? {});
 }
