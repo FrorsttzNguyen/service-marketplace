@@ -34,6 +34,8 @@ tags:
   description: Endpoints for vendors to manage their services
 - name: Webhooks
   description: Third-party webhook endpoints
+- name: Categories
+  description: Service categories (public reference data)
 - name: Service Catalog
   description: Public service browsing endpoints
 - name: Payments
@@ -1007,6 +1009,23 @@ paths:
                 type: object
                 additionalProperties:
                   type: string
+  /api/categories:
+    get:
+      tags:
+      - Categories
+      summary: List categories
+      description: Return all service categories. Public â used by the catalog filter
+        and the vendor create-service form.
+      operationId: listCategories
+      responses:
+        "200":
+          description: Categories returned
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryResponse"
   /api/bookings/vendor:
     get:
       tags:
@@ -1541,15 +1560,15 @@ components:
         totalElements:
           type: integer
           format: int64
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
         first:
           type: boolean
         last:
           type: boolean
-        numberOfElements:
-          type: integer
-          format: int32
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -1591,6 +1610,18 @@ components:
           type: boolean
         empty:
           type: boolean
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
     PageBookingResponse:
       type: object
       properties:
@@ -1600,15 +1631,15 @@ components:
         totalElements:
           type: integer
           format: int64
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
         first:
           type: boolean
         last:
           type: boolean
-        numberOfElements:
-          type: integer
-          format: int32
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -1662,15 +1693,15 @@ components:
         totalElements:
           type: integer
           format: int64
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
         first:
           type: boolean
         last:
           type: boolean
-        numberOfElements:
-          type: integer
-          format: int32
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
