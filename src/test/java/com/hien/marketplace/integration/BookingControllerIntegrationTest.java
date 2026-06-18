@@ -404,6 +404,47 @@ class BookingControllerIntegrationTest {
     }
 
     // ================================================================
+    // Confirm Booking Tests (book → pay seam — order glue, Phase 4)
+    // ================================================================
+
+    @Nested
+    @DisplayName("Confirm Booking Endpoint")
+    class ConfirmBookingTests {
+
+        @Test
+        @DisplayName("Vendor confirming their own PENDING booking → 200 CONFIRMED")
+        void shouldConfirmOwnBooking() throws Exception {
+            Long bookingId = createTestBooking(); // PENDING, on the vendor's service
+
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(bookingId))
+                    .andExpect(jsonPath("$.status").value("CONFIRMED"));
+        }
+
+        @Test
+        @DisplayName("Customer confirming a booking → rejected (only the service's vendor may confirm)")
+        void shouldRejectConfirmByCustomer() throws Exception {
+            Long bookingId = createTestBooking();
+
+            // A customer is not the booking's vendor → 422 BUSINESS_RULE_VIOLATION
+            mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
+                            .header("Authorization", "Bearer " + customerToken))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Confirming a non-existent booking → 404")
+        void shouldRejectConfirmOfNonExistentBooking() throws Exception {
+            mockMvc.perform(put("/api/bookings/{id}/confirm", 99999L)
+                            .header("Authorization", "Bearer " + vendorToken))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    // ================================================================
     // Helper Methods
     // ================================================================
 
