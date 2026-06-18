@@ -5,24 +5,28 @@
  *   - Logged out → "Log in" + "Sign up" links.
  *   - Logged in  → the user's name + a "Log out" button.
  *   - Admin user → an extra "Admin" link to /admin/vendors.
+ *   - Vendor user → two extra links: "My services" + "Bookings" (vendor side) to
+ *     /vendor/services and /vendor/bookings.
  *   - Initializing → nothing (avoid a flash of logged-out controls during rehydrate).
  *
  * The access token is intentionally never read here — only the non-secret user
  * profile (name, role) from useAuth(), which mirrors the token-store.
  *
- * Role-gating the Admin link depends on `user.role` surviving a page reload, which in
- * turn depends on /me being called during rehydrate (see token-store.rehydrate).
- * Without that wiring, an admin reloading any page would briefly appear role-less and
- * the Admin link would flicker off; rehydrate now populates the role before this renders.
+ * Role-gating the Admin/Vendor links depends on `user.role` surviving a page reload,
+ * which in turn depends on /me being called during rehydrate (see token-store.rehydrate).
+ * Without that wiring, an admin/vendor reloading any page would briefly appear role-less
+ * and the links would flicker off; rehydrate now populates the role before this renders.
  */
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export function Header() {
   const { user, isAuthenticated, isInitializing, logout } = useAuth();
-  // Truthy check (not a strict ===) so a missing/undefined role never shows the link.
-  // The backend role enum is "ADMIN" | "VENDOR" | "CUSTOMER"; only ADMIN gets the link.
+  // Truthy checks (strict ===) so a missing/undefined role never shows the links.
+  // The backend role enum is "ADMIN" | "VENDOR" | "CUSTOMER"; each gated link below
+  // only renders for its matching role.
   const isAdmin = user?.role === "ADMIN";
+  const isVendor = user?.role === "VENDOR";
 
   return (
     <header className="border-b border-neutral-200 dark:border-neutral-800">
@@ -66,6 +70,28 @@ export function Header() {
               >
                 Admin
               </Link>
+            ) : null}
+            {/*
+              Vendor links — only for VENDOR-role users. Two direct links mirror how
+              "My bookings" is a direct link: the vendor's two workspaces (manage their
+              services, handle incoming bookings). Same gating rationale as Admin: UX,
+              not security — RequireAuth requireRole="VENDOR" + the server's 403 enforce.
+            */}
+            {isVendor ? (
+              <>
+                <Link
+                  href="/vendor/services"
+                  className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
+                >
+                  My services
+                </Link>
+                <Link
+                  href="/vendor/bookings"
+                  className="text-neutral-600 hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
+                >
+                  Bookings
+                </Link>
+              </>
             ) : null}
             <span className="text-neutral-600 dark:text-neutral-400">
               {user?.fullName || user?.email || "Account"}

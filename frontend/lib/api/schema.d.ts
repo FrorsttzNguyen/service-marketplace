@@ -38,7 +38,7 @@ export interface paths {
         get?: never;
         /**
          * Confirm booking
-         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book â pay flow: an Order can only be created from a CONFIRMED booking.
+         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book -> pay flow: an Order can only be created from a CONFIRMED booking.
          */
         put: operations["confirmBooking"];
         post?: never;
@@ -586,6 +586,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List categories
+         * @description Return all service categories. Public - used by the catalog filter and the vendor create-service form.
+         */
+        get: operations["listCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bookings/vendor": {
         parameters: {
             query?: never;
@@ -860,11 +880,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            first?: boolean;
-            last?: boolean;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             numberOfElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ServiceResponse"][];
@@ -889,16 +909,23 @@ export interface components {
             unsorted?: boolean;
             empty?: boolean;
         };
+        CategoryResponse: {
+            /** Format: int64 */
+            id?: number;
+            name?: string;
+            slug?: string;
+            description?: string;
+        };
         PageBookingResponse: {
             /** Format: int32 */
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            first?: boolean;
-            last?: boolean;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             numberOfElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["BookingResponse"][];
@@ -927,11 +954,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            first?: boolean;
-            last?: boolean;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             numberOfElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
+            first?: boolean;
+            last?: boolean;
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["VendorAdminResponse"][];
@@ -2086,6 +2113,26 @@ export interface operations {
                     "*/*": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    listCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Categories returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CategoryResponse"][];
                 };
             };
         };
