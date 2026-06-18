@@ -100,18 +100,43 @@ service-marketplace/
 
 ## Getting Started
 
+This is the **local dev environment** — a self-contained stack so you build and test WITHOUT touching
+the live (prod) data. Two ways to run it:
+
 ```bash
 # Prerequisites: Java 21, Docker, Node.js 18+
 
-# Start infrastructure
-docker-compose up -d postgres redis
+# --- Option A: full stack in Docker (app + Postgres + Redis), one command ---
+cp .env.example .env          # fill POSTGRES_*, STRIPE_* (test keys), etc.
+docker compose up --build     # backend on :8080, postgres :5433, redis :6379
 
-# Run backend
-./mvnw spring-boot:run
+# --- Option B: infra in Docker, backend from source (hot reload, SQL logs) ---
+docker compose up -d postgres redis
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # backend on :8080
 
-# Run frontend
-cd frontend && npm install && npm run dev
+# --- Frontend (either option) ---
+cd frontend && npm install
+# .env.local → NEXT_PUBLIC_API_BASE_URL=http://localhost:8080  (local backend)
+npm run dev                   # http://localhost:3000
 ```
+
+CORS for `http://localhost:3000` is preconfigured for local dev (the `dev` profile and the compose
+`app` service both allow it), so the local frontend talks to the local backend out of the box — no
+prod config is touched.
+
+### Environments (dev vs prod)
+
+| Concern | Dev (local) | Prod |
+|---------|-------------|------|
+| Backend | `docker compose` / `mvnw … -Dspring-boot.run.profiles=dev` on `:8080` | Render (Docker, `prod` profile) |
+| Postgres / Redis | Docker containers (ephemeral, `pgdata` volume) | Neon / Upstash (managed) |
+| CORS allow-list | `localhost:3000` baked into the `dev` profile + compose | `APP_CORS_ALLOWED_ORIGINS` env (Vercel origins) |
+| Stripe | test keys (`pk_test_`/`sk_test_`) | test keys (demo) |
+| Frontend | `npm run dev` → `localhost:8080` | Vercel (`main` → production) |
+| Secrets | local `.env` / `.env.local` (git-ignored) | Render/Vercel encrypted env stores |
+
+Build and test against the **dev** stack; only `main` is promoted to prod. This keeps demo/prod data
+clean (e.g. don't create throwaway accounts/reviews against the live DB).
 
 ## Deployment
 
@@ -211,6 +236,12 @@ URL for end-to-end testing against the deployed API.
    - `NEXT_PUBLIC_API_BASE_URL` — backend base URL (e.g. the Render URL above)
    - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — Stripe **publishable** key (`pk_test_...` for test mode)
 4. Deploy. Vercel runs `next build` automatically.
+
+**Preview deploys (dev/prod split on the frontend):** connect the GitHub repo in Vercel (Project →
+Settings → Git). Vercel then builds **every branch / PR as a Preview deployment** on its own
+`*.vercel.app` URL, while `main` publishes to **Production**. The backend already allows
+`https://*.vercel.app` in `APP_CORS_ALLOWED_ORIGINS`, so preview URLs hit the live API and work without
+extra CORS config — review a change on a real URL before it reaches prod.
 
 > Only `NEXT_PUBLIC_*` values belong in the frontend. The Stripe **secret** key and webhook secret
 > live on the **backend** only.
