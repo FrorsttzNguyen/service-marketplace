@@ -445,4 +445,45 @@ class AuthControllerIntegrationTest {
                     .andExpect(status().isForbidden());  // 403 Forbidden
         }
     }
+
+    // ================================================================
+    // Current User (/api/auth/me) Tests
+    // ================================================================
+
+    @Nested
+    @DisplayName("Current User Endpoint (/api/auth/me)")
+    class CurrentUserTests {
+
+        @Test
+        @DisplayName("Authenticated request returns the caller's profile (no tokens, no password)")
+        void shouldReturnCurrentUser() throws Exception {
+            RegisterRequest req = new RegisterRequest(
+                    "Me Tester", "me-test@example.com", "Password123", "+14155559911", false);
+            MvcResult reg = mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            String token = objectMapper.readValue(
+                    reg.getResponse().getContentAsString(), AuthResponse.class).accessToken();
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .get("/api/auth/me")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.email").value("me-test@example.com"))
+                    .andExpect(jsonPath("$.fullName").value("Me Tester"))
+                    .andExpect(jsonPath("$.role").value("CUSTOMER"))
+                    // Never leak the password hash through the profile DTO.
+                    .andExpect(jsonPath("$.password").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("Unauthenticated request is rejected (the one non-public /api/auth path)")
+        void shouldRejectUnauthenticated() throws Exception {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .get("/api/auth/me"))
+                    .andExpect(status().is4xxClientError());
+        }
+    }
 }

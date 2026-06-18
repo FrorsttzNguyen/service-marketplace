@@ -4,15 +4,20 @@ import com.hien.marketplace.application.service.AuthService;
 import com.hien.marketplace.interfaces.dto.request.LoginRequest;
 import com.hien.marketplace.interfaces.dto.request.RefreshTokenRequest;
 import com.hien.marketplace.interfaces.dto.request.RegisterRequest;
+import com.hien.marketplace.infrastructure.security.JwtAuthenticationFilter.UserPrincipal;
 import com.hien.marketplace.interfaces.dto.response.AuthResponse;
 import com.hien.marketplace.interfaces.dto.response.TokenRefreshResponse;
+import com.hien.marketplace.interfaces.dto.response.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -101,5 +106,29 @@ public class AuthController {
     public ResponseEntity<TokenRefreshResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         TokenRefreshResponse response = authService.refreshToken(request.refreshToken());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Current authenticated user ("who am I").
+     *
+     * WHY: /refresh returns only a new access token, so after a page reload the client has a valid
+     * session but no profile (name/role). The frontend calls this on boot to rehydrate the user and
+     * to know the role for role-gated routes. Requires a valid JWT (see SecurityConfig — this one
+     * /api/auth path is authenticated, unlike register/login/refresh which are public).
+     */
+    @GetMapping("/me")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Get current user",
+            description = "Return the authenticated user's profile from the JWT.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Current user profile"),
+                    @ApiResponse(responseCode = "401", description = "Not authenticated")
+            }
+    )
+    public ResponseEntity<UserResponse> getCurrentUser(
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        return ResponseEntity.ok(authService.getCurrentUser(principal.userId()));
     }
 }

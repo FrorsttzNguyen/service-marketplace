@@ -106,6 +106,10 @@ public class SecurityConfig {
                 // Configure endpoint authorization rules
                 .authorizeHttpRequests(auth ->
                         auth
+                                // /api/auth/me is the ONE authenticated auth path — it identifies the
+                                // caller from their JWT. It must come BEFORE the "/api/auth/**" permitAll
+                                // below (first match wins), or it would be treated as public.
+                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/me").authenticated()
                                 // Public endpoints - no authentication required
                                 .requestMatchers(
                                         "/api/auth/**",  // Register, login, refresh
