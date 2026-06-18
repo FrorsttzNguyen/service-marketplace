@@ -217,4 +217,36 @@ public class VendorServiceManagement {
         service.deactivate();  // Domain method
         serviceRepository.save(service);
     }
+
+    /**
+     * Activate (publish) a service so it appears in the public catalog.
+     *
+     * WHY: a service is created as DRAFT, and the public catalog only lists ACTIVE services. Without
+     * this, a freshly created service could never become visible — this is the symmetric counterpart
+     * of deactivateService. The domain method ServiceEntity#activate() owns the transition.
+     *
+     * Authorization: only the vendor who owns the service may activate it (mirrors the other mutations).
+     *
+     * @param userId Authenticated user ID (resolved to vendor internally)
+     */
+    @Transactional
+    @CacheEvict(cacheNames = CacheConfig.CACHE_SERVICE_DETAIL, allEntries = true,
+            beforeInvocation = false)
+    public ServiceResponse activateService(Long userId, Long serviceId) {
+        Vendor vendor = getVendorByUserId(userId);
+
+        ServiceEntity service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Service", serviceId));
+
+        if (!service.getVendor().getId().equals(vendor.getId())) {
+            throw new BusinessRuleViolationException(
+                    "Service ownership",
+                    "You can only activate your own services"
+            );
+        }
+
+        service.activate();  // Domain method: DRAFT/INACTIVE -> ACTIVE
+        service = serviceRepository.save(service);
+        return serviceMapper.toResponse(service);
+    }
 }
