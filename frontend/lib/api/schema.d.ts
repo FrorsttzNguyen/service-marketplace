@@ -28,6 +28,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/bookings/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Confirm booking
+         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book â pay flow: an Order can only be created from a CONFIRMED booking.
+         */
+        put: operations["confirmBooking"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bookings/{id}/cancel": {
         parameters: {
             query?: never;
@@ -163,7 +183,7 @@ export interface paths {
         put?: never;
         /**
          * Create order
-         * @description Create an order from a confirmed booking (Phase 4)
+         * @description Create an order from a confirmed booking. Idempotent on bookingId: if a payable order already exists for the booking, it is returned instead of duplicated. An order is a prerequisite for creating a payment.
          */
         post: operations["createOrder"];
         delete?: never;
@@ -519,7 +539,7 @@ export interface paths {
         };
         /**
          * Get order
-         * @description Get order details (Phase 3)
+         * @description Get order details. Only the order's customer may view it.
          */
         get: operations["getOrder"];
         put?: never;
@@ -709,6 +729,30 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        CreateOrderRequest: {
+            /** Format: int64 */
+            bookingId: number;
+        };
+        OrderResponse: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            bookingId?: number;
+            /** Format: int64 */
+            customerId?: number;
+            /** Format: int64 */
+            vendorId?: number;
+            totalAmount?: number;
+            currency?: string;
+            /** @enum {string} */
+            status?: "CREATED" | "PENDING_PAYMENT" | "PAID" | "FULFILLED" | "CANCELLED" | "REFUNDED";
+            paymentMethod?: string;
+            paymentId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         BookingCreateRequest: {
             /** Format: int64 */
             serviceId: number;
@@ -772,10 +816,10 @@ export interface components {
             sort?: string[];
         };
         PageServiceResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
             pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             numberOfElements?: number;
@@ -806,10 +850,10 @@ export interface components {
             empty?: boolean;
         };
         PageBookingResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
             pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             numberOfElements?: number;
@@ -824,10 +868,10 @@ export interface components {
             empty?: boolean;
         };
         PageVendorAdminResponse: {
-            /** Format: int64 */
-            totalElements?: number;
             /** Format: int32 */
             totalPages?: number;
+            /** Format: int64 */
+            totalElements?: number;
             pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             numberOfElements?: number;
@@ -925,6 +969,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    confirmBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Booking confirmed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Booking not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Not your service, or status doesn't allow confirm */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["BookingResponse"];
+                };
             };
         };
     };
@@ -1227,28 +1311,38 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOrderRequest"];
+            };
+        };
         responses: {
-            /** @description Order created */
+            /** @description Order created (or existing payable order returned) */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["OrderResponse"];
+                };
             };
             /** @description Booking not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["OrderResponse"];
+                };
             };
-            /** @description Booking not confirmed */
+            /** @description Booking not confirmed, an order already exists and is no longer payable, or caller is not the booking's customer */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["OrderResponse"];
+                };
             };
         };
     };
@@ -1855,14 +1949,27 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["OrderResponse"];
+                };
             };
             /** @description Order not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "*/*": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Caller is not the order's customer */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OrderResponse"];
+                };
             };
         };
     };

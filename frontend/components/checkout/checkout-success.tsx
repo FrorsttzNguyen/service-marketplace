@@ -1,0 +1,166 @@
+"use client";
+
+/**
+ * Checkout success state — shown after Stripe confirms the PaymentIntent client-side.
+ *
+ * TRUST MODEL (important to understand this component):
+ *   - The PRIMARY success signal is the Stripe CLIENT result
+ *     (`stripe.confirmPayment` → paymentIntent.status === "succeeded"). That's what
+ *     flipped the page to this view, and it's reliable: Stripe confirmed + captured
+ *     the card. The user's card was charged.
+ *   - The SECONDARY signal is the BACKEND's payment status, polled via
+ *     GET /api/payments/order/{orderId}. The backend flips PENDING → SUCCEEDED only
+ *     when the Stripe webhook lands. On the deployed app that's near-instant; in LOCAL
+ *     DEV the webhook is NOT delivered unless Stripe CLI is forwarding, so the backend
+ *     status may lag behind or never catch up.
+ *
+ * So we show "Payment successful" based on the Stripe client result, and surface the
+ * backend status as secondary info ("server confirmation pending" if it hasn't caught
+ * up). We never block the success UI on the backend status — that would make local dev
+ * look broken when the payment actually succeeded.
+ */
+import Link from "next/link";
+import type { PaymentIntent } from "@stripe/stripe-js";
+import type { Payment, PaymentStatus } from "@/lib/api/payments";
+
+interface CheckoutSuccessProps {
+  /** The confirmed PaymentIntent from the Stripe client. Source of the amount. */
+  paymentIntent: PaymentIntent;
+  /** Order id, shown as a reference. */
+  orderId: number | undefined;
+  /** Latest backend payment row, if the poller has one yet. May be undefined/erroring. */
+  backendPayment?: Payment;
+  /** True while the status query is still fetching (for the "checking…" affordance). */
+  isPolling?: boolean;
+}
+
+/** Format a PaymentIntent amount (in cents) + currency code as a readable price. */
+function formatAmount(amountCents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      // Stripe uses lowercase ISO codes (e.g. "usd"); Intl wants uppercase ("USD").
+      currency: (currency || "USD").toUpperCase(),
+    }).format(amountCents / 100); // PaymentIntent.amount is in minor units (cents).
+  } catch {
+    // Unknown currency → show raw cents + code. Fallback so we never blank out.
+    return `${(amountCents / 100).toFixed(2)} ${currency ?? ""}`.trim();
+  }
+}
+
+/** Human-readable label for the BACKEND payment status pill. */
+function describeBackendStatus(status: PaymentStatus | undefined): string {
+  switch (status) {
+    case "SUCCEEDED":
+      return "Server confirmed ✓";
+    case "PROCESSING":
+      return "Server still processing…";
+    case "FAILED":
+      return "Server marked failed (Stripe said success — contact support if this persists)";
+    case "PENDING":
+    default:
+      return "Server confirmation pending";
+  }
+}
+
+/** Tailwind class for the backend-status pill, colored by status. */
+function backendStatusClass(status: PaymentStatus | undefined): string {
+  switch (status) {
+    case "SUCCEEDED":
+      return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
+    case "FAILED":
+      return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
+    case "PROCESSING":
+    case "PENDING":
+    default:
+      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
+  }
+}
+
+export function CheckoutSuccess({
+  paymentIntent,
+  orderId,
+  backendPayment,
+  isPolling,
+}: CheckoutSuccessProps) {
+  const backendStatus = backendPayment?.status;
+
+  return (
+    <div
+      className="rounded-lg border border-green-300 bg-green-50 p-6 dark:border-green-900 dark:bg-green-950/40"
+      data-testid="checkout-success"
+      role="status"
+    >
+      <div className="flex items-start gap-3">
+        <span className="text-2xl" aria-hidden="true">
+          ✅
+        </span>
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold text-green-900 dark:text-green-200">
+            Payment successful
+          </h2>
+          <p className="mt-1 text-sm text-green-800 dark:text-green-300">
+            Charged{" "}
+            <strong>
+              {formatAmount(
+                paymentIntent.amount ?? 0,
+                paymentIntent.currency ?? "USD",
+              )}
+            </strong>{" "}
+            to your card.
+          </p>
+
+          {/*
+            Backend status — secondary. The webhook advances this; in local dev it may
+            lag. We surface it as info, NOT as a blocker. "pending" is the expected
+            local-dev state until Stripe CLI forwards the webhook.
+          */}
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={`rounded-full px-2 py-0.5 font-medium ${backendStatusClass(
+                backendStatus,
+              )}`}
+            >
+              {describeBackendStatus(backendStatus)}
+            </span>
+            {isPolling && backendStatus !== "SUCCEEDED" ? (
+              <span className="text-green-700 dark:text-green-400">
+                checking server…
+              </span>
+            ) : null}
+          </div>
+
+          <dl className="mt-4 space-y-1 text-sm text-green-900 dark:text-green-200">
+            {orderId !== undefined ? (
+              <div className="flex justify-between gap-4">
+                <dt className="opacity-70">Order</dt>
+                <dd className="font-medium">#{orderId}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-4">
+              <dt className="opacity-70">Stripe reference</dt>
+              <dd className="font-mono text-xs">
+                {paymentIntent.id ?? "—"}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/bookings"
+              className="rounded bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800"
+            >
+              Back to my bookings
+            </Link>
+            <Link
+              href="/"
+              className="rounded border border-green-700 px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-950/40"
+            >
+              Browse more services
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
