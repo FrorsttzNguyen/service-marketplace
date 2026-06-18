@@ -42,6 +42,13 @@ app:
     # Refresh token expiration: 7 days (long-lived for user convenience)
     refresh-expiration-days: 7
 
+  # CORS — the local Next.js dev server origins. The common application.yml defaults this to ""
+  # (fail-closed), which would block the browser when the local frontend calls this local backend.
+  # Allowing localhost HERE (dev profile only) means local FE<->BE works WITHOUT touching the prod
+  # APP_CORS_ALLOWED_ORIGINS on Render. 3000 = `npm run dev` default; 3100 = the alt port we use.
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:3100
+
 # Stripe Configuration (Phase 4)
 # API keys from Stripe Dashboard: https://dashboard.stripe.com/test/apikeys
 # Webhook secret from Stripe CLI: stripe listen --print-secret
