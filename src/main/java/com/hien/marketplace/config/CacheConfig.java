@@ -1,8 +1,13 @@
 package com.hien.marketplace.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.Cache;
+import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.interceptor.KeyGenerator;
+import org.springframework.cache.interceptor.SimpleCacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -45,9 +50,10 @@ import java.util.Map;
  * Cache invalidation is ALSO done explicitly via @CacheEvict (see VendorServiceManagement),
  * so TTL is the SAFETY NET, not the only mechanism.
  */
+@Slf4j
 @EnableCaching
 @Configuration
-public class CacheConfig {
+public class CacheConfig implements CachingConfigurer {
 
     /** Cache name for paginated public catalog listing. */
     public static final String CACHE_SERVICE_CATALOG = "serviceCatalog";
@@ -58,6 +64,48 @@ public class CacheConfig {
 
     /** Default TTL applied to any cache name without an explicit override below. */
     private static final Duration DEFAULT_TTL = Duration.ofMinutes(10);
+
+    /**
+     * Make the cache FAIL-SOFT: a cache problem must never take down a request.
+     *
+     * WHY: the cache is an optimization, not a system of record. If a GET fails (e.g. Redis is
+     * down, or an entry can't be deserialized because it was written by an older/incompatible
+     * serializer), the right behavior is to treat it as a MISS and recompute from the DB — not to
+     * return HTTP 500. Spring's default (SimpleCacheErrorHandler) RETHROWS, which is what turned a
+     * deserialization mismatch into a 500 on every cache hit.
+     *
+     * - GET error  -> swallow (return null) so Spring recomputes; the recomputed value is then
+     *   PUT back, which OVERWRITES any stale/corrupt entry — the cache self-heals after a deploy.
+     * - PUT/EVICT/CLEAR errors -> log + swallow so a write-side hiccup doesn't fail the operation.
+     */
+    @Override
+    public CacheErrorHandler errorHandler() {
+        return new SimpleCacheErrorHandler() {
+            @Override
+            public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
+                log.warn("Cache GET failed (treating as miss) cache={} key={}: {}",
+                        cache.getName(), key, exception.getMessage());
+                // Do not rethrow → Spring proceeds as a cache miss and recomputes.
+            }
+
+            @Override
+            public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
+                log.warn("Cache PUT failed (ignored) cache={} key={}: {}",
+                        cache.getName(), key, exception.getMessage());
+            }
+
+            @Override
+            public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
+                log.warn("Cache EVICT failed (ignored) cache={} key={}: {}",
+                        cache.getName(), key, exception.getMessage());
+            }
+
+            @Override
+            public void handleCacheClearError(RuntimeException exception, Cache cache) {
+                log.warn("Cache CLEAR failed (ignored) cache={}: {}", cache.getName(), exception.getMessage());
+            }
+        };
+    }
 
     /**
      * RedisCacheManager with per-cache TTL overrides (used when Redis is configured).
