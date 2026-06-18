@@ -21,8 +21,8 @@
  * exist. The in-memory `accessToken` is also per-JS-context, which on the server is
  * per-request-ish — fine, since we never put an access token there anyway.
  */
-import { refresh as refreshEndpoint } from "./auth-api";
-import type { AuthResponse } from "./auth-api";
+import { refresh as refreshEndpoint, me as meEndpoint } from "./auth-api";
+import type { AuthResponse, UserResponse } from "./auth-api";
 
 /** localStorage key for the refresh token. Single key, easy to clear. */
 const REFRESH_TOKEN_KEY = "sm.refreshToken";
@@ -126,6 +126,21 @@ function toUser(res: AuthResponse): AuthUser | null {
 }
 
 /**
+ * Derive the AuthUser subset from a /me response. /me returns the richer UserResponse
+ * (uses `id`, not `userId`), so this mirrors toUser but maps the different field name.
+ * Used by rehydrate() to rebuild the in-memory user after a reload.
+ */
+function toUserFromMe(res: UserResponse): AuthUser | null {
+  if (res.id === undefined || !res.email) return null;
+  return {
+    userId: res.id,
+    fullName: res.fullName ?? "",
+    email: res.email,
+    role: res.role ?? "CUSTOMER",
+  };
+}
+
+/**
  * Apply a full auth response (login/register). Stores the access token in memory
  * and the refresh token in localStorage, then sets the user and notifies listeners.
  */
@@ -204,24 +219,43 @@ export function refreshAccessToken(): Promise<string | null> {
 /**
  * Rehydrate the session on app boot (called from AuthProvider on mount).
  *
- * If a refresh token exists, mint a fresh access token and rebuild the user. If the
- * refresh fails (expired/invalid → 401), clear everything and end logged-out. The
- * caller decides whether to expose an "initializing" flag during this call; here we
- * just do the work and return.
+ * Two-step flow:
+ *   1. If a refresh token exists, mint a fresh access token via /refresh.
+ *   2. With that access token, call /me to rebuild the in-memory user profile.
  *
- * Note: refresh() returns no user fields, so after rehydrate we only know the access
- * token, not the profile. The user object stays null until the next login/register.
- * (A /me endpoint would fix this; none exists in the spec, so we don't invent one.)
- * The header will simply not show a name until re-login — acceptable for Slice 2.
+ * Why step 2: /refresh returns ONLY an access token (no profile fields). Without /me
+ * the in-memory `user` would stay null after every reload — so the header wouldn't show
+ * the user's name, RequireAuth.requireRole couldn't match a role, and admin/role-gated
+ * UI wouldn't render even for a logged-in admin. /me fixes that one gap. We only need
+ * it here: login/register already return the full profile (via applySession), so there's
+ * no reason to call /me after those.
+ *
+ * Failure handling:
+ *   - No refresh token → return immediately (logged-out state).
+ *   - /refresh fails (expired/invalid → 401) → clearSession(), end logged-out.
+ *   - /me fails after a successful /refresh → clearSession() too. A /me 401 right after
+ *     a successful refresh means something's off (clock skew, server hiccup, revoked
+ *     between the two calls). Tearing down avoids a logged-in-but-anonymous state where
+ *     the header is blank but API calls would succeed — confusing and a bad UX. The user
+ *     can simply re-login to get a clean session.
  */
 export async function rehydrate(): Promise<void> {
   if (!getRefreshToken()) {
     return; // nothing to restore
   }
   try {
-    await refreshAccessToken();
+    const newToken = await refreshAccessToken();
+    if (!newToken) {
+      // refreshAccessToken resolved null = no refresh token available after all; nothing
+      // to populate. Treat as logged-out.
+      return;
+    }
+    // Fresh access token in hand — fetch the profile so role/name survive the reload.
+    const profile = await meEndpoint(newToken);
+    user = toUserFromMe(profile);
+    emit();
   } catch {
-    // Expired/invalid refresh → treat as logged-out and clean up.
+    // Any failure (refresh 401, /me 401, network) → tear down and end logged-out.
     clearSession();
   }
 }

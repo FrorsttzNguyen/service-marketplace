@@ -112,6 +112,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vendor/services/{id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate service
+         * @description Activate (publish) a service owned by the authenticated vendor so it appears in the public catalog
+         */
+        post: operations["activateService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews": {
         parameters: {
             query?: never;
@@ -586,6 +606,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get current user
+         * @description Return the authenticated user's profile from the JWT.
+         */
+        get: operations["getCurrentUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/vendors": {
         parameters: {
             query?: never;
@@ -820,11 +860,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
-            /** Format: int32 */
-            numberOfElements?: number;
             first?: boolean;
             last?: boolean;
+            /** Format: int32 */
+            numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["ServiceResponse"][];
@@ -854,11 +894,11 @@ export interface components {
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
-            /** Format: int32 */
-            numberOfElements?: number;
             first?: boolean;
             last?: boolean;
+            /** Format: int32 */
+            numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["BookingResponse"][];
@@ -867,16 +907,31 @@ export interface components {
             sort?: components["schemas"]["SortObject"];
             empty?: boolean;
         };
+        UserResponse: {
+            /** Format: int64 */
+            id?: number;
+            fullName?: string;
+            email?: string;
+            phoneNumber?: string;
+            /** @enum {string} */
+            role?: "CUSTOMER" | "VENDOR" | "ADMIN";
+            /** @enum {string} */
+            status?: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         PageVendorAdminResponse: {
             /** Format: int32 */
             totalPages?: number;
             /** Format: int64 */
             totalElements?: number;
-            pageable?: components["schemas"]["PageableObject"];
-            /** Format: int32 */
-            numberOfElements?: number;
             first?: boolean;
             last?: boolean;
+            /** Format: int32 */
+            numberOfElements?: number;
+            pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
             content?: components["schemas"]["VendorAdminResponse"][];
@@ -1166,6 +1221,46 @@ export interface operations {
                 };
             };
             /** @description Vendor not approved */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ServiceResponse"];
+                };
+            };
+        };
+    };
+    activateService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service activated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ServiceResponse"];
+                };
+            };
+            /** @description Service not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ServiceResponse"];
+                };
+            };
+            /** @description Not your service */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2013,6 +2108,35 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PageBookingResponse"];
+                };
+            };
+        };
+    };
+    getCurrentUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["UserResponse"];
                 };
             };
         };
