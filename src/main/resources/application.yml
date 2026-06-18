@@ -58,6 +58,13 @@ app:
   cors:
     allowed-origins: ""
 
+  # Platform commission — fee added on top of a service's subtotal when an Order is created
+  # (OrderService#createFromBooking). It's a FRACTION (0.10 = 10%), applied in cents via the Money
+  # value object (no floating-point on money). Not a secret; override per environment with
+  # APP_COMMISSION_RATE. Read by CommissionProperties (@ConfigurationProperties).
+  commission:
+    rate: 0.10
+
 # Actuator — production-ready monitoring endpoints
 management:
   endpoints:

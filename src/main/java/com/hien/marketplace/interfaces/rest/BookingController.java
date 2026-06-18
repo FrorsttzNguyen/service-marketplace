@@ -117,4 +117,32 @@ public class BookingController {
         BookingResponse booking = bookingService.cancelBooking(principal.userId(), id);
         return ResponseEntity.ok(booking);
     }
+
+    /**
+     * Confirm booking (Vendor action).
+     *
+     * WHY exposed here: a booking must be CONFIRMED before an Order can be created from it
+     * (Phase 4 order glue). The service method BookingService.confirmBooking already implements
+     * the vendor ownership check + optimistic-locking retry + state machine transition — this
+     * endpoint is just the REST wiring, mirroring cancelBooking's shape.
+     */
+    @PutMapping("/{id}/confirm")
+    @Operation(
+            summary = "Confirm booking",
+            description = "Vendor confirms a pending booking, transitioning it to CONFIRMED. " +
+                    "Only the vendor who owns the service may confirm. " +
+                    "Required for the book → pay flow: an Order can only be created from a CONFIRMED booking.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Booking confirmed"),
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "422", description = "Not your service, or status doesn't allow confirm")
+            }
+    )
+    public ResponseEntity<BookingResponse> confirmBooking(
+            @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        BookingResponse booking = bookingService.confirmBooking(principal.userId(), id);
+        return ResponseEntity.ok(booking);
+    }
 }

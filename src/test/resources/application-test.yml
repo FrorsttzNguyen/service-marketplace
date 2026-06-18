@@ -45,6 +45,11 @@ app:
     secret: test-secret-key-for-jwt-signing-must-be-at-least-256-bits-long
     access-expiration-minutes: 15
     refresh-expiration-days: 7
+
+  # Commission rate pinned in tests so assertions on order totals are deterministic and don't
+  # break if the production default changes. 0.10 = 10%.
+  commission:
+    rate: 0.10
   # Rate limiting is disabled in the test profile so existing auth/booking integration tests
   # (which reuse one shared ApplicationContext and legitimately repeat /api/auth/** calls) are not
   # blocked by 429s. Dedicated rate-limit behavior is verified by RateLimitFilterTest (Task 6)
