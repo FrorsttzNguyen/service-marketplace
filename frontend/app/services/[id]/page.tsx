@@ -91,7 +91,7 @@ export default function ServiceDetailPage() {
         <ErrorState
           error={null}
           notFound
-          title="Service not found."
+          title="Home service not found."
           hint={null}
         />
       </DetailShell>
@@ -116,12 +116,12 @@ export default function ServiceDetailPage() {
         <ErrorState
           error={error}
           notFound
-          title="Service not found."
+          title="Home service not found."
           hint={
             <span>
-              This service may have been removed.{" "}
+              This home service may have been removed.{" "}
               <Link href="/" className="underline">
-                Back to catalog
+                Back to home services
               </Link>
             </span>
           }
@@ -136,7 +136,7 @@ export default function ServiceDetailPage() {
         <ErrorState
           error={error}
           onRetry={() => refetch()}
-          title="Couldn't load this service."
+          title="Couldn't load this home service."
         />
       </DetailShell>
     );
@@ -164,11 +164,11 @@ export default function ServiceDetailPage() {
       <Card padded className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            {service?.title ?? "Untitled service"}
+            {service?.title ?? "Untitled home service"}
           </h1>
           {service?.vendorName ? (
             <p className="mt-1.5 text-muted-foreground">
-              by {service.vendorName}
+              Pro: {service.vendorName}
             </p>
           ) : null}
         </div>
@@ -177,7 +177,7 @@ export default function ServiceDetailPage() {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={service.imageUrl}
-            alt={service.title ?? "Service image"}
+            alt={service.title ?? "Home service image"}
             className="h-56 w-full rounded-2xl border border-border/60 object-cover shadow-island sm:h-64"
           />
         ) : null}
@@ -187,7 +187,7 @@ export default function ServiceDetailPage() {
             {service.description}
           </p>
         ) : (
-          <p className="italic text-muted-foreground">No description provided.</p>
+          <p className="italic text-muted-foreground">No service details provided.</p>
         )}
 
         {/*
@@ -210,7 +210,7 @@ export default function ServiceDetailPage() {
             <DetailRow label="Category">{service.categoryName}</DetailRow>
           ) : null}
           {service?.address ? (
-            <DetailRow label="Address">{service.address}</DetailRow>
+            <DetailRow label="Pro address">{service.address}</DetailRow>
           ) : null}
           {service?.city ? (
             <DetailRow label="City">{service.city}</DetailRow>
@@ -265,7 +265,7 @@ function DetailShell({ children }: { children: React.ReactNode }) {
           href="/"
           className={buttonClasses({ variant: "ghost", size: "sm" })}
         >
-          ← Back to catalog
+          ← Back to home services
         </Link>
       </p>
       <div className="space-y-6">{children}</div>

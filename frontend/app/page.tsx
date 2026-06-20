@@ -64,14 +64,13 @@ export default function HomePage() {
         className="mb-8 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-accent-soft via-card to-accent-soft p-6 shadow-island sm:p-10"
       >
         <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-          Local pros, one click away
+          HandyHub
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Service Marketplace
+          Book trusted home-service pros near you
         </h1>
         <p className="mt-2 max-w-xl text-muted-foreground">
-          Browse services from local providers — from home cleaning to
-          photography and more.
+          Cleaning, repairs, and more — pick a time, pay securely.
         </p>
 
         {/* Category filter — nested in the hero so the chips share its island.
@@ -93,7 +92,7 @@ export default function HomePage() {
           <ErrorState
             error={catalog.error}
             onRetry={() => catalog.refetch()}
-            title="Couldn't load services."
+            title="Couldn't load home services."
           />
         ) : (
           <>

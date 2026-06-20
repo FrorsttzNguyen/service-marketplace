@@ -153,7 +153,7 @@ function VendorServicesContent() {
   }
 
   function handleActivate(serviceId: number) {
-    if (!window.confirm("Publish this service? It will appear in the catalog.")) {
+    if (!window.confirm("Publish this home service? It will appear in the catalog.")) {
       return;
     }
     runStatusAction(serviceId, activateMutation, "activate");
@@ -162,7 +162,7 @@ function VendorServicesContent() {
   function handleDeactivate(serviceId: number) {
     if (
       !window.confirm(
-        "Deactivate this service? It will leave the catalog but stay in your list. You can reactivate it later.",
+        "Deactivate this home service? It will leave the catalog but stay in your list. You can reactivate it later.",
       )
     ) {
       return;
@@ -177,13 +177,13 @@ function VendorServicesContent() {
     <Container width="default">
       <PageHeader
         title="My services"
-        subtitle="Create, edit, and publish the services you offer."
+        subtitle="Create, edit, and publish the home services you offer."
         actions={
           <Button
             onClick={() => setFormState({ mode: "create" })}
             disabled={formState !== null}
           >
-            + New service
+            + New home service
           </Button>
         }
       />
@@ -211,7 +211,7 @@ function VendorServicesContent() {
         <ErrorState
           error={error}
           onRetry={() => refetch()}
-          title="Couldn't load your services."
+          title="Couldn't load your home services."
         />
       ) : (
         <>
@@ -221,12 +221,12 @@ function VendorServicesContent() {
 
           {services.length === 0 ? (
             <Card padded className="py-10 text-center text-muted-foreground">
-              You have no services yet. Create your first one to get started.
+              You have no home services yet. Create your first one to get started.
             </Card>
           ) : (
             <>
               <p className="mb-4 text-sm text-muted-foreground">
-                {total} service{total === 1 ? "" : "s"}
+                {total} home service{total === 1 ? "" : "s"}
               </p>
               <ul className="space-y-4">
                 {services.map((service) => (
@@ -562,7 +562,7 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
           setSubmitError(
             err instanceof ApiError
               ? err.message
-              : "Couldn't create the service. Please try again.",
+              : "Couldn't create the home service. Please try again.",
           );
         },
       });
@@ -575,10 +575,10 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
       onSubmit={handleSubmit}
       padded
       className="mb-6"
-      aria-label={isEdit ? "Edit service" : "Create service"}
+      aria-label={isEdit ? "Edit home service" : "Create home service"}
     >
       <h2 className="mb-4 text-lg font-semibold text-foreground">
-        {isEdit ? "Edit service" : "New service"}
+        {isEdit ? "Edit home service" : "New home service"}
       </h2>
 
       {/*
@@ -614,7 +614,7 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
           ) : null}
         </Field>
 
-        <Field label="Title" required error={errors.title}>
+        <Field label="Service title" required error={errors.title}>
           <Input
             type="text"
             value={title}
@@ -711,7 +711,7 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
             ? "Saving…"
             : isEdit
               ? "Save changes"
-              : "Create service"}
+              : "Create home service"}
         </Button>
         <Button
           type="button"
@@ -730,7 +730,7 @@ function ServiceFormPanel({ mode, onClose }: ServiceFormPanelProps) {
       */}
       {!isEdit ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          New services are saved as drafts. Activate after creating to publish them.
+          New home services are saved as drafts. Activate after creating to publish them.
         </p>
       ) : null}
     </Card>

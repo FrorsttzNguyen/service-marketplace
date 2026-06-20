@@ -25,7 +25,7 @@ const inter = Inter({
  * The App Router merges metadata declared here with any per-route `metadata`
  * exports. Child routes can set a plain `title` and it will be slotted into the
  * `title.template` below — e.g. /login setting `title: "Log in"` produces
- * "Log in · Service Marketplace". Routes that don't set a title fall back to the
+ * "Log in · HandyHub". Routes that don't set a title fall back to the
  * `title.default`, so every page has a sensible document title for tabs,
  * history, bookmarks, and screen readers.
  *
@@ -45,15 +45,15 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Service Marketplace",
-    template: "%s · Service Marketplace",
+    default: "HandyHub",
+    template: "%s · HandyHub",
   },
   description:
-    "Browse and book services from local providers — from home cleaning to photography and more.",
+    "Book trusted home-service pros near you — cleaning, repairs, and more. Pick a time, pay securely.",
   openGraph: {
-    title: "Service Marketplace",
+    title: "HandyHub",
     description:
-      "Browse and book services from local providers — from home cleaning to photography and more.",
+      "Book trusted home-service pros near you — cleaning, repairs, and more. Pick a time, pay securely.",
     type: "website",
   },
 };
