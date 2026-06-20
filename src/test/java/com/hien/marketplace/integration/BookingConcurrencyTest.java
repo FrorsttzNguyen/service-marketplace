@@ -2,6 +2,7 @@ package com.hien.marketplace.integration;
 
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -72,7 +73,7 @@ class BookingConcurrencyTest {
         // New constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
         Booking booking = new Booking(service, customer, vendor,
                 LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0),
-                Money.of(5000), Money.of(500));
+                Money.of(5000), Money.of(500), new Address("123 Service Street", "Test City", "70000"));
         setupEm.persist(booking);
         setupEm.getTransaction().commit();
         bookingId = booking.getId();
@@ -132,7 +133,7 @@ class BookingConcurrencyTest {
         // New constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
         Booking booking = new Booking(service, customer, vendor,
                 LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0),
-                Money.of(5000), Money.of(500));
+                Money.of(5000), Money.of(500), new Address("456 Service Street", "Test City", "70000"));
         setupEm.persist(booking);
         setupEm.getTransaction().commit();
         bookingId = booking.getId();

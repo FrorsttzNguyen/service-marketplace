@@ -2,6 +2,7 @@ package com.hien.marketplace.integration;
 
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -65,7 +66,7 @@ class OptimisticLockingTest {
         customer = new User("customer-lock@test.com", "hashed", "Customer", UserRole.CUSTOMER);
         customer = entityManager.persistFlushFind(customer);
 
-        // Create booking — new constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
+        // Create booking with its own service address for this appointment.
         testBooking = new Booking(
                 service,
                 customer,
@@ -74,7 +75,8 @@ class OptimisticLockingTest {
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
                 Money.of(10000),
-                Money.of(1000)
+                Money.of(1000),
+                new Address("123 Service Street", "Test City", "70000")
         );
         testBooking = entityManager.persistFlushFind(testBooking);
     }

@@ -3,6 +3,7 @@ package com.hien.marketplace.application.service;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.domain.booking.Booking;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.review.Review;
 import com.hien.marketplace.domain.service.PricingType;
@@ -97,7 +98,8 @@ class ReviewServiceTest {
         // A booking driven all the way to COMPLETED.
         // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
         Booking completed = new Booking(service, customer, vendor, LocalDate.now(),
-                LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000), Money.of(1000));
+                LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000), Money.of(1000),
+                new Address("123 Service Street", "Test City", "70000"));
         completed.confirm(vendorUser);
         completed.markAsPaid(null);  // Stripe webhook step (changedBy null = system)
         completed.start(vendorUser);
@@ -107,7 +109,8 @@ class ReviewServiceTest {
 
         // A still-PENDING booking for the status-gate test.
         Booking pending = new Booking(service, customer, vendor, LocalDate.now(),
-                LocalTime.of(12, 0), LocalTime.of(13, 0), Money.of(10000), Money.of(1000));
+                LocalTime.of(12, 0), LocalTime.of(13, 0), Money.of(10000), Money.of(1000),
+                new Address("456 Service Street", "Test City", "70000"));
         pendingBooking = spy(pending);
         when(pendingBooking.getId()).thenReturn(BOOKING_ID);
     }

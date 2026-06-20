@@ -1,6 +1,7 @@
 package com.hien.marketplace.domain.payment;
 
 import com.hien.marketplace.domain.booking.Booking;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -48,9 +49,9 @@ class RefundTest {
         // Create service
         ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
-        // Create booking — new constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
+        // Create booking with its own service address for this appointment.
         Booking booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
-                Money.of(10000), Money.of(1000));
+                Money.of(10000), Money.of(1000), new Address("123 Service Street", "Test City", "70000"));
 
         payment = new Payment(booking, Money.of(11000));
         refund = new Refund(payment, Money.of(5000), "Customer request");

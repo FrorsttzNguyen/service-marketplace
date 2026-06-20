@@ -1,5 +1,6 @@
 package com.hien.marketplace.domain.booking;
 
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -35,6 +36,7 @@ class BookingTest {
         assertThat(booking.getTotal()).isEqualTo(Money.of(5500));
         assertThat(booking.getSubtotal()).isEqualTo(Money.of(5000));
         assertThat(booking.getCommission()).isEqualTo(Money.of(500));
+        assertThat(booking.getServiceAddress()).isEqualTo(serviceAddress());
     }
 
     @Test
@@ -167,7 +169,8 @@ class BookingTest {
                 LocalTime.of(10, 0),
                 LocalTime.of(9, 0),
                 Money.of(5000),
-                Money.of(500)
+                Money.of(500),
+                serviceAddress()
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Start time must be before end time");
     }
@@ -183,8 +186,13 @@ class BookingTest {
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
                 Money.of(5000),
-                Money.of(500)
+                Money.of(500),
+                serviceAddress()
         );
+    }
+
+    private Address serviceAddress() {
+        return new Address("123 Service Street", "Ho Chi Minh City", "70000");
     }
 
     private ServiceEntity newService() {

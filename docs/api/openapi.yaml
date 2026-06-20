@@ -1301,6 +1301,12 @@ components:
           format: int64
         vendorName:
           type: string
+        serviceStreet:
+          type: string
+        serviceCity:
+          type: string
+        serviceZipCode:
+          type: string
         startTime:
           type: string
           format: date-time
@@ -1515,14 +1521,24 @@ components:
         quantity:
           type: integer
           format: int32
+        street:
+          type: string
+          minLength: 1
+        city:
+          type: string
+          minLength: 1
+        zipCode:
+          type: string
         notes:
           type: string
           maxLength: 1000
           minLength: 0
       required:
+      - city
       - endTime
       - serviceId
       - startTime
+      - street
     RegisterRequest:
       type: object
       properties:

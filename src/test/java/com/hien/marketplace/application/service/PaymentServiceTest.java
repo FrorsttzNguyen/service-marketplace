@@ -3,6 +3,7 @@ package com.hien.marketplace.application.service;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.payment.Payment;
 import com.hien.marketplace.domain.payment.PaymentStatus;
@@ -95,9 +96,9 @@ class PaymentServiceTest {
         // Create service
         ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
-        // Create booking — new constructor takes subtotal + commission separately
+        // Create booking with its own service address for this appointment.
         booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
-                Money.of(10000), Money.of(1000));
+                Money.of(10000), Money.of(1000), new Address("123 Service Street", "Test City", "70000"));
         booking = spy(booking);
         when(booking.getId()).thenReturn(1L);
 

@@ -721,6 +721,9 @@ export interface components {
             /** Format: int64 */
             vendorId?: number;
             vendorName?: string;
+            serviceStreet?: string;
+            serviceCity?: string;
+            serviceZipCode?: string;
             /** Format: date-time */
             startTime?: string;
             /** Format: date-time */
@@ -827,6 +830,9 @@ export interface components {
             endTime: string;
             /** Format: int32 */
             quantity?: number;
+            street: string;
+            city: string;
+            zipCode?: string;
             notes?: string;
         };
         RegisterRequest: {
