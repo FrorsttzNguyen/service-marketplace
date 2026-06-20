@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  */
 public record PaymentFailedEvent(
     Long paymentId,
-    Long orderId,
+    Long bookingId,
     Long customerId,
     String stripePaymentIntentId,
     String failureReason,
@@ -35,8 +35,8 @@ public record PaymentFailedEvent(
     public static PaymentFailedEvent from(Payment payment, String failureReason, String failureCode) {
         return new PaymentFailedEvent(
             payment.getId(),
-            payment.getOrder().getId(),
-            payment.getOrder().getCustomer().getId(),
+            payment.getBooking().getId(),
+            payment.getBooking().getCustomer().getId(),
             payment.getStripePaymentIntentId(),
             failureReason,
             failureCode,

@@ -9,8 +9,8 @@
  *    the clientSecret. Fires exactly once per checkout session (the checkout page
  *    holds the result in component state and feeds the secret to <Elements>).
  *
- * 2. `usePaymentForOrder` — a QUERY that polls GET /api/payments/order/{orderId} to
- *    reflect the BACKEND's view of the payment status. The backend flips PENDING →
+ * 2. `usePaymentForBooking` — a QUERY that polls GET /api/payments/booking/{bookingId}
+ *    to reflect the BACKEND's view of the payment status. The backend flips PENDING →
  *    SUCCEEDED only when the Stripe webhook lands. POLLING IS BOUNDED — see the
  *    in-component comment — because in local dev the webhook is NOT delivered unless
  *    Stripe CLI is forwarding, so the backend status can stay PENDING/PROCESSING
@@ -30,7 +30,7 @@ import {
 } from "@tanstack/react-query";
 import {
   createPayment,
-  getPaymentForOrder,
+  getPaymentForBooking,
   type Payment,
   type SupportedPaymentMethod,
 } from "./payments";
@@ -39,14 +39,14 @@ import {
 export const paymentKeys = {
   all: ["payments"] as const,
   details: () => [...paymentKeys.all, "detail"] as const,
-  /** Key for the order-scoped status query (used by the bounded poller). */
-  byOrder: (orderId: number) =>
-    [...paymentKeys.details(), "byOrder", { orderId }] as const,
+  /** Key for the booking-scoped status query (used by the bounded poller). */
+  byBooking: (bookingId: number) =>
+    [...paymentKeys.details(), "byBooking", { bookingId }] as const,
 } as const;
 
 /** Params for the create-payment mutation. */
 export interface UseCreatePaymentArgs {
-  orderId: number;
+  bookingId: number;
   /** v1 supports "card" only; defaults to "card" when omitted. */
   paymentMethod?: SupportedPaymentMethod;
 }
@@ -68,7 +68,7 @@ export function useCreatePayment(): UseMutationResult<
   return useMutation({
     mutationFn: (args: UseCreatePaymentArgs) =>
       createPayment({
-        orderId: args.orderId,
+        bookingId: args.bookingId,
         paymentMethod: args.paymentMethod ?? "card",
       }),
     onSuccess: () => {
@@ -104,11 +104,12 @@ const STATUS_POLL_MAX_RETRIES = 15;
 const STATUS_POLL_INTERVAL_MS = 10_000;
 
 /**
- * Poll the backend's view of a payment's status (`GET /api/payments/order/{orderId}`).
+ * Poll the backend's view of a payment's status
+ * (`GET /api/payments/booking/{bookingId}`).
  *
- * `enabled: orderId > 0` — only start polling once we actually have an order id from
- * the create-order step. Returns the standard query result so the checkout page can
- * branch on data/error and read the latest status.
+ * `enabled: bookingId > 0` — only start polling once we have a valid booking id.
+ * Returns the standard query result so the checkout page can branch on data/error
+ * and read the latest status.
  *
  * NOTE on refetchInterval being a function: returning `false` once the payment has
  * reached a terminal status (SUCCEEDED / FAILED) STOPS the poller early, so we don't
@@ -120,13 +121,13 @@ const STATUS_POLL_INTERVAL_MS = 10_000;
  * a 403/500 isn't going to fix itself on retry. The default 1 retry from Providers is
  * fine; we keep this explicit for clarity.
  */
-export function usePaymentForOrder(
-  orderId: number,
+export function usePaymentForBooking(
+  bookingId: number,
 ): UseQueryResult<Payment> {
   return useQuery({
-    queryKey: paymentKeys.byOrder(orderId),
-    queryFn: ({ signal }) => getPaymentForOrder({ orderId }),
-    enabled: orderId > 0,
+    queryKey: paymentKeys.byBooking(bookingId),
+    queryFn: ({ signal }) => getPaymentForBooking({ bookingId }),
+    enabled: bookingId > 0,
     // Bounded polling: stop early on terminal status, AND hard-cap the number of
     // successful (200) polls. NOTE: `retry` only bounds consecutive ERRORS — it does
     // NOT bound interval-driven refetches of a 200 response. In local dev the webhook

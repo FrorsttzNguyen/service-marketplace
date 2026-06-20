@@ -69,9 +69,21 @@ public class Booking {
     @Column(nullable = false, length = 20)
     private BookingStatus status;
 
+    // Money breakdown — dời từ Order cũ lên Booking khi gộp aggregate (Đường 1).
+    //   subtotal   = giá dịch vụ (× quantity) khách thấy
+    //   commission = phí platform (subtotal × app.commission.rate), tính lúc tạo booking
+    //   total      = subtotal + commission = số tiền khách thật sự trả (Stripe charge số này)
     @Embedded
-    @AttributeOverride(name = "amountCents", column = @Column(name = "total_price_cents", nullable = false))
-    private Money totalPrice;
+    @AttributeOverride(name = "amountCents", column = @Column(name = "subtotal_cents", nullable = false))
+    private Money subtotal;
+
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "commission_cents", nullable = false))
+    private Money commission;
+
+    @Embedded
+    @AttributeOverride(name = "amountCents", column = @Column(name = "total_cents", nullable = false))
+    private Money total;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
@@ -96,13 +108,15 @@ public class Booking {
 
     public Booking(ServiceEntity service, User customer, Vendor vendor,
                     LocalDate bookingDate, LocalTime startTime, LocalTime endTime,
-                    Money totalPrice) {
+                    Money subtotal, Money commission) {
         this.service = service;
         this.customer = customer;
         this.vendor = vendor;
         this.bookingDate = bookingDate;
         this.timeSlot = new TimeSlot(startTime, endTime);
-        this.totalPrice = totalPrice;
+        this.subtotal = subtotal;
+        this.commission = commission;
+        this.total = subtotal.add(commission);   // tổng tiền khách trả = subtotal + commission
         this.status = BookingStatus.PENDING;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -127,8 +141,16 @@ public class Booking {
         changeStatus(BookingStatus.CONFIRMED, changedBy, "Vendor confirmed booking");
     }
 
+    public void markAsPaid(User changedBy) {
+        changeStatus(BookingStatus.PAID, changedBy, "Payment succeeded");
+    }
+
     public void start(User changedBy) {
         changeStatus(BookingStatus.IN_PROGRESS, changedBy, "Service started");
+    }
+
+    public void refund(User changedBy, String reason) {
+        changeStatus(BookingStatus.REFUNDED, changedBy, reason);
     }
 
     public void complete(User changedBy) {
@@ -158,7 +180,9 @@ public class Booking {
     public LocalTime getEndTime() { return timeSlot.getEndTime(); }
     public TimeSlot getTimeSlot() { return timeSlot; }
     public BookingStatus getStatus() { return status; }
-    public Money getTotalPrice() { return totalPrice; }
+    public Money getSubtotal() { return subtotal; }
+    public Money getCommission() { return commission; }
+    public Money getTotal() { return total; }
     public String getNotes() { return notes; }
     public Long getVersion() { return version; }
     public LocalDateTime getCreatedAt() { return createdAt; }

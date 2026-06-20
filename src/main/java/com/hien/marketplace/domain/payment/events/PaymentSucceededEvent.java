@@ -7,11 +7,10 @@ import java.time.LocalDateTime;
 /**
  * Domain event fired when a payment succeeds (webhook payment_intent.succeeded).
  *
- * WHY: Decouple payment success from order/notification logic.
+ * WHY: Decouple payment success from booking/notification logic.
  * - PaymentService publishes event after updating status
- * - OrderService listener updates order status to PAID
  * - Notification listeners send confirmation emails
- * - PaymentService doesn't know about order/notification details
+ * - PaymentService doesn't know about notification details
  *
  * Benefits:
  * - Single responsibility: PaymentService focuses on payment logic
@@ -27,7 +26,7 @@ import java.time.LocalDateTime;
  */
 public record PaymentSucceededEvent(
     Long paymentId,
-    Long orderId,
+    Long bookingId,
     Long customerId,
     Long vendorId,
     String stripePaymentIntentId,
@@ -43,9 +42,9 @@ public record PaymentSucceededEvent(
     public static PaymentSucceededEvent from(Payment payment) {
         return new PaymentSucceededEvent(
             payment.getId(),
-            payment.getOrder().getId(),
-            payment.getOrder().getCustomer().getId(),
-            payment.getOrder().getBooking().getVendor().getId(),
+            payment.getBooking().getId(),
+            payment.getBooking().getCustomer().getId(),
+            payment.getBooking().getVendor().getId(),
             payment.getStripePaymentIntentId(),
             payment.getAmount().getAmountCents(),
             LocalDateTime.now()

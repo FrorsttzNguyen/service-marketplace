@@ -3,14 +3,12 @@ package com.hien.marketplace.application.service;
 import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.booking.Booking;
+import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
-import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.payment.Payment;
 import com.hien.marketplace.domain.payment.PaymentStatus;
 import com.hien.marketplace.domain.payment.Refund;
 import com.hien.marketplace.domain.payment.RefundStatus;
-import com.hien.marketplace.domain.payment.events.RefundProcessedEvent;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
@@ -42,23 +40,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests cho RefundService.
+ * Unit tests cho RefundService (after Order→Booking merge).
  *
- * WHY test service:
- * - Service chứa business logic phức tạp
- * - Authorization checks
- * - Stripe API integration
- * - Transaction boundaries
- * - Partial vs full refund logic
- *
- * MOCKING:
- * - StripeClient: External API calls
- * - PaymentRepository: Database operations
- * - RefundRepository: Database operations
- * - ApplicationEventPublisher: Event publishing
+ * After the merge: Payment references Booking directly (no Order).
+ * RefundContext uses BookingStatus instead of OrderStatus.
+ * isRefundable() requires bookingStatus == PAID (not OrderStatus.PAID).
  *
  * @MockitoSettings(strictness = Strictness.LENIENT) allows unused stubs
- * (needed because @BeforeEach sets up all mocks, but not all tests use all stubs)
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -84,7 +72,6 @@ class RefundServiceTest {
 
     private User customer;
     private Booking booking;
-    private Order order;
     private Payment payment;
 
     @BeforeEach
@@ -103,44 +90,41 @@ class RefundServiceTest {
         // Create service
         ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
-        // Create booking
-        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000));
+        // Create booking — new constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
+        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
+                Money.of(10000), Money.of(1000));
         booking = spy(booking);
         when(booking.getId()).thenReturn(1L);
 
-        // Create order
-        order = new Order(customer, booking, Money.of(10000), Money.of(1000));
-        order = spy(order);
-        when(order.getId()).thenReturn(1L);
-
-        // Create payment (already succeeded for refund)
-        payment = new Payment(order, Money.of(11000));
+        // Payment now references Booking directly (not Order)
+        payment = new Payment(booking, Money.of(11000));
         payment = spy(payment);
         when(payment.getId()).thenReturn(1L);
         when(payment.getStripePaymentIntentId()).thenReturn("pi_test123");
 
-        // Payment needs to be succeeded for refund
+        // Payment needs to be SUCCEEDED for refund
         payment.markAsProcessing();
         payment.markAsSucceeded();
 
-        // Order needs to be PAID for refund
-        order.markAsPendingPayment();
-        order.markAsPaid();
+        // Booking must be PAID for refund (new state replacing Order.PAID)
+        booking.confirm(vendorUser);
+        booking.markAsPaid(null);
 
         // Initialize empty refunds list
         when(payment.getRefunds()).thenReturn(new ArrayList<>());
     }
 
     // Helper method to create RefundContext from payment
+    // RefundContext now uses BookingStatus instead of OrderStatus
     private RefundContext createRefundContext(Payment payment, Money alreadyRefunded) {
         return new RefundContext(
                 payment.getId(),
                 payment.getStripePaymentIntentId(),
                 payment.getStatus(),
                 payment.getAmount(),
-                payment.getOrder().getId(),
-                payment.getOrder().getStatus(),
-                payment.getOrder().getCustomer().getId(),
+                payment.getBooking().getId(),
+                payment.getBooking().getStatus(),
+                payment.getBooking().getCustomer().getId(),
                 alreadyRefunded
         );
     }
@@ -165,7 +149,7 @@ class RefundServiceTest {
             savedRefund.markAsSucceeded();
             savedRefund = spy(savedRefund);
             when(savedRefund.getId()).thenReturn(1L);
-            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+            when(refundTransactionService.createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test123")))
                     .thenReturn(savedRefund);
 
             // Execute
@@ -176,7 +160,7 @@ class RefundServiceTest {
             assertThat(result.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
             assertThat(result.getAmount()).isEqualTo(payment.getAmount());
             verify(stripeClient).createRefund("pi_test123", null); // null = full refund
-            verify(refundTransactionService).createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123"));
+            verify(refundTransactionService).createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test123"));
         }
 
         @Test
@@ -193,7 +177,7 @@ class RefundServiceTest {
             savedRefund.markAsSucceeded();
             savedRefund = spy(savedRefund);
             when(savedRefund.getId()).thenReturn(1L);
-            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+            when(refundTransactionService.createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test123")))
                     .thenReturn(savedRefund);
 
             // Execute
@@ -204,11 +188,11 @@ class RefundServiceTest {
             assertThat(result.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
             assertThat(result.getAmount()).isEqualTo(Money.of(5000));
             verify(stripeClient).createRefund("pi_test123", 5000L);
-            verify(refundTransactionService).createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123"));
+            verify(refundTransactionService).createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test123"));
         }
 
         @Test
-        void shouldUpdateOrderStatusOnFullRefund() throws StripeException {
+        void shouldUpdateBookingStatusOnFullRefund() throws StripeException {
             // Setup - mock loadRefundContext via RefundTransactionService
             RefundContext context = createRefundContext(payment, Money.of(0));
             when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
@@ -217,25 +201,25 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(null))).thenReturn(mockStripeRefund);
 
-            // Mock the transaction service to update order status
+            // Mock the transaction service to update booking status (PAID → REFUNDED)
             final Refund savedRefund = new Refund(payment, payment.getAmount(), "Full refund");
             savedRefund.markAsSucceeded();
-            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+            when(refundTransactionService.createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test123")))
                     .thenAnswer(invocation -> {
-                        // Simulate the order status update that happens in transaction service
-                        payment.getOrder().refund();
+                        // Simulate the booking status update that happens in transaction service
+                        booking.refund(null, "Full refund");
                         return savedRefund;
                     });
 
             // Execute
             refundService.createRefund(1L, 1L, null, "Full refund");
 
-            // Verify order status updated
-            assertThat(payment.getOrder().getStatus()).isEqualTo(OrderStatus.REFUNDED);
+            // Verify booking status updated
+            assertThat(booking.getStatus()).isEqualTo(BookingStatus.REFUNDED);
         }
 
         @Test
-        void shouldNotUpdateOrderStatusOnPartialRefund() throws StripeException {
+        void shouldNotUpdateBookingStatusOnPartialRefund() throws StripeException {
             // Setup - mock loadRefundContext via RefundTransactionService
             RefundContext context = createRefundContext(payment, Money.of(0));
             when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
@@ -244,19 +228,19 @@ class RefundServiceTest {
             when(mockStripeRefund.getId()).thenReturn("re_test123");
             when(stripeClient.createRefund(eq("pi_test123"), eq(5000L))).thenReturn(mockStripeRefund);
 
-            // Mock the transaction service (partial refund doesn't update order)
+            // Mock the transaction service (partial refund doesn't update booking)
             Refund savedRefund = new Refund(payment, Money.of(5000), "Partial refund");
             savedRefund.markAsSucceeded();
             savedRefund = spy(savedRefund);
             when(savedRefund.getId()).thenReturn(1L);
-            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test123")))
+            when(refundTransactionService.createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test123")))
                     .thenReturn(savedRefund);
 
             // Execute
             refundService.createRefund(1L, 1L, 5000L, "Partial refund");
 
-            // Verify order status NOT updated (still PAID)
-            assertThat(payment.getOrder().getStatus()).isEqualTo(OrderStatus.PAID);
+            // Verify booking status NOT updated (still PAID)
+            assertThat(booking.getStatus()).isEqualTo(BookingStatus.PAID);
         }
 
         @Test
@@ -283,32 +267,17 @@ class RefundServiceTest {
         }
 
         @Test
-        void shouldThrowWhenOrderNotPaid() {
-            // Create order in CREATED status (not PAID)
-            Order unpaidOrder = new Order(customer, booking, Money.of(10000), Money.of(1000));
-            unpaidOrder = spy(unpaidOrder);
-            when(unpaidOrder.getId()).thenReturn(2L);
-            when(unpaidOrder.getStatus()).thenReturn(OrderStatus.CREATED);
-            when(unpaidOrder.getCustomer()).thenReturn(customer);
-
-            // Create payment for this order (SUCCEEDED status)
-            Payment paymentForUnpaidOrder = spy(new Payment(unpaidOrder, Money.of(11000)));
-            when(paymentForUnpaidOrder.getId()).thenReturn(1L);
-            when(paymentForUnpaidOrder.getStatus()).thenReturn(PaymentStatus.SUCCEEDED);
-            when(paymentForUnpaidOrder.getAmount()).thenReturn(Money.of(11000));
-            when(paymentForUnpaidOrder.getStripePaymentIntentId()).thenReturn("pi_test123");
-            when(paymentForUnpaidOrder.getOrder()).thenReturn(unpaidOrder);
-            when(paymentForUnpaidOrder.getRefunds()).thenReturn(new ArrayList<>());
-
+        void shouldThrowWhenBookingNotPaid() {
+            // RefundContext with booking in CONFIRMED status (not PAID) — isRefundable() returns false
             RefundContext context = new RefundContext(
                     1L, "pi_test123", PaymentStatus.SUCCEEDED, Money.of(11000),
-                    2L, OrderStatus.CREATED, 1L, Money.of(0)
+                    1L, BookingStatus.CONFIRMED, 1L, Money.of(0)
             );
             when(refundTransactionService.loadRefundContext(1L, 1L)).thenReturn(context);
 
             assertThatThrownBy(() -> refundService.createRefund(1L, 1L, null, "Refund"))
                     .isInstanceOf(PaymentException.class)
-                    .hasMessageContaining("Only succeeded payments on paid orders can be refunded");
+                    .hasMessageContaining("Only succeeded payments on paid bookings can be refunded");
         }
 
         @Test
@@ -392,7 +361,7 @@ class RefundServiceTest {
             savedRefund.markAsSucceeded();
             savedRefund = spy(savedRefund);
             when(savedRefund.getId()).thenReturn(2L);
-            when(refundTransactionService.createRefundWithOrderUpdate(eq(1L), any(), anyString(), eq("re_test456")))
+            when(refundTransactionService.createRefundWithBookingUpdate(eq(1L), any(), anyString(), eq("re_test456")))
                     .thenReturn(savedRefund);
 
             // Execute: refund 6000 more (5000 + 6000 = 11000 = payment amount, allowed)

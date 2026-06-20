@@ -21,15 +21,15 @@ import org.springframework.web.bind.annotation.*;
  * REST controller for payment operations.
  *
  * WHY: Exposes payment endpoints for authenticated users.
- * - POST /api/payments - Create payment for an order
+ * - POST /api/payments - Create payment for a booking
  * - GET /api/payments/{id} - Get payment details
- * - GET /api/payments/order/{orderId} - Get payment by order
+ * - GET /api/payments/booking/{bookingId} - Get payment by booking
  *
  * All endpoints require JWT authentication (except webhook endpoint).
- * Authorization: Only order owner can create/view payment.
+ * Authorization: Only booking owner can create/view payment.
  *
  * FLOW for creating payment:
- * 1. Customer calls POST /api/payments with orderId
+ * 1. Customer calls POST /api/payments with bookingId
  * 2. Server creates Stripe PaymentIntent
  * 3. Server returns clientSecret
  * 4. Customer uses Stripe.js to confirm payment with clientSecret
@@ -46,12 +46,12 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     /**
-     * Create a payment for an order.
+     * Create a payment for a booking.
      *
      * Returns clientSecret for Stripe.js to confirm payment.
      *
      * FLOW:
-     * 1. Validate order ownership and status
+     * 1. Validate booking ownership and status (must be CONFIRMED)
      * 2. Create Stripe PaymentIntent
      * 3. Save Payment with PaymentIntent ID
      * 4. Return clientSecret
@@ -60,7 +60,7 @@ public class PaymentController {
      * ```javascript
      * const response = await fetch('/api/payments', {
      *   method: 'POST',
-     *   body: JSON.stringify({ orderId: 123, paymentMethod: 'card' })
+     *   body: JSON.stringify({ bookingId: 123, paymentMethod: 'card' })
      * });
      * const { clientSecret } = await response.json();
      * // Use clientSecret with Stripe.js
@@ -70,12 +70,12 @@ public class PaymentController {
     @PostMapping
     @Operation(
             summary = "Create payment",
-            description = "Create a payment for an order. Returns clientSecret for Stripe.js.",
+            description = "Create a payment for a confirmed booking. Returns clientSecret for Stripe.js.",
             responses = {
                     @ApiResponse(responseCode = "201", description = "Payment created, clientSecret returned"),
-                    @ApiResponse(responseCode = "404", description = "Order not found"),
-                    @ApiResponse(responseCode = "409", description = "Payment already exists for this order"),
-                    @ApiResponse(responseCode = "422", description = "Order not eligible for payment")
+                    @ApiResponse(responseCode = "404", description = "Booking not found"),
+                    @ApiResponse(responseCode = "409", description = "Payment already exists for this booking"),
+                    @ApiResponse(responseCode = "422", description = "Booking not eligible for payment")
             }
     )
     public ResponseEntity<PaymentResponse> createPayment(
@@ -84,12 +84,12 @@ public class PaymentController {
     ) {
         String clientSecret = paymentService.createPayment(
                 principal.userId(),
-                request.orderId(),
+                request.bookingId(),
                 request.paymentMethod()
         );
 
         // Get the created payment to build response
-        Payment payment = paymentService.getPaymentByOrderId(principal.userId(), request.orderId())
+        Payment payment = paymentService.getPaymentByBookingId(principal.userId(), request.bookingId())
                 .orElseThrow(() -> new IllegalStateException("Payment not found after creation"));
 
         PaymentResponse response = PaymentResponse.withClientSecret(payment, clientSecret);
@@ -120,26 +120,26 @@ public class PaymentController {
     }
 
     /**
-     * Get payment by order ID.
+     * Get payment by booking ID.
      *
-     * Returns payment for a specific order, if exists.
-     * Authorization: Only order owner can view payment.
+     * Returns payment for a specific booking, if exists.
+     * Authorization: Only booking owner can view payment.
      */
-    @GetMapping("/order/{orderId}")
+    @GetMapping("/booking/{bookingId}")
     @Operation(
-            summary = "Get payment by order ID",
-            description = "Retrieve payment for a specific order. Only order owner can access.",
+            summary = "Get payment by booking ID",
+            description = "Retrieve payment for a specific booking. Only booking owner can access.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Payment found"),
-                    @ApiResponse(responseCode = "404", description = "No payment for this order"),
+                    @ApiResponse(responseCode = "404", description = "No payment for this booking"),
                     @ApiResponse(responseCode = "403", description = "Not authorized to view this payment")
             }
     )
-    public ResponseEntity<PaymentResponse> getPaymentByOrder(
+    public ResponseEntity<PaymentResponse> getPaymentByBooking(
             @AuthenticationPrincipal UserPrincipal principal,
-            @Parameter(description = "Order ID") @PathVariable Long orderId
+            @Parameter(description = "Booking ID") @PathVariable Long bookingId
     ) {
-        return paymentService.getPaymentByOrderId(principal.userId(), orderId)
+        return paymentService.getPaymentByBookingId(principal.userId(), bookingId)
                 .map(payment -> ResponseEntity.ok(PaymentResponse.from(payment)))
                 .orElse(ResponseEntity.notFound().build());
     }

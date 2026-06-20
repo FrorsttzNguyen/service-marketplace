@@ -2,8 +2,6 @@ package com.hien.marketplace.domain.payment;
 
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.common.TimeSlot;
-import com.hien.marketplace.domain.order.Order;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
@@ -37,7 +35,7 @@ import static org.assertj.core.api.Assertions.*;
 class PaymentTest {
 
     private Payment payment;
-    private Order order;
+    private Booking booking;
 
     @BeforeEach
     void setUp() {
@@ -51,13 +49,11 @@ class PaymentTest {
         // Create service
         ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
-        // Create booking
-        Booking booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000));
+        // Create booking — new constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
+        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
+                Money.of(10000), Money.of(1000));
 
-        // Create order
-        order = new Order(customer, booking, Money.of(10000), Money.of(1000));
-
-        payment = new Payment(order, Money.of(11000));
+        payment = new Payment(booking, Money.of(11000));
     }
 
     // === Constructor tests ===
@@ -73,8 +69,8 @@ class PaymentTest {
     }
 
     @Test
-    void constructorShouldSetOrder() {
-        assertThat(payment.getOrder()).isEqualTo(order);
+    void constructorShouldSetBooking() {
+        assertThat(payment.getBooking()).isEqualTo(booking);
     }
 
     @Test

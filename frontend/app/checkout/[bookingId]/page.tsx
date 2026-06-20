@@ -6,35 +6,32 @@
  * ROUTE: /checkout/[bookingId]  (Reached from "Pay now" on a CONFIRMED booking.)
  *
  * THE FLOW (in order):
- *   1. CREATE ORDER — POST /api/orders { bookingId } → orderId.
- *      Idempotent, so a page reload re-creates the SAME order (no duplicate). Safe.
- *   2. CREATE PAYMENT — POST /api/payments { orderId, paymentMethod: "card" } →
+ *   1. CREATE PAYMENT — POST /api/payments { bookingId, paymentMethod: "card" } →
  *      a PaymentResponse WITH clientSecret. The secret is what Stripe.js needs to
  *      mount <Elements> + <PaymentElement>.
- *   3. MOUNT STRIPE ELEMENTS — only AFTER we have the clientSecret. (Stripe requires
+ *   2. MOUNT STRIPE ELEMENTS — only AFTER we have the clientSecret. (Stripe requires
  *      the clientSecret at <Elements> mount time; it cannot be added/changed later.)
- *   4. CONFIRM — on submit, stripe.confirmPayment({ elements, redirect: "if_required"
+ *   3. CONFIRM — on submit, stripe.confirmPayment({ elements, redirect: "if_required"
  *      }) charges the card. On status "succeeded" we flip to the success UI.
- *   5. POLL BACKEND STATUS — GET /api/payments/order/{orderId} reflects the BACKEND's
- *      view, which the Stripe webhook advances. In local dev the webhook isn't
- *      delivered unless Stripe CLI forwards it, so the backend status may lag the
- *      client result. We show it as secondary ("server confirmation pending").
+ *   4. POLL BACKEND STATUS — GET /api/payments/booking/{bookingId} reflects the
+ *      BACKEND's view, which the Stripe webhook advances. In local dev the webhook
+ *      isn't delivered unless Stripe CLI forwards it, so the backend status may lag
+ *      the client result. We show it as secondary ("server confirmation pending").
  *
  * ERROR / EDGE CASES:
  *   - Missing NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY → clear config message, no crash.
- *   - 422 on order create (booking not confirmed/not yours) → tell the user.
+ *   - 422 on payment create (booking not confirmed/not yours) → tell the user.
  *   - 409 on payment create (payment already exists) → can't resume Elements (GET
- *     returns no clientSecret). Show "a payment already exists" + its backend status.
- *     Known v1 limitation; documented in lib/api/payments.ts.
+ *     returns no clientSecret). Show "a payment already exists for this booking" +
+ *     its backend status. Known v1 limitation; documented in lib/api/payments.ts.
  *   - Network/CORS → reuse <ErrorState> with the existing CORS hint.
  *
- * WHY THE REFS: React 18 StrictMode double-invokes effects in dev. Each kickoff
- * (create-order on mount, create-payment once orderId is known) is guarded by a ref
- * so it fires exactly once even under the double-invoke. In production the refs are a
- * harmless no-op.
+ * WHY THE REF: React 18 StrictMode double-invokes effects in dev. The create-payment
+ * kickoff on mount is guarded by a ref so it fires exactly once even under the
+ * double-invoke. In production the ref is a harmless no-op.
  *
- * Visual (Phase 7): the order summary + payment form + status are each islands. The
- * Stripe Elements mount, status branches, and refs are UNCHANGED — only the wrapper
+ * Visual (Phase 7): the payment summary + payment form + status are each islands. The
+ * Stripe Elements mount, status branches, and ref are UNCHANGED — only the wrapper
  * markup and Button styling changed.
  */
 import { useEffect, useRef, useState } from "react";
@@ -48,15 +45,14 @@ import { ServiceDetailSkeleton } from "@/components/skeletons";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
 import { CheckoutSuccess } from "@/components/checkout/checkout-success";
 import { ApiError } from "@/lib/api/client";
-import { useCreateOrder } from "@/lib/api/orders-queries";
-import type { Order } from "@/lib/api/orders";
-import { useCreatePayment, usePaymentForOrder } from "@/lib/api/payments-queries";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCreatePayment, usePaymentForBooking } from "@/lib/api/payments-queries";
 import { paymentKeys } from "@/lib/api/payments-queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { getStripe, getStripePublishableKey } from "@/lib/stripe/stripe-client";
 import { Container } from "@/components/ui/container";
 import { Card } from "@/components/ui/card";
 import { Button, buttonClasses } from "@/components/ui/button";
+import type { Payment } from "@/lib/api/payments";
 
 export default function CheckoutPage() {
   return (
@@ -111,57 +107,43 @@ function CheckoutContent() {
 }
 
 /**
- * The actual ordered checkout flow. Split out so the guards above (invalid id, missing
- * key) can short-circuit before any of the mutation machinery mounts.
+ * The actual checkout flow. Split out so the guards above (invalid id, missing key)
+ * can short-circuit before any of the mutation machinery mounts.
  */
 function CheckoutFlow({ bookingId }: { bookingId: number }) {
   // --- Mutations ----------------------------------------------------------
-  const createOrderMutation = useCreateOrder();
   const createPaymentMutation = useCreatePayment();
   const queryClient = useQueryClient();
 
   // --- Step state (each set once as we advance) ---------------------------
-  const [order, setOrder] = useState<Order | null>(null);
+  // The payment returned by createPayment — carries amount/currency for the summary.
+  const [payment, setPayment] = useState<Payment | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   // Set when createPayment returns 409 — see KNOWN LIMITATION in lib/api/payments.ts.
   const [paymentAlreadyExists, setPaymentAlreadyExists] = useState(false);
   // The confirmed PaymentIntent from the Stripe CLIENT (success signal).
   const [confirmedPI, setConfirmedPI] = useState<PaymentIntent | null>(null);
 
-  // Refs to make each kickoff idempotent under StrictMode double-invoke.
-  const orderStartedRef = useRef(false);
+  // Ref to make the create-payment kickoff idempotent under StrictMode double-invoke.
   const paymentStartedRef = useRef(false);
 
-  // STEP 1: create the order on mount. Idempotent, so a reload just re-returns it.
+  // Local state for the create-payment error message (non-409). Kept separate from
+  // the 409 flag so the two UIs read cleanly.
+  const [paymentCreateMsg, setPaymentCreateMsg] = useState<string | null>(null);
+
+  // STEP 1: create the payment directly on mount. Guarded by ONE ref so it fires
+  // exactly once even under React 18 StrictMode double-invoke.
   useEffect(() => {
-    if (orderStartedRef.current) return; // already kicked off (StrictMode guard)
-    orderStartedRef.current = true;
-    createOrderMutation.mutate(
-      { bookingId },
+    if (paymentStartedRef.current) return; // already kicked off (StrictMode guard)
+    paymentStartedRef.current = true;
+    createPaymentMutation.mutate(
+      { bookingId, paymentMethod: "card" },
       {
         onSuccess: (created) => {
-          setOrder(created);
-        },
-        // Errors handled below via createOrderMutation.error; nothing to do here.
-      },
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId]);
-
-  // STEP 2: once we have an order id, create the payment → clientSecret.
-  useEffect(() => {
-    const orderId = order?.id;
-    if (orderId === undefined) return; // order not ready yet
-    if (paymentStartedRef.current) return; // already kicked off
-    paymentStartedRef.current = true;
-
-    createPaymentMutation.mutate(
-      { orderId, paymentMethod: "card" },
-      {
-        onSuccess: (payment) => {
+          setPayment(created);
           // The ONLY call that returns a clientSecret. Feed it to <Elements>.
-          if (payment.clientSecret) {
-            setClientSecret(payment.clientSecret);
+          if (created.clientSecret) {
+            setClientSecret(created.clientSecret);
           } else {
             // Defensive: backend returned 201 but no secret. Treat as a hard error.
             setPaymentCreateMsg(
@@ -177,7 +159,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
             // Make the status query refetch so we can show the existing payment's
             // current state (it may have been 404'ing before this payment existed).
             void queryClient.invalidateQueries({
-              queryKey: paymentKeys.byOrder(orderId),
+              queryKey: paymentKeys.byBooking(bookingId),
             });
           } else {
             setPaymentCreateMsg(describePaymentCreateError(err));
@@ -186,78 +168,20 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order?.id]);
+  }, [bookingId]);
 
   // --- Bounded status poll (secondary success signal) ---------------------
-  // Polls GET /api/payments/order/{orderId}. In local dev the webhook isn't delivered,
-  // so this may stay PENDING — that's fine; we trust the Stripe client result for the
-  // success UI and surface this status as secondary info.
-  const orderIdForPoll = order?.id ?? 0;
-  const statusQuery = usePaymentForOrder(orderIdForPoll);
-
-  // Local state for the create-payment error message (non-409). Kept separate from
-  // the 409 flag so the two UIs read cleanly.
-  const [paymentCreateMsg, setPaymentCreateMsg] = useState<string | null>(null);
+  // Polls GET /api/payments/booking/{bookingId}. In local dev the webhook isn't
+  // delivered, so this may stay PENDING — that's fine; we trust the Stripe client
+  // result for the success UI and surface this status as secondary info.
+  const statusQuery = usePaymentForBooking(bookingId);
 
   // --- RENDER BRANCHES ----------------------------------------------------
 
-  // Order-create failure (404 booking gone, 422 not confirmed / not owner, network).
-  if (createOrderMutation.isError) {
-    return (
-      <CheckoutShell>
-        <ErrorState
-          error={createOrderMutation.error}
-          title="Couldn't start checkout."
-          hint={
-            createOrderMutation.error instanceof ApiError &&
-            createOrderMutation.error.status === 422 ? (
-              <span>
-                This booking can&apos;t be paid yet — it must be confirmed by the
-                provider first.{" "}
-                <Link href="/bookings" className="underline">
-                  Back to my bookings
-                </Link>
-              </span>
-            ) : null
-          }
-          onRetry={() => {
-            // Allow a manual retry of the order-create step.
-            orderStartedRef.current = false;
-            createOrderMutation.mutate(
-              { bookingId },
-              { onSuccess: (created) => setOrder(created) },
-            );
-          }}
-        />
-      </CheckoutShell>
-    );
-  }
-
-  // Order still creating → loading.
-  if (!order) {
-    return (
-      <CheckoutShell>
-        <ServiceDetailSkeleton />
-      </CheckoutShell>
-    );
-  }
-
-  // 409: a payment already exists for this order. We can't remount Elements (no
-  // clientSecret from GET). Show the existing payment + its status.
-  if (paymentAlreadyExists) {
-    return (
-      <CheckoutShell>
-        <OrderHeader order={order} />
-        <ExistingPaymentState statusQuery={statusQuery} />
-      </CheckoutShell>
-    );
-  }
-
-  // Non-409 payment-create error.
+  // Payment-create failure (non-409 errors).
   if (paymentCreateMsg) {
     return (
       <CheckoutShell>
-        <OrderHeader order={order} />
         <Card
           padded
           className="mt-6 border-danger/30 bg-danger/10 text-danger"
@@ -270,35 +194,43 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
             size="sm"
             className="mt-4"
             onClick={() => {
-              // Allow a retry of the payment-create step only.
+              // Allow a retry of the payment-create step.
               setPaymentCreateMsg(null);
-              paymentStartedRef.current = false;
-              // Re-trigger by toggling the effect: easiest is to call mutate directly.
-              if (order.id !== undefined) {
-                paymentStartedRef.current = true;
-                createPaymentMutation.mutate(
-                  { orderId: order.id, paymentMethod: "card" },
-                  {
-                    onSuccess: (payment) => {
-                      if (payment.clientSecret) {
-                        setClientSecret(payment.clientSecret);
-                      }
-                    },
-                    onError: (err: unknown) => {
-                      if (err instanceof ApiError && err.status === 409) {
-                        setPaymentAlreadyExists(true);
-                      } else {
-                        setPaymentCreateMsg(describePaymentCreateError(err));
-                      }
-                    },
+              paymentStartedRef.current = true;
+              createPaymentMutation.mutate(
+                { bookingId, paymentMethod: "card" },
+                {
+                  onSuccess: (created) => {
+                    setPayment(created);
+                    if (created.clientSecret) {
+                      setClientSecret(created.clientSecret);
+                    }
                   },
-                );
-              }
+                  onError: (err: unknown) => {
+                    if (err instanceof ApiError && err.status === 409) {
+                      setPaymentAlreadyExists(true);
+                    } else {
+                      setPaymentCreateMsg(describePaymentCreateError(err));
+                    }
+                  },
+                },
+              );
             }}
           >
             Try again
           </Button>
         </Card>
+      </CheckoutShell>
+    );
+  }
+
+  // 409: a payment already exists for this booking. We can't remount Elements (no
+  // clientSecret from GET). Show the existing payment + its status.
+  if (paymentAlreadyExists) {
+    return (
+      <CheckoutShell>
+        {payment ? <PaymentHeader payment={payment} /> : null}
+        <ExistingPaymentState statusQuery={statusQuery} />
       </CheckoutShell>
     );
   }
@@ -309,7 +241,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
       <CheckoutShell>
         <CheckoutSuccess
           paymentIntent={confirmedPI}
-          orderId={order.id}
+          bookingId={bookingId}
           backendPayment={statusQuery.data}
           isPolling={statusQuery.isFetching}
         />
@@ -321,8 +253,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
   if (!clientSecret) {
     return (
       <CheckoutShell>
-        <OrderHeader order={order} />
-        <div className="mt-6" aria-busy="true">
+        <div aria-busy="true">
           <ServiceDetailSkeleton />
         </div>
       </CheckoutShell>
@@ -335,7 +266,7 @@ function CheckoutFlow({ bookingId }: { bookingId: number }) {
   // only after clientSecret is non-null (conditional mount).
   return (
     <CheckoutShell>
-      <OrderHeader order={order} />
+      {payment ? <PaymentHeader payment={payment} /> : null}
       <Card padded className="mt-6">
         <h2 className="text-lg font-semibold text-foreground">Pay with card</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -404,9 +335,9 @@ function CheckoutShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Order summary header (amount + currency + reference). */
-function OrderHeader({ order }: { order: Order }) {
-  const amount = formatOrderAmount(order.totalAmount, order.currency);
+/** Payment summary header (amount + currency from the PaymentResponse). */
+function PaymentHeader({ payment }: { payment: Payment }) {
+  const amount = formatPaymentAmount(payment.amount, payment.currency);
   return (
     <header>
       <h1 className="text-3xl font-bold tracking-tight text-foreground">Checkout</h1>
@@ -414,15 +345,15 @@ function OrderHeader({ order }: { order: Order }) {
         Pay{" "}
         <strong className="text-foreground">{amount}</strong> for your booking.
       </p>
-      {order.id !== undefined ? (
-        <p className="mt-1 text-xs text-muted-foreground">Order #{order.id}</p>
+      {payment.bookingId !== undefined ? (
+        <p className="mt-1 text-xs text-muted-foreground">Booking #{payment.bookingId}</p>
       ) : null}
     </header>
   );
 }
 
-/** Format an order amount (backend uses major units, e.g. 12.5) + currency. */
-function formatOrderAmount(amount: number | undefined, currency: string | undefined): string {
+/** Format a payment amount (backend uses major units, e.g. 12.5) + currency. */
+function formatPaymentAmount(amount: number | undefined, currency: string | undefined): string {
   if (amount === undefined || amount === null) return "—";
   try {
     return new Intl.NumberFormat(undefined, {
@@ -437,9 +368,9 @@ function formatOrderAmount(amount: number | undefined, currency: string | undefi
 /** Map a non-409 payment-create error to a user-facing line. */
 function describePaymentCreateError(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 404) return "The order for this booking wasn't found.";
+    if (err.status === 404) return "The booking wasn't found.";
     if (err.status === 422)
-      return "This order isn't eligible for payment (it may already be paid).";
+      return "This booking isn't eligible for payment — it must be confirmed by the provider first, and not already paid.";
     return err.message;
   }
   return "Couldn't start the payment. Please try again.";
@@ -449,7 +380,7 @@ function describePaymentCreateError(err: unknown): string {
 function ExistingPaymentState({
   statusQuery,
 }: {
-  statusQuery: ReturnType<typeof usePaymentForOrder>;
+  statusQuery: ReturnType<typeof usePaymentForBooking>;
 }) {
   const status = statusQuery.data?.status;
   return (
@@ -460,7 +391,7 @@ function ExistingPaymentState({
       data-testid="payment-already-exists"
     >
       <h2 className="text-lg font-semibold">
-        A payment already exists for this order
+        A payment already exists for this booking
       </h2>
       <p className="mt-1 text-sm">
         We can&apos;t reopen the card form for an existing payment in this version.
@@ -472,7 +403,7 @@ function ExistingPaymentState({
       </p>
       {status === "SUCCEEDED" ? (
         <p className="mt-2 text-sm">
-          This order has already been paid.{" "}
+          This booking has already been paid.{" "}
           <Link href="/bookings" className="underline">
             Back to my bookings
           </Link>
@@ -480,7 +411,7 @@ function ExistingPaymentState({
       ) : null}
       <p className="mt-3 text-xs opacity-80">
         Known v1 limitation: resuming an in-progress payment isn&apos;t supported
-        yet. If you believe this is an error, contact support with your order id.
+        yet. If you believe this is an error, contact support with your booking id.
       </p>
     </Card>
   );

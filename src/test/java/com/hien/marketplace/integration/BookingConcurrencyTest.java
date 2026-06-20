@@ -69,8 +69,10 @@ class BookingConcurrencyTest {
         setupEm.persist(service);
         User customer = new User("customer-" + UUID.randomUUID() + "@test.com", "hash", "Customer", UserRole.CUSTOMER);
         setupEm.persist(customer);
+        // New constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
         Booking booking = new Booking(service, customer, vendor,
-                LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0), Money.of(5000));
+                LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0),
+                Money.of(5000), Money.of(500));
         setupEm.persist(booking);
         setupEm.getTransaction().commit();
         bookingId = booking.getId();
@@ -127,8 +129,10 @@ class BookingConcurrencyTest {
         setupEm.persist(service);
         User customer = new User("customer-" + UUID.randomUUID() + "@test.com", "hash", "Customer", UserRole.CUSTOMER);
         setupEm.persist(customer);
+        // New constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
         Booking booking = new Booking(service, customer, vendor,
-                LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0), Money.of(5000));
+                LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0),
+                Money.of(5000), Money.of(500));
         setupEm.persist(booking);
         setupEm.getTransaction().commit();
         bookingId = booking.getId();
@@ -146,15 +150,25 @@ class BookingConcurrencyTest {
         assertThat(b1.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
         em1.close();
 
-        // Second update: version 1 → 2
+        // Second update: version 1 → 2 (CONFIRMED → PAID via system webhook, changedBy null)
         EntityManager em2 = emf.createEntityManager();
         em2.getTransaction().begin();
         Booking b2 = em2.find(Booking.class, bookingId);
-        User vUser2 = em2.find(User.class, vendorUserId);
-        b2.start(vUser2);
+        b2.markAsPaid(null);  // Simulates Stripe webhook; new lifecycle requires PAID before IN_PROGRESS
         em2.getTransaction().commit();
         assertThat(b2.getVersion()).isEqualTo(2L);
-        assertThat(b2.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+        assertThat(b2.getStatus()).isEqualTo(BookingStatus.PAID);
         em2.close();
+
+        // Third update: version 2 → 3 (PAID → IN_PROGRESS)
+        EntityManager em3 = emf.createEntityManager();
+        em3.getTransaction().begin();
+        Booking b3 = em3.find(Booking.class, bookingId);
+        User vUser3 = em3.find(User.class, vendorUserId);
+        b3.start(vUser3);
+        em3.getTransaction().commit();
+        assertThat(b3.getVersion()).isEqualTo(3L);
+        assertThat(b3.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+        em3.close();
     }
 }

@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
 public record RefundProcessedEvent(
     Long refundId,
     Long paymentId,
-    Long orderId,
+    Long bookingId,
     Long customerId,
     String stripeRefundId,
     long refundAmountCents,
@@ -41,8 +41,8 @@ public record RefundProcessedEvent(
         return new RefundProcessedEvent(
             refund.getId(),
             refund.getPayment().getId(),
-            refund.getPayment().getOrder().getId(),
-            refund.getPayment().getOrder().getCustomer().getId(),
+            refund.getPayment().getBooking().getId(),
+            refund.getPayment().getBooking().getCustomer().getId(),
             refund.getStripeRefundId(),
             refund.getAmount().getAmountCents(),
             paymentAmount.getAmountCents(),

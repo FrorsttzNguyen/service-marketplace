@@ -6,6 +6,7 @@ import com.hien.marketplace.application.exception.BookingConflictException;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.application.mapper.BookingMapper;
+import com.hien.marketplace.config.CommissionProperties;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
@@ -60,6 +61,7 @@ public class BookingService {
     private final VendorRepository vendorRepository;
     private final BookingMapper bookingMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final CommissionProperties commissionProperties;
 
     // Maximum retries for optimistic locking conflicts
     private static final int MAX_RETRIES = 3;
@@ -101,8 +103,12 @@ public class BookingService {
 
         checkTimeSlotAvailability(service.getId(), bookingDate, startTime, endTime);
 
-        // Step 4: Calculate total price
-        Money totalPrice = calculateTotalPrice(service, request.quantity());
+        // Step 4: Calculate money breakdown.
+        // subtotal = service price × quantity; commission = subtotal × rate (computed in cents
+        // via Money to avoid float). After the Order→Booking merge, the booking carries the full
+        // breakdown from the start (commission used to be computed later at order creation).
+        Money subtotal = calculateTotalPrice(service, request.quantity());
+        Money commission = subtotal.multiply(commissionProperties.getRate());
 
         // Step 5: Create Booking
         Booking booking = new Booking(
@@ -112,7 +118,8 @@ public class BookingService {
                 bookingDate,
                 startTime,
                 endTime,
-                totalPrice
+                subtotal,
+                commission
         );
 
         // Set notes if provided
@@ -418,6 +425,8 @@ public class BookingService {
                     response.status(),
                     response.quantity(),
                     response.totalPrice(),
+                    response.commission(),
+                    response.total(),
                     response.currency(),
                     response.notes(),
                     response.createdAt(),
@@ -444,6 +453,8 @@ public class BookingService {
                     response.status(),
                     response.quantity(),
                     response.totalPrice(),
+                    response.commission(),
+                    response.total(),
                     response.currency(),
                     response.notes(),
                     response.createdAt(),

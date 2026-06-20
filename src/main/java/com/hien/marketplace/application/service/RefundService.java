@@ -88,12 +88,12 @@ public class RefundService {
             throw new BusinessRuleViolationException("Refund", "You can only refund your own payments");
         }
 
-        // Business rule: only PAID orders with SUCCEEDED payments can be refunded
+        // Business rule: only PAID bookings with SUCCEEDED payments can be refunded
         if (!context.isRefundable()) {
             throw new PaymentException(
                     "Payment status",
-                    String.format("Only succeeded payments on paid orders can be refunded. " +
-                            "Payment: %s, Order: %s", context.paymentStatus(), context.orderStatus()),
+                    String.format("Only succeeded payments on paid bookings can be refunded. " +
+                            "Payment: %s, Booking: %s", context.paymentStatus(), context.bookingStatus()),
                     context.paymentStatus()
             );
         }
@@ -121,7 +121,7 @@ public class RefundService {
 
         // Step 5: Create local Refund (INSIDE transaction with locking)
         // Uses RefundTransactionService for proper transaction boundary via Spring proxy
-        com.hien.marketplace.domain.payment.Refund refund = refundTransactionService.createRefundWithOrderUpdate(
+        com.hien.marketplace.domain.payment.Refund refund = refundTransactionService.createRefundWithBookingUpdate(
                 context.paymentId(), refundAmount, reason, stripeRefund.getId());
 
         log.info("Refund created successfully: refundId={}, stripeRefundId={}",
@@ -173,7 +173,7 @@ public class RefundService {
                 .orElseThrow(() -> new ResourceNotFoundException("Refund", refundId));
 
         // Authorization: only payment owner can view refund
-        if (!refund.getPayment().getOrder().getCustomer().getId().equals(userId)) {
+        if (!refund.getPayment().getBooking().getCustomer().getId().equals(userId)) {
             throw new BusinessRuleViolationException("Refund", "You can only view your own refunds");
         }
 
@@ -189,7 +189,7 @@ public class RefundService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
 
-        if (!payment.getOrder().getCustomer().getId().equals(userId)) {
+        if (!payment.getBooking().getCustomer().getId().equals(userId)) {
             throw new BusinessRuleViolationException("Refund", "You can only view refunds for your own payments");
         }
 

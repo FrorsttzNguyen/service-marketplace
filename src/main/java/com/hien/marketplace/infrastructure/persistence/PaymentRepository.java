@@ -17,10 +17,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     boolean existsByStripePaymentIntentId(String stripePaymentIntentId);
 
     /**
-     * Check if payment exists for an order.
+     * Check if payment exists for a booking.
      * Used to prevent duplicate payment creation.
      */
-    boolean existsByOrderId(Long orderId);
+    boolean existsByBookingId(Long bookingId);
 
     /**
      * Find payments by status.
@@ -29,22 +29,22 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByStatus(PaymentStatus status);
 
     /**
-     * Find payment by order ID.
-     * Used to check payment status for an order.
+     * Find payment by booking ID.
+     * Used to check payment status for a booking.
      */
-    Optional<Payment> findByOrderId(Long orderId);
+    Optional<Payment> findByBookingId(Long bookingId);
 
     /**
-     * Find payment by order ID and customer ID.
+     * Find payment by booking ID and customer ID.
      * Used for secure payment lookup - both conditions must match.
      * Returns empty if payment doesn't exist OR user doesn't own it.
      * This prevents leaking existence of other users' payments.
      */
-    @Query("select p from Payment p where p.order.id = :orderId and p.order.customer.id = :customerId")
-    Optional<Payment> findByOrderIdAndOrderCustomerId(Long orderId, Long customerId);
+    @Query("select p from Payment p where p.booking.id = :bookingId and p.booking.customer.id = :customerId")
+    Optional<Payment> findByBookingIdAndBookingCustomerId(Long bookingId, Long customerId);
 
     /**
-     * Find payment by ID with order and refunds eagerly loaded.
+     * Find payment by ID with booking and refunds eagerly loaded.
      * Used for refund processing to avoid LazyInitializationException.
      *
      * WHY NEEDED?
@@ -53,14 +53,14 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      * - This query fetches all needed data in ONE query with JOIN FETCH
      *
      * @param id Payment ID
-     * @return Payment with order.customer and refunds loaded
+     * @return Payment with booking.customer and refunds loaded
      */
     @Query("select p from Payment p " +
-           "join fetch p.order o " +
-           "join fetch o.customer " +
+           "join fetch p.booking b " +
+           "join fetch b.customer " +
            "left join fetch p.refunds " +
            "where p.id = :id")
-    Optional<Payment> findByIdWithOrderAndRefunds(Long id);
+    Optional<Payment> findByIdWithBookingAndRefunds(Long id);
 
     /**
      * Find payment by ID with pessimistic write lock.

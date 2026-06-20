@@ -35,7 +35,7 @@ import static org.mockito.Mockito.*;
  *
  * WHY this matters: a service is created DRAFT and the public catalog only lists ACTIVE services, so
  * activate() is what makes a service visible. We assert the happy path flips the status and the
- * ownership guard rejects a non-owner. Mocks mirror the OrderServiceTest style.
+ * ownership guard rejects a non-owner. Mocks mirror the PaymentServiceTest style.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

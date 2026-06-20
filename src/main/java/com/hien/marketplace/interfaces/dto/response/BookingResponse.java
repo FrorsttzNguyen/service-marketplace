@@ -9,11 +9,13 @@ import java.time.LocalDateTime;
 /**
  * Response DTO for Booking entity.
  *
- * WHY: Returns booking details with computed total price.
+ * WHY: Returns booking details with the full money breakdown.
  * Customer and vendor both see this after booking creation.
  *
- * Note: totalPrice is computed from service.basePrice × quantity
- * (based on PricingType in service layer)
+ * Money fields (after the Order→Booking merge the booking carries all three):
+ * - totalPrice  = subtotal = service.basePrice × quantity (the service price shown in listings)
+ * - commission  = platform fee on top of the subtotal
+ * - total       = subtotal + commission = the amount the customer actually pays at checkout
  */
 public record BookingResponse(
     Long id,
@@ -28,6 +30,8 @@ public record BookingResponse(
     BookingStatus status,
     Integer quantity,
     BigDecimal totalPrice,
+    BigDecimal commission,
+    BigDecimal total,
     String currency,
     String notes,
     LocalDateTime createdAt,

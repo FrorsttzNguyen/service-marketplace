@@ -14,13 +14,13 @@ import jakarta.validation.constraints.Positive;
  * - Flexibility: API can change without affecting domain
  *
  * Validation:
- * - orderId: required, must be positive
+ * - bookingId: required, must be positive
  * - paymentMethod: required, non-blank (e.g., "card")
  */
 public record PaymentCreateRequest(
-    @NotNull(message = "Order ID is required")
-    @Positive(message = "Order ID must be positive")
-    Long orderId,
+    @NotNull(message = "Booking ID is required")
+    @Positive(message = "Booking ID must be positive")
+    Long bookingId,
 
     @NotBlank(message = "Payment method is required")
     String paymentMethod

@@ -1,14 +1,12 @@
 package com.hien.marketplace.application.service;
 
 import com.hien.marketplace.application.exception.*;
-import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
-import com.hien.marketplace.domain.order.OrderStatus;
+import com.hien.marketplace.domain.booking.Booking;
+import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.payment.Payment;
-import com.hien.marketplace.domain.payment.PaymentStatus;
 import com.hien.marketplace.domain.payment.events.PaymentFailedEvent;
 import com.hien.marketplace.domain.payment.events.PaymentSucceededEvent;
-import com.hien.marketplace.infrastructure.persistence.OrderRepository;
+import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.stripe.StripeClient;
 import com.stripe.exception.StripeException;
@@ -54,7 +52,7 @@ import java.util.Optional;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
-    private final OrderRepository orderRepository;
+    private final BookingRepository bookingRepository;
     private final StripeClient stripeClient;
     private final ApplicationEventPublisher eventPublisher;
     private final PaymentTransactionService paymentTransactionService;
@@ -75,52 +73,52 @@ public class PaymentService {
      * - Real safety is in transaction service (locking + unique constraint)
      *
      * @param userId Current user ID (for authorization)
-     * @param orderId Order to pay for
+     * @param bookingId Booking to pay for (must be CONFIRMED)
      * @param paymentMethod Payment method (e.g., "card")
      * @return PaymentIntent client secret for frontend
      */
-    public String createPayment(Long userId, Long orderId, String paymentMethod) {
-        log.info("Creating payment for order {} by user {}", orderId, userId);
+    public String createPayment(Long userId, Long bookingId, String paymentMethod) {
+        log.info("Creating payment for booking {} by user {}", bookingId, userId);
 
         // Step 1: Quick pre-validation (read-only, can race)
         // Real validation happens inside transaction with locking
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
         // Pre-check authorization (fast fail for UX)
-        if (!order.getCustomer().getId().equals(userId)) {
-            throw new BusinessRuleViolationException("Payment", "You can only pay for your own orders");
+        if (!booking.getCustomer().getId().equals(userId)) {
+            throw new BusinessRuleViolationException("Payment", "You can only pay for your own bookings");
         }
 
-        // Pre-check status (fast fail for UX)
-        if (order.getStatus() != OrderStatus.CREATED) {
+        // Pre-check status (fast fail for UX) — booking must be CONFIRMED to be payable
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
             throw new BusinessRuleViolationException(
-                    "Order status",
-                    "Order is not eligible for payment. Current status: " + order.getStatus()
+                    "Booking status",
+                    "Booking is not eligible for payment. Current status: " + booking.getStatus()
             );
         }
 
         // Pre-check duplicate (fast fail for UX)
-        if (paymentRepository.existsByOrderId(orderId)) {
-            throw new DuplicateResourceException("Payment", "orderId", orderId);
+        if (paymentRepository.existsByBookingId(bookingId)) {
+            throw new DuplicateResourceException("Payment", "bookingId", bookingId);
         }
 
         // Step 2: Create Stripe PaymentIntent (OUTSIDE transaction)
         // CRITICAL: This is a network call, should not be in @Transactional
         PaymentIntent paymentIntent;
         try {
-            paymentIntent = stripeClient.createPaymentIntent(order.getTotal(), orderId);
+            paymentIntent = stripeClient.createPaymentIntent(booking.getTotal(), bookingId);
             log.info("Created Stripe PaymentIntent: {}", paymentIntent.getId());
         } catch (StripeException e) {
-            log.error("Failed to create PaymentIntent for order {}: {}", orderId, e.getMessage());
+            log.error("Failed to create PaymentIntent for booking {}: {}", bookingId, e.getMessage());
             throw new StripeApiException("Failed to create payment intent: " + e.getMessage(), e);
         }
 
-        // Step 3: Create local Payment and update order (INSIDE transaction)
+        // Step 3: Create local Payment (INSIDE transaction)
         // Uses PaymentTransactionService for proper transaction boundary
         // Pessimistic locking + DB unique constraint provide real safety
-        Payment payment = paymentTransactionService.createPaymentWithOrderUpdate(
-                userId, orderId, paymentIntent.getId(), paymentMethod);
+        Payment payment = paymentTransactionService.createPaymentWithBookingUpdate(
+                userId, bookingId, paymentIntent.getId(), paymentMethod);
 
         log.info("Payment created successfully: paymentId={}, intentId={}",
                 payment.getId(), paymentIntent.getId());
@@ -137,7 +135,7 @@ public class PaymentService {
      * FLOW:
      * 1. Find Payment by stripePaymentIntentId
      * 2. Update status to SUCCEEDED (validates transition)
-     * 3. Update Order status to PAID
+     * 3. Update Booking status to PAID
      * 4. Publish PaymentSucceededEvent for listeners
      *
      * @param paymentIntentId Stripe PaymentIntent ID
@@ -155,13 +153,14 @@ public class PaymentService {
         // Update payment status (validates state transition)
         payment.markAsSucceeded();
 
-        // Update order status
-        Order order = payment.getOrder();
-        order.markAsPaid();
-        orderRepository.save(order);
+        // Update booking status: CONFIRMED → PAID. changedBy is null because this is a
+        // system action triggered by the Stripe webhook, not a logged-in user.
+        Booking booking = payment.getBooking();
+        booking.markAsPaid(null);
+        bookingRepository.save(booking);
 
-        log.info("Payment {} succeeded, Order {} marked as PAID",
-                payment.getId(), order.getId());
+        log.info("Payment {} succeeded, Booking {} marked as PAID",
+                payment.getId(), booking.getId());
 
         // Publish domain event for async processing
         eventPublisher.publishEvent(PaymentSucceededEvent.from(payment));
@@ -208,8 +207,8 @@ public class PaymentService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
 
-        // Authorization: only order owner can view payment
-        if (!payment.getOrder().getCustomer().getId().equals(userId)) {
+        // Authorization: only booking owner can view payment
+        if (!payment.getBooking().getCustomer().getId().equals(userId)) {
             throw new BusinessRuleViolationException("Payment", "You can only view your own payments");
         }
 
@@ -217,10 +216,10 @@ public class PaymentService {
     }
 
     /**
-     * Get payment by order ID.
+     * Get payment by booking ID.
      *
      * AUTHORIZATION POLICY:
-     * - Returns 404 if payment not found OR user doesn't own the order
+     * - Returns 404 if payment not found OR user doesn't own the booking
      * - This prevents leaking existence of other users' payments
      * - Both "not found" and "unauthorized" return empty Optional (identical response)
      *
@@ -228,17 +227,17 @@ public class PaymentService {
      * - Throwing BusinessRuleViolationException returns 422
      * - Returning empty Optional returns 404
      * - If we throw 422 for unauthorized but 404 for not found, attacker can
-     *   determine if another user's order has a payment (information leak)
+     *   determine if another user's booking has a payment (information leak)
      * - Both cases return empty Optional → 404 → no leak
      *
      * @param userId Current user ID (for authorization)
-     * @param orderId Order ID
-     * @return Payment if found and user owns the order, empty otherwise
+     * @param bookingId Booking ID
+     * @return Payment if found and user owns the booking, empty otherwise
      */
     @Transactional(readOnly = true)
-    public Optional<Payment> getPaymentByOrderId(Long userId, Long orderId) {
-        // Query by both orderId AND customerId - unauthorized returns empty
+    public Optional<Payment> getPaymentByBookingId(Long userId, Long bookingId) {
+        // Query by both bookingId AND customerId - unauthorized returns empty
         // This is intentionally identical to "not found" (no information leak)
-        return paymentRepository.findByOrderIdAndOrderCustomerId(orderId, userId);
+        return paymentRepository.findByBookingIdAndBookingCustomerId(bookingId, userId);
     }
 }

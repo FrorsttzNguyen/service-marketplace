@@ -3,13 +3,13 @@ package com.hien.marketplace.application.service;
 import com.hien.marketplace.application.dto.RefundContext;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.application.exception.ResourceNotFoundException;
+import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
 import com.hien.marketplace.domain.payment.Payment;
 import com.hien.marketplace.domain.payment.Refund;
 import com.hien.marketplace.domain.payment.RefundStatus;
 import com.hien.marketplace.domain.payment.events.RefundProcessedEvent;
-import com.hien.marketplace.infrastructure.persistence.OrderRepository;
+import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.persistence.RefundRepository;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +47,7 @@ public class RefundTransactionService {
 
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
-    private final OrderRepository orderRepository;
+    private final BookingRepository bookingRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -65,7 +65,7 @@ public class RefundTransactionService {
      */
     @Transactional(readOnly = true)
     public RefundContext loadRefundContext(Long paymentId, Long userId) {
-        Payment payment = paymentRepository.findByIdWithOrderAndRefunds(paymentId)
+        Payment payment = paymentRepository.findByIdWithBookingAndRefunds(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
 
         return new RefundContext(
@@ -73,9 +73,9 @@ public class RefundTransactionService {
                 payment.getStripePaymentIntentId(),
                 payment.getStatus(),
                 payment.getAmount(),
-                payment.getOrder().getId(),
-                payment.getOrder().getStatus(),
-                payment.getOrder().getCustomer().getId(),
+                payment.getBooking().getId(),
+                payment.getBooking().getStatus(),
+                payment.getBooking().getCustomer().getId(),
                 calculateAlreadyRefunded(payment)
         );
     }
@@ -93,8 +93,8 @@ public class RefundTransactionService {
      * - Pessimistic lock on Payment prevents concurrent refund modifications
      * - Re-validates remaining refundable amount AFTER lock (race condition protection)
      *
-     * IMPORTANT: Payment-to-Order has NO cascade.
-     * We must explicitly save Order after calling order.refund().
+     * IMPORTANT: Payment-to-Booking has NO cascade.
+     * We must explicitly save Booking after calling booking.refund().
      *
      * @param paymentId Payment ID (not detached Payment object)
      * @param refundAmount Amount to refund
@@ -103,8 +103,8 @@ public class RefundTransactionService {
      * @return Saved Refund entity
      */
     @Transactional
-    public Refund createRefundWithOrderUpdate(Long paymentId, Money refundAmount,
-                                               String reason, String stripeRefundId) {
+    public Refund createRefundWithBookingUpdate(Long paymentId, Money refundAmount,
+                                                 String reason, String stripeRefundId) {
         log.debug("Creating Refund entity for Payment {}", paymentId);
 
         // Lock payment to prevent concurrent refund modifications
@@ -135,16 +135,17 @@ public class RefundTransactionService {
 
         refund = refundRepository.save(refund);
 
-        // Update order status if full refund
+        // Update booking status if full refund
         // IMPORTANT: Check cumulative total, not just this refund amount
-        // Two partial refunds summing to full should also trigger order.refund()
+        // Two partial refunds summing to full should also trigger booking.refund()
         Money totalAfterRefund = alreadyRefunded.add(refundAmount);
         boolean isFullRefund = totalAfterRefund.equals(payment.getAmount());
         if (isFullRefund) {
-            Order order = payment.getOrder();
-            order.refund();
-            orderRepository.save(order); // EXPLICIT save - Payment.order has NO cascade
-            log.info("Order {} marked as REFUNDED (full refund - total: {})", order.getId(), totalAfterRefund);
+            Booking booking = payment.getBooking();
+            // changedBy null: refund is system-initiated (Stripe refund already processed).
+            booking.refund(null, "Full refund");
+            bookingRepository.save(booking); // EXPLICIT save - Payment.booking has NO cascade
+            log.info("Booking {} marked as REFUNDED (full refund - total: {})", booking.getId(), totalAfterRefund);
         }
 
         // Publish domain event (within transaction)
