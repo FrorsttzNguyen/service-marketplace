@@ -8,9 +8,9 @@ import com.hien.marketplace.domain.common.PhoneNumber;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
 import com.hien.marketplace.domain.user.UserStatus;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.UserRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import com.hien.marketplace.infrastructure.security.CustomUserDetailsService;
 import com.hien.marketplace.infrastructure.security.JwtUtils;
 import com.hien.marketplace.interfaces.dto.request.LoginRequest;
@@ -31,14 +31,14 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * Transaction boundaries:
  * - @Transactional ensures all DB operations succeed or fail together
- * - register: user creation + vendor profile creation (if applicable)
+ * - register: user creation + provider profile creation (if applicable)
  */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final VendorRepository vendorRepository;
+    private final ProviderRepository providerRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final UserMapper userMapper;
@@ -51,7 +51,7 @@ public class AuthService {
      * 1. Check email not already registered
      * 2. Create User entity with hashed password
      * 3. Save to database
-     * 4. If registerAsVendor=true, create Vendor profile
+     * 4. If registerAsProvider=true, create Provider profile
      * 5. Generate JWT tokens
      * 6. Return AuthResponse with tokens + user info
      */
@@ -64,7 +64,7 @@ public class AuthService {
 
         // Step 2: Create User entity
         String hashedPassword = passwordEncoder.encode(request.password());
-        UserRole role = Boolean.TRUE.equals(request.registerAsVendor())
+        UserRole role = Boolean.TRUE.equals(request.registerAsProvider())
                 ? UserRole.VENDOR
                 : UserRole.CUSTOMER;
 
@@ -79,12 +79,12 @@ public class AuthService {
         // Step 3: Save to database
         user = userRepository.save(user);
 
-        // Step 4: Create Vendor profile if registerAsVendor=true
-        if (Boolean.TRUE.equals(request.registerAsVendor())) {
-            // Vendor business name defaults to user's full name
-            // User can update later via VendorProfileRequest
-            Vendor vendor = new Vendor(user, request.fullName() + "'s Services");
-            vendorRepository.save(vendor);
+        // Step 4: Create Provider profile if registerAsProvider=true
+        if (Boolean.TRUE.equals(request.registerAsProvider())) {
+            // Provider business name defaults to user's full name
+            // User can update later via ProviderProfileRequest
+            Provider provider = new Provider(user, request.fullName() + "'s Services");
+            providerRepository.save(provider);
         }
 
         // Step 5: Generate JWT tokens
@@ -180,7 +180,7 @@ public class AuthService {
      *
      * WHY: refresh only returns a new access token (no profile), so after a page reload the client
      * has a valid session but no user info (name/role). The frontend calls this on boot to rehydrate
-     * the profile — and role-gated routes (vendor/admin) need the role to be known after a reload.
+     * the profile — and role-gated routes (provider/admin) need the role to be known after a reload.
      *
      * @param userId the authenticated user's id (from the JWT principal)
      */

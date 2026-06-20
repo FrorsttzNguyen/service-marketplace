@@ -11,10 +11,10 @@ import java.math.BigDecimal;
  * Request DTO for updating an existing service.
  *
  * WHY: All fields are optional (null = don't update).
- * Vendor can update only what they want to change.
+ * Provider can update only what they want to change.
  *
  * Note: id comes from URL path, not request body.
- * vendorId is validated against authenticated user to ensure ownership.
+ * providerId is validated against authenticated user to ensure ownership.
  */
 public record ServiceUpdateRequest(
     @Size(min = 5, max = 200, message = "Title must be between 5 and 200 characters")
@@ -39,6 +39,6 @@ public record ServiceUpdateRequest(
 
     String imageUrl,
 
-    Boolean active  // Vendor can activate/deactivate service
+    Boolean active  // Provider can activate/deactivate service
 ) {
 }

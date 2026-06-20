@@ -40,7 +40,7 @@ public class ServiceSpecification {
                 .where(hasStatus(ServiceStatus.ACTIVE))  // Always filter for active services
                 .and(hasKeyword(request.keyword()))
                 .and(hasCategory(request.categoryId()))
-                .and(hasVendor(request.vendorId()))
+                .and(hasProvider(request.providerId()))
                 .and(hasCity(request.city()))
                 .and(hasMinRating(request.minRating()))
                 .and(hasPriceRange(request.minPrice(), request.maxPrice()));
@@ -85,13 +85,13 @@ public class ServiceSpecification {
     }
 
     /**
-     * Filter by vendor.
+     * Filter by provider.
      */
-    public static Specification<ServiceEntity> hasVendor(Long vendorId) {
-        if (vendorId == null) {
+    public static Specification<ServiceEntity> hasProvider(Long providerId) {
+        if (providerId == null) {
             return null;
         }
-        return (root, query, cb) -> cb.equal(root.get("vendor").get("id"), vendorId);
+        return (root, query, cb) -> cb.equal(root.get("provider").get("id"), providerId);
     }
 
     /**
@@ -130,7 +130,7 @@ public class ServiceSpecification {
         if (city == null || city.isBlank()) {
             return null;
         }
-        // Case-insensitive match (city stored as-is from vendor address)
+        // Case-insensitive match (city stored as-is from provider address)
         return (root, query, cb) -> cb.equal(cb.lower(root.get("city")), city.toLowerCase());
     }
 

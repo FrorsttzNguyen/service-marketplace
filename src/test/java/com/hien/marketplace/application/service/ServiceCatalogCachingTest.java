@@ -4,9 +4,9 @@ import com.hien.marketplace.application.exception.ResourceNotFoundException;
 import com.hien.marketplace.application.mapper.ServiceMapper;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import com.hien.marketplace.interfaces.dto.request.ServiceUpdateRequest;
 import com.hien.marketplace.interfaces.dto.response.ServiceResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +51,7 @@ class ServiceCatalogCachingTest {
     private ServiceCatalogService serviceCatalogService;
 
     @Autowired
-    private VendorServiceManagement vendorServiceManagement;
+    private ProviderServiceManagement providerServiceManagement;
 
     @Autowired
     private CacheManager cacheManager;
@@ -60,7 +60,7 @@ class ServiceCatalogCachingTest {
     private ServiceRepository serviceRepository;
 
     @MockBean
-    private VendorRepository vendorRepository;
+    private ProviderRepository providerRepository;
 
     // ServiceMapper is a MapStruct bean; we also mock it to avoid needing full entity graphs,
     // and so enrichServiceResponse rebuilds the response deterministically.
@@ -80,12 +80,12 @@ class ServiceCatalogCachingTest {
 
         // ServiceEntity has package-private/no public setters for id+status by design (domain-rich).
         // For a cache test we only care that getServiceById resolves and caches, so a Mockito stub
-        // of the entity is sufficient and avoids constructing a full Vendor/Money/PricingType graph.
+        // of the entity is sufficient and avoids constructing a full Provider/Money/PricingType graph.
         sampleService = org.mockito.Mockito.mock(ServiceEntity.class);
         org.mockito.Mockito.when(sampleService.getStatus()).thenReturn(ServiceStatus.ACTIVE);
 
         sampleResponse = new ServiceResponse(
-                1L, 10L, "Vendor A", 5L, "Category X", "Title", "Desc", null, null, null,
+                1L, 10L, "Provider A", 5L, "Category X", "Title", "Desc", null, null, null,
                 null, "Hanoi", null, ServiceStatus.ACTIVE, null, 0, 0, null
         );
 
@@ -137,12 +137,12 @@ class ServiceCatalogCachingTest {
     }
 
     @Test
-    @DisplayName("After a successful vendor update, the cached detail is evicted")
+    @DisplayName("After a successful provider update, the cached detail is evicted")
     void successfulUpdateServiceEvictsCache() {
-        Vendor vendor = mock(Vendor.class);
-        when(vendor.getId()).thenReturn(10L);
-        when(vendorRepository.findByUserId(99L)).thenReturn(Optional.of(vendor));
-        when(sampleService.getVendor()).thenReturn(vendor);
+        Provider provider = mock(Provider.class);
+        when(provider.getId()).thenReturn(10L);
+        when(providerRepository.findByUserId(99L)).thenReturn(Optional.of(provider));
+        when(sampleService.getProvider()).thenReturn(provider);
         when(serviceRepository.findById(1L)).thenReturn(Optional.of(sampleService));
         when(serviceRepository.save(sampleService)).thenReturn(sampleService);
 
@@ -152,7 +152,7 @@ class ServiceCatalogCachingTest {
         ServiceUpdateRequest request = new ServiceUpdateRequest(
                 null, "Updated description", null, null, null, null, null, null, null
         );
-        vendorServiceManagement.updateService(99L, 1L, request);
+        providerServiceManagement.updateService(99L, 1L, request);
 
         assertThat(cacheManager.getCache("serviceDetail").get(1L))
                 .as("successful mutation should clear stale service details")
@@ -161,7 +161,7 @@ class ServiceCatalogCachingTest {
     }
 
     @Test
-    @DisplayName("Failed vendor update keeps the cached detail")
+    @DisplayName("Failed provider update keeps the cached detail")
     void failedUpdateDoesNotEvictCache() {
         // The method throws before a successful mutation, and because beforeInvocation=false,
         // @CacheEvict does NOT run. Keeping the cache entry is correct because the DB was unchanged.
@@ -169,9 +169,9 @@ class ServiceCatalogCachingTest {
         serviceCatalogService.getServiceById(1L); // populate cache
         assertThat(cacheManager.getCache("serviceDetail").get(1L)).isNotNull();
 
-        // updateService will throw because the vendor lookup has no vendor profile in this mocked
+        // updateService will throw because the provider lookup has no provider profile in this mocked
         // context; the transaction/method fails → @CacheEvict(beforeInvocation=false) does NOT run.
-        assertThatThrownBy(() -> vendorServiceManagement.updateService(999L, 1L, null))
+        assertThatThrownBy(() -> providerServiceManagement.updateService(999L, 1L, null))
                 .isInstanceOf(RuntimeException.class);
 
         // Cache entry still present because the mutation did not succeed.

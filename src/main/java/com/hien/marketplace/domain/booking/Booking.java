@@ -5,7 +5,7 @@ import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.common.TimeSlot;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -34,7 +34,7 @@ import java.util.List;
     attributeNodes = {
         @NamedAttributeNode("service"),
         @NamedAttributeNode("customer"),
-        @NamedAttributeNode("vendor")
+        @NamedAttributeNode("provider")
     }
 )
 public class Booking {
@@ -52,8 +52,8 @@ public class Booking {
     private User customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id", nullable = false)
-    private Vendor vendor;
+    @JoinColumn(name = "provider_id", nullable = false)
+    private Provider provider;
 
     @Column(name = "booking_date", nullable = false)
     private LocalDate bookingDate;
@@ -116,12 +116,12 @@ public class Booking {
     protected Booking() {
     }
 
-    public Booking(ServiceEntity service, User customer, Vendor vendor,
+    public Booking(ServiceEntity service, User customer, Provider provider,
                     LocalDate bookingDate, LocalTime startTime, LocalTime endTime,
                     Money subtotal, Money commission, Address serviceAddress) {
         this.service = service;
         this.customer = customer;
-        this.vendor = vendor;
+        this.provider = provider;
         this.bookingDate = bookingDate;
         this.timeSlot = new TimeSlot(startTime, endTime);
         this.subtotal = subtotal;
@@ -149,7 +149,7 @@ public class Booking {
     // BookingStatus enum chứa rules — entity truyền trạng thái hiện tại vào rules đó.
 
     public void confirm(User changedBy) {
-        changeStatus(BookingStatus.CONFIRMED, changedBy, "Vendor confirmed booking");
+        changeStatus(BookingStatus.CONFIRMED, changedBy, "Provider confirmed booking");
     }
 
     public void markAsPaid(User changedBy) {
@@ -185,7 +185,7 @@ public class Booking {
     public Long getId() { return id; }
     public ServiceEntity getService() { return service; }
     public User getCustomer() { return customer; }
-    public Vendor getVendor() { return vendor; }
+    public Provider getProvider() { return provider; }
     public LocalDate getBookingDate() { return bookingDate; }
     public LocalTime getStartTime() { return timeSlot.getStartTime(); }
     public LocalTime getEndTime() { return timeSlot.getEndTime(); }

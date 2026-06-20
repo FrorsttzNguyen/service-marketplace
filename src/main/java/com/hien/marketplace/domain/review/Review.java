@@ -3,7 +3,7 @@ package com.hien.marketplace.domain.review;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -30,8 +30,8 @@ public class Review {
     private User customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id", nullable = false)
-    private Vendor vendor;
+    @JoinColumn(name = "provider_id", nullable = false)
+    private Provider provider;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
@@ -52,14 +52,14 @@ public class Review {
     protected Review() {
     }
 
-    public Review(Booking booking, User customer, Vendor vendor,
+    public Review(Booking booking, User customer, Provider provider,
                    ServiceEntity service, int rating, String comment) {
         if (rating < 1 || rating > 5) {
             throw new IllegalArgumentException("Rating must be between 1 and 5, got: " + rating);
         }
         this.booking = booking;
         this.customer = customer;
-        this.vendor = vendor;
+        this.provider = provider;
         this.service = service;
         this.rating = rating;
         this.comment = comment;
@@ -90,7 +90,7 @@ public class Review {
     public Long getId() { return id; }
     public Booking getBooking() { return booking; }
     public User getCustomer() { return customer; }
-    public Vendor getVendor() { return vendor; }
+    public Provider getProvider() { return provider; }
     public ServiceEntity getService() { return service; }
     public int getRating() { return rating; }
     public String getComment() { return comment; }

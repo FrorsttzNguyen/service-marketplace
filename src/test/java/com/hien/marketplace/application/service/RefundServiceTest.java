@@ -14,7 +14,7 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.persistence.RefundRepository;
 import com.hien.marketplace.infrastructure.stripe.StripeClient;
@@ -82,17 +82,17 @@ class RefundServiceTest {
         customer = spy(customer);
         when(customer.getId()).thenReturn(1L);
 
-        // Create vendor
-        User vendorUser = new User("vendor@example.com", "hashedPassword", "Vendor", UserRole.VENDOR);
-        Vendor vendor = new Vendor(vendorUser, "Vendor Business");
-        vendor = spy(vendor);
-        when(vendor.getId()).thenReturn(1L);
+        // Create provider
+        User providerUser = new User("provider@example.com", "hashedPassword", "Provider", UserRole.VENDOR);
+        Provider provider = new Provider(providerUser, "Provider Business");
+        provider = spy(provider);
+        when(provider.getId()).thenReturn(1L);
 
         // Create service
-        ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
+        ServiceEntity service = new ServiceEntity(provider, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
         // Create booking with its own service address for this appointment.
-        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
+        booking = new Booking(service, customer, provider, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
                 Money.of(10000), Money.of(1000), new Address("123 Service Street", "Test City", "70000"));
         booking = spy(booking);
         when(booking.getId()).thenReturn(1L);
@@ -108,7 +108,7 @@ class RefundServiceTest {
         payment.markAsSucceeded();
 
         // Booking must be PAID for refund (new state replacing Order.PAID)
-        booking.confirm(vendorUser);
+        booking.confirm(providerUser);
         booking.markAsPaid(null);
 
         // Initialize empty refunds list

@@ -82,7 +82,7 @@ export interface CancelBookingParams {
  *   - 404 booking not found
  *   - 422 not yours, or status no longer allows cancel (e.g. already CONFIRMED/COMPLETED)
  * The UI gates the Cancel button to PENDING-only; a 422 here usually means the status
- * changed under us (vendor confirmed between our list render and the click) — show the
+ * changed under us (provider confirmed between our list render and the click) — show the
  * server message and refetch.
  */
 export async function cancelBooking(params: CancelBookingParams): Promise<Booking> {

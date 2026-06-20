@@ -19,7 +19,7 @@ public record ServiceSearchRequest(
 
     Long categoryId,  // Filter by category
 
-    Long vendorId,  // Filter by vendor
+    Long providerId,  // Filter by provider
 
     String city,  // Filter by city
 

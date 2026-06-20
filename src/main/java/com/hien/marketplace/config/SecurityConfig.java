@@ -34,7 +34,7 @@ import java.util.List;
  *
  * SECURITY RULES:
  * - PUBLIC: /api/auth/**, /api/services/**, /api/webhooks/stripe, Swagger, health
- * - VENDOR role: /api/vendor/** (vendor management endpoints)
+ * - VENDOR role: /api/provider/** (provider management endpoints)
  * - ADMIN role: /api/admin/** (admin endpoints)
  * - AUTHENTICATED: All other /api/** endpoints
  *
@@ -116,7 +116,7 @@ public class SecurityConfig {
                                         "/api/services/**",  // Public service catalog
                                         "/api/categories",  // Public category reference data
                                         "/api/reviews/service/**",  // Public reviews
-                                        "/api/reviews/vendor/**",  // Public vendor reviews
+                                        "/api/reviews/provider/**",  // Public provider reviews
                                         "/api/webhooks/stripe",  // Stripe webhook (PUBLIC - security via signature)
                                         "/swagger-ui/**",  // Swagger UI
                                         "/swagger-ui.html",
@@ -136,10 +136,10 @@ public class SecurityConfig {
                                 // NOT loosen "/actuator/**" wholesale.
                                 .requestMatchers("/actuator/**").hasRole("ADMIN")
 
-                                // Vendor-only endpoints - requires VENDOR role
-                                // IMPORTANT: /api/bookings/vendor must come BEFORE /api/** catch-all
-                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings/vendor").hasRole("VENDOR")
-                                .requestMatchers("/api/vendor/**").hasRole("VENDOR")
+                                // Provider-only endpoints - requires VENDOR role
+                                // IMPORTANT: /api/bookings/provider must come BEFORE /api/** catch-all
+                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings/provider").hasRole("VENDOR")
+                                .requestMatchers("/api/provider/**").hasRole("VENDOR")
 
                                 // Admin-only endpoints - requires ADMIN role
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")

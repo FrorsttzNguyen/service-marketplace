@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/api/vendor/services/{id}": {
+    "/api/provider/services/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -14,13 +14,13 @@ export interface paths {
         get?: never;
         /**
          * Update service
-         * @description Update an existing service owned by the authenticated vendor
+         * @description Update an existing service owned by the authenticated provider
          */
         put: operations["updateService"];
         post?: never;
         /**
          * Deactivate service
-         * @description Deactivate (soft delete) a service owned by the authenticated vendor
+         * @description Deactivate (soft delete) a service owned by the authenticated provider
          */
         delete: operations["deactivateService"];
         options?: never;
@@ -38,7 +38,7 @@ export interface paths {
         get?: never;
         /**
          * Start service
-         * @description Vendor marks a CONFIRMED booking as IN_PROGRESS when the service begins. Only the vendor who owns the service may start it.
+         * @description Provider marks a CONFIRMED booking as IN_PROGRESS when the service begins. Only the provider who owns the service may start it.
          */
         put: operations["startService"];
         post?: never;
@@ -58,7 +58,7 @@ export interface paths {
         get?: never;
         /**
          * Confirm booking
-         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book → pay flow: payment can only be created for a CONFIRMED booking.
+         * @description Provider confirms a pending booking, transitioning it to CONFIRMED. Only the provider who owns the service may confirm. Required for the book → pay flow: payment can only be created for a CONFIRMED booking.
          */
         put: operations["confirmBooking"];
         post?: never;
@@ -78,7 +78,7 @@ export interface paths {
         get?: never;
         /**
          * Complete service
-         * @description Vendor marks an IN_PROGRESS booking as COMPLETED once the service is done. Only the vendor who owns the service may complete it. A booking must be COMPLETED before the customer can review it.
+         * @description Provider marks an IN_PROGRESS booking as COMPLETED once the service is done. Only the provider who owns the service may complete it. A booking must be COMPLETED before the customer can review it.
          */
         put: operations["completeService"];
         post?: never;
@@ -128,7 +128,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/vendor/services": {
+    "/api/provider/services": {
         parameters: {
             query?: never;
             header?: never;
@@ -136,14 +136,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get vendor's services
-         * @description List all services owned by the authenticated vendor
+         * Get provider's services
+         * @description List all services owned by the authenticated provider
          */
         get: operations["getMyServices"];
         put?: never;
         /**
          * Create service
-         * @description Create a new service for the authenticated vendor
+         * @description Create a new service for the authenticated provider
          */
         post: operations["createService"];
         delete?: never;
@@ -152,7 +152,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/vendor/services/{id}/activate": {
+    "/api/provider/services/{id}/activate": {
         parameters: {
             query?: never;
             header?: never;
@@ -163,7 +163,7 @@ export interface paths {
         put?: never;
         /**
          * Activate service
-         * @description Activate (publish) a service owned by the authenticated vendor so it appears in the public catalog
+         * @description Activate (publish) a service owned by the authenticated provider so it appears in the public catalog
          */
         post: operations["activateService"];
         delete?: never;
@@ -267,7 +267,7 @@ export interface paths {
         put?: never;
         /**
          * Register new user
-         * @description Create a new user account. Optionally register as vendor.
+         * @description Create a new user account. Optionally register as provider.
          */
         post: operations["register"];
         delete?: never;
@@ -316,7 +316,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/vendors/{vendorId}/reject": {
+    "/api/admin/providers/{providerId}/reject": {
         parameters: {
             query?: never;
             header?: never;
@@ -325,15 +325,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject a vendor */
-        post: operations["rejectVendor"];
+        /** Reject a provider */
+        post: operations["rejectProvider"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/admin/vendors/{vendorId}/approve": {
+    "/api/admin/providers/{providerId}/approve": {
         parameters: {
             query?: never;
             header?: never;
@@ -342,15 +342,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve a vendor */
-        post: operations["approveVendor"];
+        /** Approve a provider */
+        post: operations["approveProvider"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/vendor/dashboard/stats": {
+    "/api/provider/dashboard/stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -359,7 +359,7 @@ export interface paths {
         };
         /**
          * Get statistics
-         * @description Get booking statistics for authenticated vendor
+         * @description Get booking statistics for authenticated provider
          */
         get: operations["getStats"];
         put?: never;
@@ -370,7 +370,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/vendor/dashboard/earnings": {
+    "/api/provider/dashboard/earnings": {
         parameters: {
             query?: never;
             header?: never;
@@ -379,7 +379,7 @@ export interface paths {
         };
         /**
          * Get earnings
-         * @description Get earnings summary for authenticated vendor
+         * @description Get earnings summary for authenticated provider
          */
         get: operations["getEarnings"];
         put?: never;
@@ -450,7 +450,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/reviews/vendor/{vendorId}": {
+    "/api/reviews/provider/{providerId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -458,10 +458,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get vendor reviews
-         * @description List all reviews for a vendor, newest first.
+         * Get provider reviews
+         * @description List all reviews for a provider, newest first.
          */
-        get: operations["getVendorReviews"];
+        get: operations["getProviderReviews"];
         put?: never;
         post?: never;
         delete?: never;
@@ -595,7 +595,7 @@ export interface paths {
         };
         /**
          * List categories
-         * @description Return all service categories. Public — used by the catalog filter and the vendor create-service form.
+         * @description Return all service categories. Public — used by the catalog filter and the provider create-service form.
          */
         get: operations["listCategories"];
         put?: never;
@@ -606,7 +606,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/bookings/vendor": {
+    "/api/bookings/provider": {
         parameters: {
             query?: never;
             header?: never;
@@ -614,10 +614,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get vendor bookings
-         * @description List all bookings for the authenticated vendor's services
+         * Get provider bookings
+         * @description List all bookings for the authenticated provider's services
          */
-        get: operations["getVendorBookings"];
+        get: operations["getProviderBookings"];
         put?: never;
         post?: never;
         delete?: never;
@@ -646,15 +646,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/vendors": {
+    "/api/admin/providers": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List vendors (optionally filtered by verification status) */
-        get: operations["listVendors"];
+        /** List providers (optionally filtered by verification status) */
+        get: operations["listProviders"];
         put?: never;
         post?: never;
         delete?: never;
@@ -684,8 +684,8 @@ export interface components {
             /** Format: int64 */
             id?: number;
             /** Format: int64 */
-            vendorId?: number;
-            vendorName?: string;
+            providerId?: number;
+            providerName?: string;
             /** Format: int64 */
             categoryId?: number;
             categoryName?: string;
@@ -719,8 +719,8 @@ export interface components {
             serviceId?: number;
             serviceTitle?: string;
             /** Format: int64 */
-            vendorId?: number;
-            vendorName?: string;
+            providerId?: number;
+            providerName?: string;
             serviceStreet?: string;
             serviceCity?: string;
             serviceZipCode?: string;
@@ -775,8 +775,8 @@ export interface components {
             customerId?: number;
             customerName?: string;
             /** Format: int64 */
-            vendorId?: number;
-            vendorName?: string;
+            providerId?: number;
+            providerName?: string;
             /** Format: int32 */
             rating?: number;
             comment?: string;
@@ -840,7 +840,7 @@ export interface components {
             email: string;
             password: string;
             phoneNumber: string;
-            registerAsVendor?: boolean;
+            registerAsProvider?: boolean;
         };
         AuthResponse: {
             /** Format: int64 */
@@ -867,9 +867,9 @@ export interface components {
             email: string;
             password: string;
         };
-        VendorAdminResponse: {
+        ProviderAdminResponse: {
             /** Format: int64 */
-            vendorId?: number;
+            providerId?: number;
             /** Format: int64 */
             userId?: number;
             businessName?: string;
@@ -920,7 +920,7 @@ export interface components {
             unsorted?: boolean;
             empty?: boolean;
         };
-        VendorStatsResponse: {
+        ProviderStatsResponse: {
             /** Format: int32 */
             totalServices?: number;
             /** Format: int32 */
@@ -944,7 +944,7 @@ export interface components {
             /** Format: int32 */
             totalCustomers?: number;
         };
-        VendorEarningsResponse: {
+        ProviderEarningsResponse: {
             totalEarnings?: number;
             pendingPayouts?: number;
             paidOut?: number;
@@ -993,7 +993,7 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
-        PageVendorAdminResponse: {
+        PageProviderAdminResponse: {
             /** Format: int32 */
             totalPages?: number;
             /** Format: int64 */
@@ -1005,7 +1005,7 @@ export interface components {
             pageable?: components["schemas"]["PageableObject"];
             /** Format: int32 */
             size?: number;
-            content?: components["schemas"]["VendorAdminResponse"][];
+            content?: components["schemas"]["ProviderAdminResponse"][];
             /** Format: int32 */
             number?: number;
             sort?: components["schemas"]["SortObject"];
@@ -1311,7 +1311,7 @@ export interface operations {
                     "*/*": components["schemas"]["PageServiceResponse"];
                 };
             };
-            /** @description Not a vendor */
+            /** @description Not a provider */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1362,7 +1362,7 @@ export interface operations {
                     "*/*": components["schemas"]["ServiceResponse"];
                 };
             };
-            /** @description Not a vendor */
+            /** @description Not a provider */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1371,7 +1371,7 @@ export interface operations {
                     "*/*": components["schemas"]["ServiceResponse"];
                 };
             };
-            /** @description Vendor not approved */
+            /** @description Provider not approved */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1759,24 +1759,24 @@ export interface operations {
             };
         };
     };
-    rejectVendor: {
+    rejectProvider: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                vendorId: number;
+                providerId: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Vendor rejected */
+            /** @description Provider rejected */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -1785,7 +1785,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
             /** @description Not an admin */
@@ -1794,38 +1794,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
-            /** @description Vendor not found */
+            /** @description Provider not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
         };
     };
-    approveVendor: {
+    approveProvider: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                vendorId: number;
+                providerId: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Vendor approved */
+            /** @description Provider approved */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -1834,7 +1834,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
             /** @description Not an admin */
@@ -1843,16 +1843,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
-            /** @description Vendor not found */
+            /** @description Provider not found */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorAdminResponse"];
+                    "*/*": components["schemas"]["ProviderAdminResponse"];
                 };
             };
         };
@@ -1872,7 +1872,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorStatsResponse"];
+                    "*/*": components["schemas"]["ProviderStatsResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -1881,25 +1881,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorStatsResponse"];
+                    "*/*": components["schemas"]["ProviderStatsResponse"];
                 };
             };
-            /** @description Not a vendor */
+            /** @description Not a provider */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorStatsResponse"];
+                    "*/*": components["schemas"]["ProviderStatsResponse"];
                 };
             };
-            /** @description Vendor profile not found */
+            /** @description Provider profile not found */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorStatsResponse"];
+                    "*/*": components["schemas"]["ProviderStatsResponse"];
                 };
             };
         };
@@ -1919,7 +1919,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                    "*/*": components["schemas"]["ProviderEarningsResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -1928,25 +1928,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                    "*/*": components["schemas"]["ProviderEarningsResponse"];
                 };
             };
-            /** @description Not a vendor */
+            /** @description Not a provider */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                    "*/*": components["schemas"]["ProviderEarningsResponse"];
                 };
             };
-            /** @description Vendor profile not found */
+            /** @description Provider profile not found */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["VendorEarningsResponse"];
+                    "*/*": components["schemas"]["ProviderEarningsResponse"];
                 };
             };
         };
@@ -2028,12 +2028,12 @@ export interface operations {
             };
         };
     };
-    getVendorReviews: {
+    getProviderReviews: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                vendorId: number;
+                providerId: number;
             };
             cookie?: never;
         };
@@ -2260,7 +2260,7 @@ export interface operations {
             };
         };
     };
-    getVendorBookings: {
+    getProviderBookings: {
         parameters: {
             query: {
                 pageable: components["schemas"]["Pageable"];
@@ -2311,7 +2311,7 @@ export interface operations {
             };
         };
     };
-    listVendors: {
+    listProviders: {
         parameters: {
             query: {
                 /** @description Filter by verification status; omit to list all */
@@ -2324,13 +2324,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Page of vendors */
+            /** @description Page of providers */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["PageVendorAdminResponse"];
+                    "*/*": components["schemas"]["PageProviderAdminResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -2339,7 +2339,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["PageVendorAdminResponse"];
+                    "*/*": components["schemas"]["PageProviderAdminResponse"];
                 };
             };
             /** @description Not an admin */
@@ -2348,7 +2348,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["PageVendorAdminResponse"];
+                    "*/*": components["schemas"]["PageProviderAdminResponse"];
                 };
             };
         };

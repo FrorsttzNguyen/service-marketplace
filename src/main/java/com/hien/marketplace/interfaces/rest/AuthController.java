@@ -52,7 +52,7 @@ public class AuthController {
     @PostMapping("/register")
     @Operation(
             summary = "Register new user",
-            description = "Create a new user account. Optionally register as vendor.",
+            description = "Create a new user account. Optionally register as provider.",
             responses = {
                     @ApiResponse(responseCode = "201", description = "User registered successfully"),
                     @ApiResponse(responseCode = "409", description = "Email already registered"),

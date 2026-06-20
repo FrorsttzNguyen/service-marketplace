@@ -7,11 +7,11 @@ import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.review.Review;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.ReviewRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import com.hien.marketplace.interfaces.dto.request.ReviewCreateRequest;
 import com.hien.marketplace.interfaces.dto.response.ReviewResponse;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ import java.util.List;
  * Service for review operations — the last step of the booking lifecycle.
  *
  * WHY: a customer can review a service only after the booking they made for it is COMPLETED.
- * Creating a review denormalizes the rating onto the service (averageRating) and the vendor
+ * Creating a review denormalizes the rating onto the service (averageRating) and the provider
  * (ratingAvg) so the catalog can sort/filter by rating without a subquery.
  *
  * Authorization + business rules live here (not the controller), mirroring OrderService /
@@ -39,13 +39,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReviewService {
 
-    // Vendor.ratingAvg + ServiceEntity.averageRating are precision 3 scale 2 (e.g. 4.33).
+    // Provider.ratingAvg + ServiceEntity.averageRating are precision 3 scale 2 (e.g. 4.33).
     private static final int RATING_SCALE = 2;
 
     private final ReviewRepository reviewRepository;
     private final BookingRepository bookingRepository;
     private final ServiceRepository serviceRepository;
-    private final VendorRepository vendorRepository;
+    private final ProviderRepository providerRepository;
 
     /**
      * Create a review for a completed booking.
@@ -56,7 +56,7 @@ public class ReviewService {
      * 3. Business rule: booking must be COMPLETED (422).
      * 4. Business rule: one review per booking — reject if already reviewed (422; also enforced by
      *    the UNIQUE(booking_id) DB constraint as a backstop).
-     * 5. Persist the review, then recompute the service + vendor rating averages.
+     * 5. Persist the review, then recompute the service + provider rating averages.
      */
     @Transactional
     public ReviewResponse createReview(Long customerId, ReviewCreateRequest request) {
@@ -90,15 +90,15 @@ public class ReviewService {
 
         // Step 5: persist + recompute aggregates
         User customer = booking.getCustomer();
-        Vendor vendor = booking.getVendor();
+        Provider provider = booking.getProvider();
         ServiceEntity service = booking.getService();
 
-        Review review = new Review(booking, customer, vendor, service,
+        Review review = new Review(booking, customer, provider, service,
                 request.rating(), request.comment());
         review = reviewRepository.save(review);
 
         recomputeServiceRating(service);
-        recomputeVendorRating(vendor);
+        recomputeProviderRating(provider);
 
         return toResponse(review);
     }
@@ -115,11 +115,11 @@ public class ReviewService {
     }
 
     /**
-     * List reviews for a vendor, newest first. Public — shown on the vendor profile.
+     * List reviews for a provider, newest first. Public — shown on the provider profile.
      */
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getVendorReviews(Long vendorId) {
-        return reviewRepository.findByVendorId(vendorId).stream()
+    public List<ReviewResponse> getProviderReviews(Long providerId) {
+        return reviewRepository.findByProviderId(providerId).stream()
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(this::toResponse)
                 .toList();
@@ -137,11 +137,11 @@ public class ReviewService {
         serviceRepository.save(service);
     }
 
-    private void recomputeVendorRating(Vendor vendor) {
-        BigDecimal avg = average(reviewRepository.findByVendorId(vendor.getId()));
-        // Vendor.ratingAvg is NOT NULL (defaults to ZERO), so never store null here.
-        vendor.updateRating(avg != null ? avg : BigDecimal.ZERO);
-        vendorRepository.save(vendor);
+    private void recomputeProviderRating(Provider provider) {
+        BigDecimal avg = average(reviewRepository.findByProviderId(provider.getId()));
+        // Provider.ratingAvg is NOT NULL (defaults to ZERO), so never store null here.
+        provider.updateRating(avg != null ? avg : BigDecimal.ZERO);
+        providerRepository.save(provider);
     }
 
     /**
@@ -168,8 +168,8 @@ public class ReviewService {
                 review.getService().getName(),
                 review.getCustomer().getId(),
                 review.getCustomer().getFullName(),
-                review.getVendor().getId(),
-                review.getVendor().getBusinessName(),
+                review.getProvider().getId(),
+                review.getProvider().getBusinessName(),
                 review.getRating(),
                 review.getComment(),
                 review.getCreatedAt()

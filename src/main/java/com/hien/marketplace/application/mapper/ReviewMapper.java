@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
  * MapStruct mapper for Review entity → DTO conversion.
  *
  * Note: Creation handled in service layer because Review requires
- * booking, customer, vendor lookups and validation.
+ * booking, customer, provider lookups and validation.
  */
 @Mapper(componentModel = "spring")
 public interface ReviewMapper {
@@ -17,9 +17,9 @@ public interface ReviewMapper {
     @Mapping(source = "booking.id", target = "bookingId")
     @Mapping(source = "booking.service.id", target = "serviceId")
     @Mapping(source = "customer.id", target = "customerId")
-    @Mapping(source = "booking.service.vendor.id", target = "vendorId")
+    @Mapping(source = "booking.service.provider.id", target = "providerId")
     @Mapping(target = "serviceTitle", ignore = true)
     @Mapping(target = "customerName", ignore = true)
-    @Mapping(target = "vendorName", ignore = true)
+    @Mapping(target = "providerName", ignore = true)
     ReviewResponse toResponse(Review review);
 }

@@ -7,14 +7,14 @@
  * `client.ts` owns HTTP + the JWT/401-refresh plumbing.
  *
  * PUBLIC ENDPOINT: `GET /api/categories` is not behind a role gate — it's the same
- * data the public catalog filter uses, and the vendor create-service form reuses it
+ * data the public catalog filter uses, and the provider create-service form reuses it
  * to populate its category dropdown. No token is required, but `client.ts` will still
  * attach one if present (harmless for a public read).
  *
  * NOTE: `services.ts` historically *derived* categories from loaded service rows
  * (see `deriveCategories`) because there was no categories endpoint. That derivation
  * is still used by the public catalog filter (it keeps the chips honest with the
- * visible catalog). This file is the NEW authoritative source for the vendor form's
+ * visible catalog). This file is the NEW authoritative source for the provider form's
  * dropdown, where we want every category the backend knows about — including ones
  * with zero published services yet.
  */
@@ -32,7 +32,7 @@ export type Category = components["schemas"]["CategoryResponse"];
  * Fetch all service categories (`GET /api/categories`).
  *
  * The endpoint returns a flat array (not a `Page<T>`) — categories are a small,
- * bounded set, so the backend doesn't paginate them. The vendor form renders them
+ * bounded set, so the backend doesn't paginate them. The provider form renders them
  * all in a `<select>`.
  *
  * Possible failures:

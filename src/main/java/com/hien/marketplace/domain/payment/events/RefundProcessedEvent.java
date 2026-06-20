@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * WHY: Decouple refund processing from notification/accounting logic.
  * - RefundService publishes event after refund succeeds
  * - Notification listeners send refund confirmation to customer
- * - Accounting listeners update vendor payout records
+ * - Accounting listeners update provider payout records
  * - RefundService doesn't know about notification/accounting details
  *
  * Benefits:

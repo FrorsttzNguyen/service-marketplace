@@ -46,7 +46,7 @@ class ServiceCatalogServiceTest {
 
     private ServiceResponse responseWithReviews(int totalReviews) {
         return new ServiceResponse(
-                SERVICE_ID, 1L, "Vendor A", 5L, "Cleaning", "Deep Clean", "desc",
+                SERVICE_ID, 1L, "Provider A", 5L, "Cleaning", "Deep Clean", "desc",
                 null, new BigDecimal("100.00"), 2, "addr", "city", null,
                 ServiceStatus.ACTIVE, new BigDecimal("5.0"), totalReviews, 0, null);
     }
@@ -57,7 +57,7 @@ class ServiceCatalogServiceTest {
         ServiceEntity entity = org.mockito.Mockito.mock(ServiceEntity.class);
         when(entity.getStatus()).thenReturn(ServiceStatus.ACTIVE);
         when(entity.getId()).thenReturn(SERVICE_ID);
-        when(entity.getVendor()).thenReturn(null);
+        when(entity.getProvider()).thenReturn(null);
         when(entity.getCategory()).thenReturn(null);
 
         when(serviceRepository.findById(SERVICE_ID)).thenReturn(Optional.of(entity));

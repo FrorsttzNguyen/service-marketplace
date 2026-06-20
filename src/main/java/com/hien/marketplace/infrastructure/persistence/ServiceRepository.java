@@ -19,45 +19,45 @@ import java.util.List;
  * - Avoids hardcoding query methods for every combination
  *
  * WHY @EntityGraph?
- * - Prevents N+1 queries when fetching services with vendor/category
- * - vendor and category have FetchType.LAZY by default
+ * - Prevents N+1 queries when fetching services with provider/category
+ * - provider and category have FetchType.LAZY by default
  * - EntityGraph eagerly fetches them in ONE query
  */
 public interface ServiceRepository extends JpaRepository<ServiceEntity, Long>,
                                               JpaSpecificationExecutor<ServiceEntity> {
 
     /**
-     * Find services by vendor ID with vendor and category preloaded.
+     * Find services by provider ID with provider and category preloaded.
      * Prevents N+1 queries when mapping to ServiceResponse.
      */
-    @EntityGraph(value = "service-with-vendor-category", type = EntityGraph.EntityGraphType.LOAD)
-    Page<ServiceEntity> findByVendorId(Long vendorId, Pageable pageable);
+    @EntityGraph(value = "service-with-provider-category", type = EntityGraph.EntityGraphType.LOAD)
+    Page<ServiceEntity> findByProviderId(Long providerId, Pageable pageable);
 
-    List<ServiceEntity> findByVendorId(Long vendorId);
+    List<ServiceEntity> findByProviderId(Long providerId);
 
-    long countByVendorId(Long vendorId);
+    long countByProviderId(Long providerId);
 
-    long countByVendorIdAndStatus(Long vendorId, ServiceStatus status);
+    long countByProviderIdAndStatus(Long providerId, ServiceStatus status);
 
     List<ServiceEntity> findByCategoryId(Long categoryId);
 
     List<ServiceEntity> findByStatus(ServiceStatus status);
 
     /**
-     * Find active services with vendor and category preloaded.
+     * Find active services with provider and category preloaded.
      * Used for public service catalog.
      */
-    @EntityGraph(value = "service-with-vendor-category", type = EntityGraph.EntityGraphType.LOAD)
+    @EntityGraph(value = "service-with-provider-category", type = EntityGraph.EntityGraphType.LOAD)
     Page<ServiceEntity> findByStatus(ServiceStatus status, Pageable pageable);
 
     List<ServiceEntity> findByCategoryIdAndStatus(Long categoryId, ServiceStatus status);
 
     /**
-     * Find active services by category with vendor and category preloaded.
+     * Find active services by category with provider and category preloaded.
      * Used for category filtering in catalog.
      */
-    @EntityGraph(value = "service-with-vendor-category", type = EntityGraph.EntityGraphType.LOAD)
+    @EntityGraph(value = "service-with-provider-category", type = EntityGraph.EntityGraphType.LOAD)
     Page<ServiceEntity> findByCategoryIdAndStatus(Long categoryId, ServiceStatus status, Pageable pageable);
 
-    List<ServiceEntity> findByVendorIdAndStatus(Long vendorId, ServiceStatus status);
+    List<ServiceEntity> findByProviderIdAndStatus(Long providerId, ServiceStatus status);
 }

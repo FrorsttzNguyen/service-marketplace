@@ -17,7 +17,7 @@ import java.util.List;
  * Public read endpoint for service categories.
  *
  * WHY public: categories are non-sensitive reference data needed by the (public) catalog
- * category filter and the vendor "create service" form. Configured permitAll in SecurityConfig.
+ * category filter and the provider "create service" form. Configured permitAll in SecurityConfig.
  */
 @RestController
 @RequestMapping("/api/categories")
@@ -30,7 +30,7 @@ public class CategoryController {
     @GetMapping
     @Operation(
             summary = "List categories",
-            description = "Return all service categories. Public — used by the catalog filter and the vendor create-service form.",
+            description = "Return all service categories. Public — used by the catalog filter and the provider create-service form.",
             responses = @ApiResponse(responseCode = "200", description = "Categories returned")
     )
     public ResponseEntity<List<CategoryResponse>> listCategories() {

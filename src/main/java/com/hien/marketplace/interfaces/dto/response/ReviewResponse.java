@@ -14,8 +14,8 @@ public record ReviewResponse(
     String serviceTitle,
     Long customerId,
     String customerName,
-    Long vendorId,
-    String vendorName,
+    Long providerId,
+    String providerName,
     Integer rating,
     String comment,
     LocalDateTime createdAt

@@ -6,7 +6,7 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -42,9 +42,9 @@ class BookingTest {
     @Test
     void shouldConfirmPendingBookingAndCreateHistory() {
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
 
-        booking.confirm(vendorUser);
+        booking.confirm(providerUser);
 
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
         assertThat(booking.getStatusHistory()).hasSize(1);
@@ -55,13 +55,13 @@ class BookingTest {
     @Test
     void shouldCompleteValidLifecycle() {
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
 
         // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
-        booking.confirm(vendorUser);
+        booking.confirm(providerUser);
         booking.markAsPaid(null);  // payment webhook step (changedBy null = system)
-        booking.start(vendorUser);
-        booking.complete(vendorUser);
+        booking.start(providerUser);
+        booking.complete(providerUser);
 
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
         assertThat(booking.getStatusHistory()).extracting(BookingStatusHistory::getToStatus)
@@ -88,10 +88,10 @@ class BookingTest {
     @Test
     void shouldCancelConfirmedBooking() {
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
 
-        booking.confirm(vendorUser);
-        booking.cancel(vendorUser, "Vendor unavailable");
+        booking.confirm(providerUser);
+        booking.cancel(providerUser, "Provider unavailable");
 
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.CANCELLED);
         assertThat(booking.getStatusHistory()).extracting(BookingStatusHistory::getToStatus)
@@ -102,7 +102,7 @@ class BookingTest {
     void shouldRejectStartingPendingBooking() {
         Booking booking = newBooking();
 
-        assertThatThrownBy(() -> booking.start(booking.getVendor().getUser()))
+        assertThatThrownBy(() -> booking.start(booking.getProvider().getUser()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Cannot transition booking from PENDING to IN_PROGRESS");
     }
@@ -111,10 +111,10 @@ class BookingTest {
     void shouldRejectStartingConfirmedBookingWithoutPayment() {
         // CONFIRMED → IN_PROGRESS is no longer a valid transition; must go through PAID first.
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
-        booking.confirm(vendorUser);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
+        booking.confirm(providerUser);
 
-        assertThatThrownBy(() -> booking.start(vendorUser))
+        assertThatThrownBy(() -> booking.start(providerUser))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Cannot transition booking from CONFIRMED to IN_PROGRESS");
     }
@@ -122,10 +122,10 @@ class BookingTest {
     @Test
     void shouldRejectCompletingConfirmedBooking() {
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
-        booking.confirm(vendorUser);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
+        booking.confirm(providerUser);
 
-        assertThatThrownBy(() -> booking.complete(vendorUser))
+        assertThatThrownBy(() -> booking.complete(providerUser))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Cannot transition booking from CONFIRMED to COMPLETED");
     }
@@ -133,10 +133,10 @@ class BookingTest {
     @Test
     void shouldRejectConfirmingCancelledBooking() {
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
         booking.cancel(booking.getCustomer(), "No longer needed");
 
-        assertThatThrownBy(() -> booking.confirm(vendorUser))
+        assertThatThrownBy(() -> booking.confirm(providerUser))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Cannot transition booking from CANCELLED to CONFIRMED");
     }
@@ -144,11 +144,11 @@ class BookingTest {
     @Test
     void shouldRejectCancellingCompletedBooking() {
         Booking booking = newBooking();
-        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
-        booking.confirm(vendorUser);
+        User providerUser = newUser("provider-owner@email.com", UserRole.VENDOR);
+        booking.confirm(providerUser);
         booking.markAsPaid(null);
-        booking.start(vendorUser);
-        booking.complete(vendorUser);
+        booking.start(providerUser);
+        booking.complete(providerUser);
 
         assertThatThrownBy(() -> booking.cancel(booking.getCustomer(), "Too late"))
                 .isInstanceOf(IllegalStateException.class)
@@ -159,12 +159,12 @@ class BookingTest {
     void shouldRejectInvalidTimeSlotInConstructor() {
         ServiceEntity service = newService();
         User customer = newUser("customer@email.com", UserRole.CUSTOMER);
-        Vendor vendor = service.getVendor();
+        Provider provider = service.getProvider();
 
         assertThatThrownBy(() -> new Booking(
                 service,
                 customer,
-                vendor,
+                provider,
                 LocalDate.of(2026, 6, 11),
                 LocalTime.of(10, 0),
                 LocalTime.of(9, 0),
@@ -181,7 +181,7 @@ class BookingTest {
         return new Booking(
                 service,
                 customer,
-                service.getVendor(),
+                service.getProvider(),
                 LocalDate.of(2026, 6, 11),
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
@@ -196,9 +196,9 @@ class BookingTest {
     }
 
     private ServiceEntity newService() {
-        User vendorUser = newUser("vendor@email.com", UserRole.VENDOR);
-        Vendor vendor = new Vendor(vendorUser, "Hien Spa");
-        return new ServiceEntity(vendor, "Massage", Money.of(5000), PricingType.FIXED, 60);
+        User providerUser = newUser("provider@email.com", UserRole.VENDOR);
+        Provider provider = new Provider(providerUser, "Hien Spa");
+        return new ServiceEntity(provider, "Massage", Money.of(5000), PricingType.FIXED, 60);
     }
 
     private User newUser(String email, UserRole role) {

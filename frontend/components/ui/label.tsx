@@ -2,7 +2,7 @@
  * Label — a consistent form field label.
  *
  * Wraps the `<label>` element so every form (login, register, booking, review,
- * vendor service) gets the same label weight/spacing. `required` renders the
+ * provider service) gets the same label weight/spacing. `required` renders the
  * standard red asterisk so call sites don't each hand-roll `<span>*</span>`.
  *
  * Kept as a plain element (not forwarding `htmlFor` magic) — callers still pass

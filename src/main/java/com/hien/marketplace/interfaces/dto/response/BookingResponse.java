@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * Response DTO for Booking entity.
  *
  * WHY: Returns booking details with the full money breakdown.
- * Customer and vendor both see this after booking creation.
+ * Customer and provider both see this after booking creation.
  *
  * Money fields (after the Order→Booking merge the booking carries all three):
  * - totalPrice  = subtotal = service.basePrice × quantity (the service price shown in listings)
@@ -23,8 +23,8 @@ public record BookingResponse(
     String customerName,
     Long serviceId,
     String serviceTitle,
-    Long vendorId,
-    String vendorName,
+    Long providerId,
+    String providerName,
     String serviceStreet,
     String serviceCity,
     String serviceZipCode,

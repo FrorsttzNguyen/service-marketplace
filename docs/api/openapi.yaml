@@ -26,12 +26,12 @@ servers:
 security:
 - bearerAuth: []
 tags:
-- name: Vendor Dashboard
-  description: Vendor analytics and statistics
+- name: Provider Dashboard
+  description: Provider analytics and statistics
 - name: Bookings
   description: Booking management endpoints
-- name: Vendor Service Management
-  description: Endpoints for vendors to manage their services
+- name: Provider Service Management
+  description: Endpoints for providers to manage their services
 - name: Webhooks
   description: Third-party webhook endpoints
 - name: Categories
@@ -45,16 +45,16 @@ tags:
 - name: Authentication
   description: "User registration, login, and token refresh"
 - name: Admin
-  description: "Admin operations: vendor approval / rejection"
+  description: "Admin operations: provider approval / rejection"
 - name: Reviews
   description: Review management endpoints
 paths:
-  /api/vendor/services/{id}:
+  /api/provider/services/{id}:
     put:
       tags:
-      - Vendor Service Management
+      - Provider Service Management
       summary: Update service
-      description: Update an existing service owned by the authenticated vendor
+      description: Update an existing service owned by the authenticated provider
       operationId: updateService
       parameters:
       - name: id
@@ -92,9 +92,9 @@ paths:
       - bearerAuth: []
     delete:
       tags:
-      - Vendor Service Management
+      - Provider Service Management
       summary: Deactivate service
-      description: Deactivate (soft delete) a service owned by the authenticated vendor
+      description: Deactivate (soft delete) a service owned by the authenticated provider
       operationId: deactivateService
       parameters:
       - name: id
@@ -117,8 +117,8 @@ paths:
       tags:
       - Bookings
       summary: Start service
-      description: Vendor marks a CONFIRMED booking as IN_PROGRESS when the service
-        begins. Only the vendor who owns the service may start it.
+      description: Provider marks a CONFIRMED booking as IN_PROGRESS when the service
+        begins. Only the provider who owns the service may start it.
       operationId: startService
       parameters:
       - name: id
@@ -153,8 +153,8 @@ paths:
       tags:
       - Bookings
       summary: Confirm booking
-      description: "Vendor confirms a pending booking, transitioning it to CONFIRMED.\
-        \ Only the vendor who owns the service may confirm. Required for the book\
+      description: "Provider confirms a pending booking, transitioning it to CONFIRMED.\
+        \ Only the provider who owns the service may confirm. Required for the book\
         \ → pay flow: payment can only be created for a CONFIRMED booking."
       operationId: confirmBooking
       parameters:
@@ -190,8 +190,8 @@ paths:
       tags:
       - Bookings
       summary: Complete service
-      description: Vendor marks an IN_PROGRESS booking as COMPLETED once the service
-        is done. Only the vendor who owns the service may complete it. A booking must
+      description: Provider marks an IN_PROGRESS booking as COMPLETED once the service
+        is done. Only the provider who owns the service may complete it. A booking must
         be COMPLETED before the customer can review it.
       operationId: completeService
       parameters:
@@ -280,12 +280,12 @@ paths:
       responses:
         "200":
           description: OK
-  /api/vendor/services:
+  /api/provider/services:
     get:
       tags:
-      - Vendor Service Management
-      summary: Get vendor's services
-      description: List all services owned by the authenticated vendor
+      - Provider Service Management
+      summary: Get provider's services
+      description: List all services owned by the authenticated provider
       operationId: getMyServices
       parameters:
       - name: pageable
@@ -307,7 +307,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageServiceResponse"
         "403":
-          description: Not a vendor
+          description: Not a provider
           content:
             '*/*':
               schema:
@@ -316,9 +316,9 @@ paths:
       - bearerAuth: []
     post:
       tags:
-      - Vendor Service Management
+      - Provider Service Management
       summary: Create service
-      description: Create a new service for the authenticated vendor
+      description: Create a new service for the authenticated provider
       operationId: createService
       requestBody:
         content:
@@ -346,25 +346,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ServiceResponse"
         "403":
-          description: Not a vendor
+          description: Not a provider
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ServiceResponse"
         "422":
-          description: Vendor not approved
+          description: Provider not approved
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ServiceResponse"
       security:
       - bearerAuth: []
-  /api/vendor/services/{id}/activate:
+  /api/provider/services/{id}/activate:
     post:
       tags:
-      - Vendor Service Management
+      - Provider Service Management
       summary: Activate service
-      description: Activate (publish) a service owned by the authenticated vendor
+      description: Activate (publish) a service owned by the authenticated provider
         so it appears in the public catalog
       operationId: activateService
       parameters:
@@ -583,7 +583,7 @@ paths:
       tags:
       - Authentication
       summary: Register new user
-      description: Create a new user account. Optionally register as vendor.
+      description: Create a new user account. Optionally register as provider.
       operationId: register
       requestBody:
         content:
@@ -668,14 +668,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthResponse"
-  /api/admin/vendors/{vendorId}/reject:
+  /api/admin/providers/{providerId}/reject:
     post:
       tags:
       - Admin
-      summary: Reject a vendor
-      operationId: rejectVendor
+      summary: Reject a provider
+      operationId: rejectProvider
       parameters:
-      - name: vendorId
+      - name: providerId
         in: path
         required: true
         schema:
@@ -683,39 +683,39 @@ paths:
           format: int64
       responses:
         "200":
-          description: Vendor rejected
+          description: Provider rejected
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
         "401":
           description: Not authenticated
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
         "403":
           description: Not an admin
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
         "404":
-          description: Vendor not found
+          description: Provider not found
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
       security:
       - bearerAuth: []
-  /api/admin/vendors/{vendorId}/approve:
+  /api/admin/providers/{providerId}/approve:
     post:
       tags:
       - Admin
-      summary: Approve a vendor
-      operationId: approveVendor
+      summary: Approve a provider
+      operationId: approveProvider
       parameters:
-      - name: vendorId
+      - name: providerId
         in: path
         required: true
         schema:
@@ -723,37 +723,37 @@ paths:
           format: int64
       responses:
         "200":
-          description: Vendor approved
+          description: Provider approved
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
         "401":
           description: Not authenticated
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
         "403":
           description: Not an admin
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
         "404":
-          description: Vendor not found
+          description: Provider not found
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorAdminResponse"
+                $ref: "#/components/schemas/ProviderAdminResponse"
       security:
       - bearerAuth: []
-  /api/vendor/dashboard/stats:
+  /api/provider/dashboard/stats:
     get:
       tags:
-      - Vendor Dashboard
+      - Provider Dashboard
       summary: Get statistics
-      description: Get booking statistics for authenticated vendor
+      description: Get booking statistics for authenticated provider
       operationId: getStats
       responses:
         "200":
@@ -761,33 +761,33 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorStatsResponse"
+                $ref: "#/components/schemas/ProviderStatsResponse"
         "401":
           description: Not authenticated
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorStatsResponse"
+                $ref: "#/components/schemas/ProviderStatsResponse"
         "403":
-          description: Not a vendor
+          description: Not a provider
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorStatsResponse"
+                $ref: "#/components/schemas/ProviderStatsResponse"
         "422":
-          description: Vendor profile not found
+          description: Provider profile not found
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorStatsResponse"
+                $ref: "#/components/schemas/ProviderStatsResponse"
       security:
       - bearerAuth: []
-  /api/vendor/dashboard/earnings:
+  /api/provider/dashboard/earnings:
     get:
       tags:
-      - Vendor Dashboard
+      - Provider Dashboard
       summary: Get earnings
-      description: Get earnings summary for authenticated vendor
+      description: Get earnings summary for authenticated provider
       operationId: getEarnings
       responses:
         "200":
@@ -795,25 +795,25 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorEarningsResponse"
+                $ref: "#/components/schemas/ProviderEarningsResponse"
         "401":
           description: Not authenticated
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorEarningsResponse"
+                $ref: "#/components/schemas/ProviderEarningsResponse"
         "403":
-          description: Not a vendor
+          description: Not a provider
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorEarningsResponse"
+                $ref: "#/components/schemas/ProviderEarningsResponse"
         "422":
-          description: Vendor profile not found
+          description: Provider profile not found
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/VendorEarningsResponse"
+                $ref: "#/components/schemas/ProviderEarningsResponse"
       security:
       - bearerAuth: []
   /api/services:
@@ -889,15 +889,15 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/PageServiceResponse"
-  /api/reviews/vendor/{vendorId}:
+  /api/reviews/provider/{providerId}:
     get:
       tags:
       - Reviews
-      summary: Get vendor reviews
-      description: "List all reviews for a vendor, newest first."
-      operationId: getVendorReviews
+      summary: Get provider reviews
+      description: "List all reviews for a provider, newest first."
+      operationId: getProviderReviews
       parameters:
-      - name: vendorId
+      - name: providerId
         in: path
         required: true
         schema:
@@ -1091,7 +1091,7 @@ paths:
       - Categories
       summary: List categories
       description: Return all service categories. Public — used by the catalog filter
-        and the vendor create-service form.
+        and the provider create-service form.
       operationId: listCategories
       responses:
         "200":
@@ -1102,13 +1102,13 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CategoryResponse"
-  /api/bookings/vendor:
+  /api/bookings/provider:
     get:
       tags:
       - Bookings
-      summary: Get vendor bookings
-      description: List all bookings for the authenticated vendor's services
-      operationId: getVendorBookings
+      summary: Get provider bookings
+      description: List all bookings for the authenticated provider's services
+      operationId: getProviderBookings
       parameters:
       - name: pageable
         in: query
@@ -1146,12 +1146,12 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
       security:
       - bearerAuth: []
-  /api/admin/vendors:
+  /api/admin/providers:
     get:
       tags:
       - Admin
-      summary: List vendors (optionally filtered by verification status)
-      operationId: listVendors
+      summary: List providers (optionally filtered by verification status)
+      operationId: listProviders
       parameters:
       - name: status
         in: query
@@ -1170,23 +1170,23 @@ paths:
           $ref: "#/components/schemas/Pageable"
       responses:
         "200":
-          description: Page of vendors
+          description: Page of providers
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PageVendorAdminResponse"
+                $ref: "#/components/schemas/PageProviderAdminResponse"
         "401":
           description: Not authenticated
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PageVendorAdminResponse"
+                $ref: "#/components/schemas/PageProviderAdminResponse"
         "403":
           description: Not an admin
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PageVendorAdminResponse"
+                $ref: "#/components/schemas/PageProviderAdminResponse"
       security:
       - bearerAuth: []
 components:
@@ -1232,10 +1232,10 @@ components:
         id:
           type: integer
           format: int64
-        vendorId:
+        providerId:
           type: integer
           format: int64
-        vendorName:
+        providerName:
           type: string
         categoryId:
           type: integer
@@ -1296,10 +1296,10 @@ components:
           format: int64
         serviceTitle:
           type: string
-        vendorId:
+        providerId:
           type: integer
           format: int64
-        vendorName:
+        providerName:
           type: string
         serviceStreet:
           type: string
@@ -1419,10 +1419,10 @@ components:
           format: int64
         customerName:
           type: string
-        vendorId:
+        providerId:
           type: integer
           format: int64
-        vendorName:
+        providerName:
           type: string
         rating:
           type: integer
@@ -1558,7 +1558,7 @@ components:
           type: string
           minLength: 1
           pattern: "^\\+?[1-9]\\d{1,14}$"
-        registerAsVendor:
+        registerAsProvider:
           type: boolean
       required:
       - email
@@ -1615,10 +1615,10 @@ components:
       required:
       - email
       - password
-    VendorAdminResponse:
+    ProviderAdminResponse:
       type: object
       properties:
-        vendorId:
+        providerId:
           type: integer
           format: int64
         userId:
@@ -1711,7 +1711,7 @@ components:
           type: boolean
         empty:
           type: boolean
-    VendorStatsResponse:
+    ProviderStatsResponse:
       type: object
       properties:
         totalServices:
@@ -1748,7 +1748,7 @@ components:
         totalCustomers:
           type: integer
           format: int32
-    VendorEarningsResponse:
+    ProviderEarningsResponse:
       type: object
       properties:
         totalEarnings:
@@ -1837,7 +1837,7 @@ components:
         updatedAt:
           type: string
           format: date-time
-    PageVendorAdminResponse:
+    PageProviderAdminResponse:
       type: object
       properties:
         totalPages:
@@ -1861,7 +1861,7 @@ components:
         content:
           type: array
           items:
-            $ref: "#/components/schemas/VendorAdminResponse"
+            $ref: "#/components/schemas/ProviderAdminResponse"
         number:
           type: integer
           format: int32

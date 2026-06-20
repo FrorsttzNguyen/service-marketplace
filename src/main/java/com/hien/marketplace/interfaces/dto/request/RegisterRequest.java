@@ -43,7 +43,7 @@ public record RegisterRequest(
     )
     String phoneNumber,
 
-    // Optional: User can register as vendor immediately or later
-    Boolean registerAsVendor
+    // Optional: User can register as provider immediately or later
+    Boolean registerAsProvider
 ) {
 }

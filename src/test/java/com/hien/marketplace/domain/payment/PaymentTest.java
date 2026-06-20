@@ -7,7 +7,7 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -43,15 +43,15 @@ class PaymentTest {
         // Create customer
         User customer = new User("john@example.com", "hashedPassword", "John Doe", UserRole.CUSTOMER);
 
-        // Create vendor with user
-        User vendorUser = new User("vendor@example.com", "hashedPassword", "Vendor Name", UserRole.VENDOR);
-        Vendor vendor = new Vendor(vendorUser, "Vendor Business");
+        // Create provider with user
+        User providerUser = new User("provider@example.com", "hashedPassword", "Provider Name", UserRole.VENDOR);
+        Provider provider = new Provider(providerUser, "Provider Business");
 
         // Create service
-        ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
+        ServiceEntity service = new ServiceEntity(provider, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
         // Create booking with its own service address for this appointment.
-        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
+        booking = new Booking(service, customer, provider, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
                 Money.of(10000), Money.of(1000), new Address("123 Service Street", "Test City", "70000"));
 
         payment = new Payment(booking, Money.of(11000));

@@ -3,8 +3,8 @@
 /**
  * TanStack Query hooks + mutation for reviews.
  *
- * Mirrors the `bookings-queries.ts` / `vendor-bookings-queries.ts` pattern: a
- * centralized query-key factory, two read queries (service + vendor), and one create
+ * Mirrors the `bookings-queries.ts` / `provider-bookings-queries.ts` pattern: a
+ * centralized query-key factory, two read queries (service + provider), and one create
  * mutation. The keys live under a `["reviews", ...]` family scoped by target so that
  * creating a review invalidates only the affected caches.
  *
@@ -25,23 +25,23 @@ import {
 import {
   createReview,
   listServiceReviews,
-  listVendorReviews,
+  listProviderReviews,
   type Review,
   type ReviewCreateRequest,
 } from "./reviews";
 import { bookingKeys } from "./bookings-queries";
 
 /**
- * Centralized review query keys. Two read dimensions — by service and by vendor — each
- * keyed by its target id so different services/vendors get independent cache entries.
+ * Centralized review query keys. Two read dimensions — by service and by provider — each
+ * keyed by its target id so different services/providers get independent cache entries.
  * `all` is used for broad invalidation on a successful create.
  */
 export const reviewKeys = {
   all: ["reviews"] as const,
   service: (serviceId: number) =>
     [...reviewKeys.all, "service", serviceId] as const,
-  vendor: (vendorId: number) =>
-    [...reviewKeys.all, "vendor", vendorId] as const,
+  provider: (providerId: number) =>
+    [...reviewKeys.all, "provider", providerId] as const,
 } as const;
 
 /**
@@ -69,17 +69,17 @@ export function useServiceReviews(
 }
 
 /**
- * Fetch the public reviews for a vendor. Same shape as `useServiceReviews`. Reserved for
- * a future vendor-profile page (no UI wires it yet); included for completeness so that
+ * Fetch the public reviews for a provider. Same shape as `useServiceReviews`. Reserved for
+ * a future provider-profile page (no UI wires it yet); included for completeness so that
  * page can drop it in without touching this file.
  */
-export function useVendorReviews(
-  vendorId: number,
+export function useProviderReviews(
+  providerId: number,
 ): UseQueryResult<Review[]> {
-  const enabled = Number.isInteger(vendorId) && vendorId > 0;
+  const enabled = Number.isInteger(providerId) && providerId > 0;
   return useQuery({
-    queryKey: reviewKeys.vendor(vendorId),
-    queryFn: ({ signal }) => listVendorReviews({ vendorId }),
+    queryKey: reviewKeys.provider(providerId),
+    queryFn: ({ signal }) => listProviderReviews({ providerId }),
     enabled,
     staleTime: 60_000,
   });
@@ -101,7 +101,7 @@ export function useCreateReview(): UseMutationResult<
   return useMutation({
     mutationFn: (body: ReviewCreateRequest) => createReview({ body }),
     onSuccess: () => {
-      // Reviews: pick up the new review on the service-detail list (and any vendor view).
+      // Reviews: pick up the new review on the service-detail list (and any provider view).
       void queryClient.invalidateQueries({ queryKey: reviewKeys.all });
       // Bookings (customer side): a filed review is a booking lifecycle event.
       void queryClient.invalidateQueries({ queryKey: bookingKeys.all });

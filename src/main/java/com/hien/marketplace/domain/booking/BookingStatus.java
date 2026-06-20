@@ -20,8 +20,8 @@ import java.util.Set;
  * - Tự tài liệu: đọc TRANSITIONS map là hiểu toàn bộ lifecycle
  */
 public enum BookingStatus {
-    PENDING,        // Customer vừa đặt, chờ vendor xác nhận
-    CONFIRMED,      // Vendor đã xác nhận — giờ là trạng thái "payable"
+    PENDING,        // Customer vừa đặt, chờ provider xác nhận
+    CONFIRMED,      // Provider đã xác nhận — giờ là trạng thái "payable"
     PAID,           // Thanh toán thành công (webhook Stripe) — gộp từ Order.PAID cũ
     IN_PROGRESS,    // Đang thực hiện dịch vụ
     COMPLETED,      // Hoàn thành (nguồn sự thật duy nhất cho "xong" — thay cho Order.FULFILLED)
@@ -31,7 +31,7 @@ public enum BookingStatus {
     // Map định nghĩa các chuyển đổi hợp lệ.
     // Key = trạng thái hiện tại, Value = set các trạng thái có thể chuyển đến.
     //
-    // Vòng đời gộp (Đường 1): đặt → vendor nhận → trả tiền → làm dịch vụ → xong.
+    // Vòng đời gộp (Đường 1): đặt → provider nhận → trả tiền → làm dịch vụ → xong.
     //   PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
     // "Đang trả tiền" KHÔNG phải một state ở đây — Booking vẫn CONFIRMED, còn Payment có
     // lifecycle riêng (PENDING/PROCESSING) cho giao dịch Stripe. Đó không phải trùng lặp.

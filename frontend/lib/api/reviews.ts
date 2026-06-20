@@ -3,14 +3,14 @@
  *
  * Reviews are the LAST step of the booking lifecycle. The full lifecycle is
  * PENDING → CONFIRMED → IN_PROGRESS → COMPLETED; once a booking reaches COMPLETED, the
- * customer who owns it may leave exactly one review. The vendor-side lifecycle
- * transitions (confirm/start/complete) live in `vendor-bookings.ts`; this file owns the
+ * customer who owns it may leave exactly one review. The provider-side lifecycle
+ * transitions (confirm/start/complete) live in `provider-bookings.ts`; this file owns the
  * review resource itself (create + the two public read endpoints).
  *
  * AUTH MODEL — mixed, unlike most resource files here:
  *   - POST /api/reviews                         (AUTHED — the booking's customer)
  *   - GET  /api/reviews/service/{serviceId}     (PUBLIC — powers the service detail page)
- *   - GET  /api/reviews/vendor/{vendorId}       (PUBLIC — reserved for a future vendor
+ *   - GET  /api/reviews/provider/{providerId}       (PUBLIC — reserved for a future provider
  *                                                 profile page; no UI wires it yet)
  * The two GETs are intentionally public so the service detail page can show reviews to
  * logged-out browsers. `client.ts` still attaches a token if present (harmless for a
@@ -77,21 +77,21 @@ export async function listServiceReviews(
   return apiGet(path) as Promise<Review[]>;
 }
 
-/** Params for listing a vendor's reviews. */
-export interface ListVendorReviewsParams {
-  vendorId: number;
+/** Params for listing a provider's reviews. */
+export interface ListProviderReviewsParams {
+  providerId: number;
 }
 
 /**
- * List the reviews for a vendor (`GET /api/reviews/vendor/{vendorId}`).
+ * List the reviews for a provider (`GET /api/reviews/provider/{providerId}`).
  *
- * PUBLIC endpoint. Aggregates reviews across all of a vendor's services. Reserved for a
- * future vendor-profile page; no UI wires it yet, but the helper is here so that page
- * can drop in `useVendorReviews(vendorId)` without touching this file.
+ * PUBLIC endpoint. Aggregates reviews across all of a provider's services. Reserved for a
+ * future provider-profile page; no UI wires it yet, but the helper is here so that page
+ * can drop in `useProviderReviews(providerId)` without touching this file.
  */
-export async function listVendorReviews(
-  params: ListVendorReviewsParams,
+export async function listProviderReviews(
+  params: ListProviderReviewsParams,
 ): Promise<Review[]> {
-  const path = `/api/reviews/vendor/${encodeURIComponent(params.vendorId)}`;
+  const path = `/api/reviews/provider/${encodeURIComponent(params.providerId)}`;
   return apiGet(path) as Promise<Review[]>;
 }

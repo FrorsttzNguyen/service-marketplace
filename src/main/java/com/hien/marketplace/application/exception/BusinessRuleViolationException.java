@@ -5,7 +5,7 @@ package com.hien.marketplace.application.exception;
  *
  * WHY: Domain-specific validation errors that aren't simple input validation.
  * Used when: booking status transition invalid, order cannot be created from non-confirmed booking,
- * vendor not approved, insufficient permissions for operation.
+ * provider not approved, insufficient permissions for operation.
  *
  * Example: Trying to cancel a COMPLETED booking → BusinessRuleViolationException
  * → 422 Unprocessable Entity with message explaining the rule

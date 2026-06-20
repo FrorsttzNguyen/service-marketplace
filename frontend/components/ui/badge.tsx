@@ -2,8 +2,8 @@
  * Badge — a status pill with a consistent color map.
  *
  * Replaces the three near-identical inline `statusBadgeClass` maps that were
- * copy-pasted across booking-card, vendor/bookings, vendor/services, and
- * admin/vendors. One place to define what each status looks like.
+ * copy-pasted across booking-card, provider/bookings, provider/services, and
+ * admin/providers. One place to define what each status looks like.
  *
  * Two shapes:
  *   - `<Badge tone="…">` for an arbitrary tone (subtle/filled/solid + color).
@@ -68,8 +68,8 @@ export function Badge({ tone = "neutral", className, children }: BadgeProps) {
 /* --------------------------- App-specific badges --------------------------- */
 
 import type { BookingStatus } from "@/lib/api/bookings";
-import type { ServiceStatus } from "@/lib/api/vendor-services";
-import type { VendorVerificationStatus } from "@/lib/api/admin";
+import type { ServiceStatus } from "@/lib/api/provider-services";
+import type { ProviderVerificationStatus } from "@/lib/api/admin";
 
 /** Booking lifecycle → badge tone. */
 const BOOKING_TONE: Record<BookingStatus, BadgeTone> = {
@@ -96,17 +96,17 @@ export function ServiceStatusBadge({ status }: { status: ServiceStatus }) {
   return <Badge tone={SERVICE_TONE[status] ?? "neutral"}>{status}</Badge>;
 }
 
-/** Vendor verification → badge tone. */
-const VENDOR_TONE: Record<VendorVerificationStatus, BadgeTone> = {
+/** Provider verification → badge tone. */
+const PROVIDER_TONE: Record<ProviderVerificationStatus, BadgeTone> = {
   PENDING: "warning",
   APPROVED: "success",
   REJECTED: "danger",
 };
 
-export function VendorStatusBadge({
+export function ProviderStatusBadge({
   status,
 }: {
-  status: VendorVerificationStatus;
+  status: ProviderVerificationStatus;
 }) {
-  return <Badge tone={VENDOR_TONE[status] ?? "neutral"}>{status}</Badge>;
+  return <Badge tone={PROVIDER_TONE[status] ?? "neutral"}>{status}</Badge>;
 }

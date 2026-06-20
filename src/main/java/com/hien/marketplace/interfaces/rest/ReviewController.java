@@ -21,11 +21,11 @@ import java.util.List;
  * REST controller for review operations.
  *
  * WHY: customers leave reviews after their bookings are COMPLETED; reviews drive the
- * denormalized service + vendor ratings shown in the catalog.
+ * denormalized service + provider ratings shown in the catalog.
  *
  * Authorization (see SecurityConfig):
  * - POST /api/reviews — authenticated (the customer who owns the booking)
- * - GET /api/reviews/service/** and /api/reviews/vendor/** — public (browsable on detail pages)
+ * - GET /api/reviews/service/** and /api/reviews/provider/** — public (browsable on detail pages)
  */
 @RestController
 @RequestMapping("/api/reviews")
@@ -75,17 +75,17 @@ public class ReviewController {
     }
 
     /**
-     * List reviews for a vendor (public).
+     * List reviews for a provider (public).
      */
-    @GetMapping("/vendor/{vendorId}")
+    @GetMapping("/provider/{providerId}")
     @Operation(
-            summary = "Get vendor reviews",
-            description = "List all reviews for a vendor, newest first.",
+            summary = "Get provider reviews",
+            description = "List all reviews for a provider, newest first.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Reviews retrieved")
             }
     )
-    public ResponseEntity<List<ReviewResponse>> getVendorReviews(@PathVariable Long vendorId) {
-        return ResponseEntity.ok(reviewService.getVendorReviews(vendorId));
+    public ResponseEntity<List<ReviewResponse>> getProviderReviews(@PathVariable Long providerId) {
+        return ResponseEntity.ok(reviewService.getProviderReviews(providerId));
     }
 }

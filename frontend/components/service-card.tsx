@@ -9,7 +9,7 @@
  * next `gen:api`.
  *
  * Visual (Phase 7): each card is a rounded "island" with a soft shadow that lifts on
- * hover. Title + vendor + city + price are laid out with comfortable spacing; the
+ * hover. Title + provider + city + price are laid out with comfortable spacing; the
  * optional StarRating uses `averageRating` when present.
  */
 import Link from "next/link";
@@ -68,9 +68,9 @@ export function ServiceCard({ service }: { service: Service }) {
         ) : null}
       </div>
 
-      {service.vendorName ? (
+      {service.providerName ? (
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Pro: {service.vendorName}
+          Pro: {service.providerName}
         </p>
       ) : null}
 

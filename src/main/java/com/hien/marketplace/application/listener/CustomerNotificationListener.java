@@ -27,7 +27,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * - Main transaction thread returns immediately
  * - Notification processing doesn't slow down API response
  *
- * Separate listener from VendorNotificationListener:
+ * Separate listener from ProviderNotificationListener:
  * - Different notification content
  * - Different delivery preferences (email vs SMS)
  * - Independent failure handling
@@ -45,7 +45,7 @@ public class CustomerNotificationListener {
      * Handle booking confirmed event.
      *
      * WHY: Customer should receive confirmation with booking details.
-     * Include: Service name, time, vendor contact, cancellation policy.
+     * Include: Service name, time, provider contact, cancellation policy.
      */
     @Async("eventTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -54,14 +54,14 @@ public class CustomerNotificationListener {
                 event.bookingId(), event.serviceTitle());
 
         log.info("  → Customer: {} (Email: {})", event.customerName(), event.customerEmail());
-        log.info("  → Vendor: {}", event.vendorName());
+        log.info("  → Provider: {}", event.providerName());
 
         // In production: Send notification
         // emailService.sendBookingConfirmedToCustomer(
         //     event.customerEmail(),
         //     event.bookingId(),
         //     event.serviceTitle(),
-        //     event.vendorName()
+        //     event.providerName()
         // );
     }
 

@@ -9,15 +9,15 @@ import java.time.LocalDateTime;
 /**
  * Response DTO for Service entity.
  *
- * WHY: Returns service details with vendor info for public catalog.
+ * WHY: Returns service details with provider info for public catalog.
  * Customers see this when browsing services.
  *
  * Note: Does NOT include internal fields like updatedAt or audit info.
  */
 public record ServiceResponse(
     Long id,
-    Long vendorId,
-    String vendorName,
+    Long providerId,
+    String providerName,
     Long categoryId,
     String categoryName,
     String title,
