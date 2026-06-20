@@ -3,7 +3,7 @@ package com.hien.marketplace.domain.service;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalTime;
@@ -60,8 +60,8 @@ class ServiceAvailabilityTest {
     }
 
     private ServiceEntity newService() {
-        User vendorUser = new User("vendor@email.com", "hashed_password", "Vendor User", UserRole.VENDOR);
-        Vendor vendor = new Vendor(vendorUser, "Hien Spa");
-        return new ServiceEntity(vendor, "Massage", Money.of(5000), PricingType.FIXED, 60);
+        User providerUser = new User("provider@email.com", "hashed_password", "Provider User", UserRole.VENDOR);
+        Provider provider = new Provider(providerUser, "Hien Spa");
+        return new ServiceEntity(provider, "Massage", Money.of(5000), PricingType.FIXED, 60);
     }
 }

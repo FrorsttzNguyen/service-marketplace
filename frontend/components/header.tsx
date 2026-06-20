@@ -4,17 +4,17 @@
  * Site header / nav. Shows the brand link plus auth-aware controls:
  *   - Logged out → "Log in" + "Sign up" links.
  *   - Logged in  → the user's name + a "Log out" button.
- *   - Admin user → an extra "Admin" link to /admin/vendors.
- *   - Vendor user → three extra links: "Dashboard" + "My services" + "Bookings"
- *     (vendor side) to /vendor/dashboard, /vendor/services, and /vendor/bookings.
+ *   - Admin user → an extra "Admin" link to /admin/providers.
+ *   - Provider user → three extra links: "Dashboard" + "My services" + "Bookings"
+ *     (provider side) to /provider/dashboard, /provider/services, and /provider/bookings.
  *   - Initializing → nothing (avoid a flash of logged-out controls during rehydrate).
  *
  * The access token is intentionally never read here — only the non-secret user
  * profile (name, role) from useAuth(), which mirrors the token-store.
  *
- * Role-gating the Admin/Vendor links depends on `user.role` surviving a page reload,
+ * Role-gating the Admin/Provider links depends on `user.role` surviving a page reload,
  * which in turn depends on /me being called during rehydrate (see token-store.rehydrate).
- * Without that wiring, an admin/vendor reloading any page would briefly appear role-less
+ * Without that wiring, an admin/provider reloading any page would briefly appear role-less
  * and the links would flicker off; rehydrate now populates the role before this renders.
  *
  * Visual (Phase 7 polish): the bar is a floating rounded "island" — a bright card
@@ -52,7 +52,7 @@ export function Header() {
   // The backend role enum is "ADMIN" | "VENDOR" | "CUSTOMER"; each gated link below
   // only renders for its matching role.
   const isAdmin = user?.role === "ADMIN";
-  const isVendor = user?.role === "VENDOR";
+  const isProvider = user?.role === "VENDOR";
 
   return (
     // Sticky container: floats above page content. The inner island is the
@@ -94,18 +94,18 @@ export function Header() {
               point, and even if they typed the URL directly, RequireAuth requireRole +
               the server's 403 would stop them. Gating the link is UX, not security.
             */}
-            {isAdmin ? <NavLink href="/admin/vendors">Admin</NavLink> : null}
+            {isAdmin ? <NavLink href="/admin/providers">Admin</NavLink> : null}
             {/*
-              Vendor links — only for VENDOR-role users. Direct links mirror how
+              Provider links — only for VENDOR-role users. Direct links mirror how
               "My bookings" is a direct link: dashboard overview, service management,
               and incoming bookings. Same gating rationale as Admin: UX, not security —
               RequireAuth requireRole="VENDOR" + the server's 403 enforce.
             */}
-            {isVendor ? (
+            {isProvider ? (
               <>
-                <NavLink href="/vendor/dashboard">Dashboard</NavLink>
-                <NavLink href="/vendor/services">My services</NavLink>
-                <NavLink href="/vendor/bookings">Bookings</NavLink>
+                <NavLink href="/provider/dashboard">Dashboard</NavLink>
+                <NavLink href="/provider/services">My services</NavLink>
+                <NavLink href="/provider/bookings">Bookings</NavLink>
               </>
             ) : null}
             <span className="px-2 text-muted-foreground">

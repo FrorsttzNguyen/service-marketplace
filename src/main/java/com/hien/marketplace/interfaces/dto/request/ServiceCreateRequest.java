@@ -13,11 +13,11 @@ import java.math.BigDecimal;
 /**
  * Request DTO for creating a new service.
  *
- * WHY: Vendor creates services to offer to customers.
+ * WHY: Provider creates services to offer to customers.
  * This DTO captures all required fields with validation.
  *
- * Note: vendorId comes from authenticated user context, not from request body.
- * This prevents vendors from creating services for other vendors.
+ * Note: providerId comes from authenticated user context, not from request body.
+ * This prevents providers from creating services for other providers.
  */
 public record ServiceCreateRequest(
     @NotNull(message = "Category ID is required")

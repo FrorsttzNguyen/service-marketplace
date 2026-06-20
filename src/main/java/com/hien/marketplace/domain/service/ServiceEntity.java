@@ -3,7 +3,7 @@ package com.hien.marketplace.domain.service;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.category.Category;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Entity cho dịch vụ do Vendor cung cấp.
+ * Entity cho dịch vụ do Provider cung cấp.
  *
  * Tên class là ServiceEntity (không phải Service) vì Spring có sẵn interface
  * org.springframework.stereotype.Service — trùng tên sẽ gây ambiguous import.
@@ -20,15 +20,15 @@ import java.util.List;
  * Money được embed vào column base_price_cents để domain không dùng primitive cho khái niệm tiền.
  * PricingType enum implements Strategy Pattern cho việc tính giá.
  *
- * @NamedEntityGraph: Prevents N+1 queries when fetching services with vendor/category.
+ * @NamedEntityGraph: Prevents N+1 queries when fetching services with provider/category.
  * Used in ServiceRepository for paginated queries.
  */
 @Entity
 @Table(name = "services")
 @NamedEntityGraph(
-    name = "service-with-vendor-category",
+    name = "service-with-provider-category",
     attributeNodes = {
-        @NamedAttributeNode("vendor"),
+        @NamedAttributeNode("provider"),
         @NamedAttributeNode("category")
     }
 )
@@ -39,8 +39,8 @@ public class ServiceEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id", nullable = false)
-    private Vendor vendor;
+    @JoinColumn(name = "provider_id", nullable = false)
+    private Provider provider;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
@@ -70,10 +70,10 @@ public class ServiceEntity {
     // === Denormalized fields for search/filter performance ===
 
     /**
-     * City denormalized from vendor.address.city.
+     * City denormalized from provider.address.city.
      *
-     * WHY: Allows efficient filtering by city without joining through vendor.
-     * Kept in sync when vendor's address changes (handled by domain events or service layer).
+     * WHY: Allows efficient filtering by city without joining through provider.
+     * Kept in sync when provider's address changes (handled by domain events or service layer).
      */
     @Column(length = 100)
     private String city;
@@ -107,16 +107,16 @@ public class ServiceEntity {
     protected ServiceEntity() {
     }
 
-    public ServiceEntity(Vendor vendor, String name, Money basePrice, PricingType pricingType, int durationMinutes) {
-        this.vendor = vendor;
+    public ServiceEntity(Provider provider, String name, Money basePrice, PricingType pricingType, int durationMinutes) {
+        this.provider = provider;
         this.name = name;
         this.basePrice = basePrice;
         this.pricingType = pricingType;
         this.durationMinutes = durationMinutes;
         this.status = ServiceStatus.DRAFT;
-        // Denormalize city from vendor's address for efficient filtering
-        if (vendor.getAddress() != null) {
-            this.city = vendor.getAddress().getCity();
+        // Denormalize city from provider's address for efficient filtering
+        if (provider.getAddress() != null) {
+            this.city = provider.getAddress().getCity();
         }
         this.averageRating = null; // No reviews initially
         this.createdAt = LocalDateTime.now();
@@ -165,10 +165,10 @@ public class ServiceEntity {
     }
 
     /**
-     * Update city when vendor's address changes.
+     * Update city when provider's address changes.
      *
      * WHY: City is denormalized for efficient filtering.
-     * Called when vendor moves to a different city.
+     * Called when provider moves to a different city.
      */
     public void updateCity(String newCity) {
         this.city = newCity;
@@ -189,7 +189,7 @@ public class ServiceEntity {
     // === Getters ===
 
     public Long getId() { return id; }
-    public Vendor getVendor() { return vendor; }
+    public Provider getProvider() { return provider; }
     public Category getCategory() { return category; }
     public String getName() { return name; }
     public String getDescription() { return description; }

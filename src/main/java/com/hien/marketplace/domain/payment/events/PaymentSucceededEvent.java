@@ -28,7 +28,7 @@ public record PaymentSucceededEvent(
     Long paymentId,
     Long bookingId,
     Long customerId,
-    Long vendorId,
+    Long providerId,
     String stripePaymentIntentId,
     long amountCents,
     LocalDateTime occurredAt
@@ -44,7 +44,7 @@ public record PaymentSucceededEvent(
             payment.getId(),
             payment.getBooking().getId(),
             payment.getBooking().getCustomer().getId(),
-            payment.getBooking().getVendor().getId(),
+            payment.getBooking().getProvider().getId(),
             payment.getStripePaymentIntentId(),
             payment.getAmount().getAmountCents(),
             LocalDateTime.now()

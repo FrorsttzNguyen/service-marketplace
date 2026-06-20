@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hien.marketplace.domain.category.Category;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
-import com.hien.marketplace.domain.vendor.VerificationStatus;
+import com.hien.marketplace.domain.provider.Provider;
+import com.hien.marketplace.domain.provider.VerificationStatus;
 import com.hien.marketplace.infrastructure.persistence.CategoryRepository;
 import com.hien.marketplace.infrastructure.persistence.UserRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import com.hien.marketplace.infrastructure.security.JwtUtils;
 import com.hien.marketplace.interfaces.dto.request.ServiceCreateRequest;
 import org.junit.jupiter.api.DisplayName;
@@ -32,10 +32,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Integration tests for {@link com.hien.marketplace.interfaces.rest.AdminController} (Phase 5.5).
  *
  * WHAT THESE TESTS PROVE:
- * The vendor onboarding bug is fixed end-to-end. Before this feature, a vendor registered as
+ * The provider onboarding bug is fixed end-to-end. Before this feature, a provider registered as
  * {@code PENDING} and could never be approved through the API — so they could never create a
- * service. These tests assert the admin path now wires {@link Vendor#approve()} / {@link Vendor#reject()}
- * to the HTTP layer, and that approving a vendor actually unblocks service creation.
+ * service. These tests assert the admin path now wires {@link Provider#approve()} / {@link Provider#reject()}
+ * to the HTTP layer, and that approving a provider actually unblocks service creation.
  *
  * TEST PROFILE (follows {@link AuthControllerIntegrationTest} / {@link ServiceControllerIntegrationTest}):
  * Uses the {@code test} profile (H2 in-memory DB, {@code ddl-auto=create-drop}) so the suite stays
@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * the Flyway schema, which trips a pre-existing schema mismatch in {@code audit_logs.new_values}
  * (jsonb vs text) unrelated to this feature. Matching the codebase convention keeps these tests green.
  *
- * WHY we seed users/vendors directly (not via {@code AdminBootstrap}):
+ * WHY we seed users/providers directly (not via {@code AdminBootstrap}):
  * The bootstrap is env-driven and intentionally non-deterministic. Here we build the ADMIN, VENDOR,
  * and CUSTOMER accounts directly through the repositories so the assertions are independent of env
  * vars — and so the test is hermetic (no dependency on ADMIN_EMAIL/ADMIN_PASSWORD).
@@ -53,7 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code JwtAuthenticationFilter} maps the token's {@code role} claim to a Spring authority
  * {@code "ROLE_" + role}. {@code SecurityConfig} then guards {@code /api/admin/**} with
  * {@code hasRole("ADMIN")}, which Spring resolves to {@code ROLE_ADMIN}. So an admin JWT must be
- * generated with {@code UserRole.ADMIN.name()} (i.e. "ADMIN"), and a vendor/customer JWT likewise.
+ * generated with {@code UserRole.ADMIN.name()} (i.e. "ADMIN"), and a provider/customer JWT likewise.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -70,7 +70,7 @@ class AdminControllerIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private VendorRepository vendorRepository;
+    private ProviderRepository providerRepository;
 
     @Autowired
     private CategoryRepository categoryRepository;
@@ -89,18 +89,18 @@ class AdminControllerIntegrationTest {
         return jwtUtils.generateAccessToken(admin.getId(), admin.getEmail(), UserRole.ADMIN.name());
     }
 
-    /** Create + persist a VENDOR user with a PENDING vendor profile; return their JWT. */
-    private Vendor pendingVendor(String emailSuffix, String businessName) {
+    /** Create + persist a VENDOR user with a PENDING provider profile; return their JWT. */
+    private Provider pendingProvider(String emailSuffix, String businessName) {
         // nanoTime suffix avoids email collisions across tests/methods (User.email is unique).
-        String email = "vendor-" + emailSuffix + "-" + System.nanoTime() + "@test.com";
-        User vendorUser = userRepository.save(new User(email, "hashed", "Vendor", UserRole.VENDOR));
+        String email = "provider-" + emailSuffix + "-" + System.nanoTime() + "@test.com";
+        User providerUser = userRepository.save(new User(email, "hashed", "Provider", UserRole.VENDOR));
         String token = jwtUtils.generateAccessToken(
-                vendorUser.getId(), vendorUser.getEmail(), UserRole.VENDOR.name());
-        // Stash the token on the vendor's description field so callers don't need a parallel return value.
-        // (Vendor has no token field; this is test-only plumbing and never persists to prod.)
-        Vendor vendor = new Vendor(vendorUser, businessName);
-        vendor.setDescription(token);
-        return vendorRepository.save(vendor);
+                providerUser.getId(), providerUser.getEmail(), UserRole.VENDOR.name());
+        // Stash the token on the provider's description field so callers don't need a parallel return value.
+        // (Provider has no token field; this is test-only plumbing and never persists to prod.)
+        Provider provider = new Provider(providerUser, businessName);
+        provider.setDescription(token);
+        return providerRepository.save(provider);
     }
 
     /** Create + persist a CUSTOMER user and return their JWT. */
@@ -122,21 +122,21 @@ class AdminControllerIntegrationTest {
         @DisplayName("non-admin (CUSTOMER) → 403 Forbidden")
         void nonAdminGets403() throws Exception {
             // A CUSTOMER JWT is authenticated but lacks ROLE_ADMIN → Spring returns 403.
-            mockMvc.perform(post("/api/admin/vendors/1/approve")
+            mockMvc.perform(post("/api/admin/providers/1/approve")
                             .header("Authorization", "Bearer " + customerToken()))
                     .andExpect(status().isForbidden());
         }
 
         @Test
         @DisplayName("non-admin (VENDOR) → 403 Forbidden")
-        void vendorGets403() throws Exception {
+        void providerGets403() throws Exception {
             // A VENDOR JWT is also authenticated but not ADMIN → 403. Proves admin endpoints are
             // role-scoped to ADMIN, not just "any authenticated user".
-            Vendor vendor = pendingVendor("vendor-auth", "Vendor Biz");
-            String vendorToken = vendor.getDescription();
+            Provider provider = pendingProvider("provider-auth", "Provider Biz");
+            String providerToken = provider.getDescription();
 
-            mockMvc.perform(get("/api/admin/vendors")
-                            .header("Authorization", "Bearer " + vendorToken))
+            mockMvc.perform(get("/api/admin/providers")
+                            .header("Authorization", "Bearer " + providerToken))
                     .andExpect(status().isForbidden());
         }
 
@@ -151,7 +151,7 @@ class AdminControllerIntegrationTest {
             // protected endpoints. Changing that globally would be a security-config change outside
             // this feature's scope (and would break existing tests). So we assert the actual,
             // consistent behavior: the request is denied (403), not served.
-            mockMvc.perform(post("/api/admin/vendors/1/approve"))
+            mockMvc.perform(post("/api/admin/providers/1/approve"))
                     .andExpect(status().isForbidden());
         }
     }
@@ -161,33 +161,33 @@ class AdminControllerIntegrationTest {
     // ================================================================
 
     @Nested
-    @DisplayName("Approve vendor")
+    @DisplayName("Approve provider")
     class ApproveTests {
 
         @Test
-        @DisplayName("admin approves a PENDING vendor → 200, status APPROVED")
-        void approvePendingVendor() throws Exception {
-            Vendor vendor = pendingVendor("approve", "Approve Biz");
+        @DisplayName("admin approves a PENDING provider → 200, status APPROVED")
+        void approvePendingProvider() throws Exception {
+            Provider provider = pendingProvider("approve", "Approve Biz");
             String token = adminToken();
 
-            mockMvc.perform(post("/api/admin/vendors/{vendorId}/approve", vendor.getId())
+            mockMvc.perform(post("/api/admin/providers/{providerId}/approve", provider.getId())
                             .header("Authorization", "Bearer " + token))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.vendorId").value(vendor.getId()))
+                    .andExpect(jsonPath("$.providerId").value(provider.getId()))
                     .andExpect(jsonPath("$.verificationStatus").value("APPROVED"))
                     .andExpect(jsonPath("$.businessName").value("Approve Biz"));
         }
 
         @Test
-        @DisplayName("E2E unblock: register PENDING vendor → admin approve → vendor can create a service")
+        @DisplayName("E2E unblock: register PENDING provider → admin approve → provider can create a service")
         void approveUnblocksServiceCreation() throws Exception {
             // --- Setup: a category the service will reference ---
             Category category = categoryRepository.save(new Category("Cleaning-" + System.nanoTime(),
                     "cleaning-" + System.nanoTime()));
 
-            // --- Step 1: a PENDING vendor exists (newly registered vendors start PENDING) ---
-            Vendor vendor = pendingVendor("e2e", "E2E Biz");
-            String vendorToken = vendor.getDescription();
+            // --- Step 1: a PENDING provider exists (newly registered providers start PENDING) ---
+            Provider provider = pendingProvider("e2e", "E2E Biz");
+            String providerToken = provider.getDescription();
             String adminToken = adminToken();
 
             ServiceCreateRequest createRequest = new ServiceCreateRequest(
@@ -200,22 +200,22 @@ class AdminControllerIntegrationTest {
                     null, null, null);
 
             // --- Step 2 (the bug): before approval, service creation MUST be blocked (422) ---
-            mockMvc.perform(post("/api/vendor/services")
-                            .header("Authorization", "Bearer " + vendorToken)
+            mockMvc.perform(post("/api/provider/services")
+                            .header("Authorization", "Bearer " + providerToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createRequest)))
                     .andExpect(status().isUnprocessableEntity())
                     .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
 
-            // --- Step 3: admin approves the vendor → status APPROVED ---
-            mockMvc.perform(post("/api/admin/vendors/{vendorId}/approve", vendor.getId())
+            // --- Step 3: admin approves the provider → status APPROVED ---
+            mockMvc.perform(post("/api/admin/providers/{providerId}/approve", provider.getId())
                             .header("Authorization", "Bearer " + adminToken))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.verificationStatus").value("APPROVED"));
 
-            // --- Step 4 (the fix): the SAME vendor can now create a service successfully (201) ---
-            mockMvc.perform(post("/api/vendor/services")
-                            .header("Authorization", "Bearer " + vendorToken)
+            // --- Step 4 (the fix): the SAME provider can now create a service successfully (201) ---
+            mockMvc.perform(post("/api/provider/services")
+                            .header("Authorization", "Bearer " + providerToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createRequest)))
                     .andExpect(status().isCreated())
@@ -224,30 +224,30 @@ class AdminControllerIntegrationTest {
     }
 
     // ================================================================
-    // Reject path — vendor stays blocked.
+    // Reject path — provider stays blocked.
     // ================================================================
 
     @Nested
-    @DisplayName("Reject vendor")
+    @DisplayName("Reject provider")
     class RejectTests {
 
         @Test
-        @DisplayName("admin rejects a PENDING vendor → 200, status REJECTED, still cannot create service")
-        void rejectVendorStaysBlocked() throws Exception {
+        @DisplayName("admin rejects a PENDING provider → 200, status REJECTED, still cannot create service")
+        void rejectProviderStaysBlocked() throws Exception {
             Category category = categoryRepository.save(new Category("Tutoring-" + System.nanoTime(),
                     "tutoring-" + System.nanoTime()));
 
-            Vendor vendor = pendingVendor("reject", "Reject Biz");
-            String vendorToken = vendor.getDescription();
+            Provider provider = pendingProvider("reject", "Reject Biz");
+            String providerToken = provider.getDescription();
             String adminToken = adminToken();
 
-            // Admin rejects the vendor.
-            mockMvc.perform(post("/api/admin/vendors/{vendorId}/reject", vendor.getId())
+            // Admin rejects the provider.
+            mockMvc.perform(post("/api/admin/providers/{providerId}/reject", provider.getId())
                             .header("Authorization", "Bearer " + adminToken))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.verificationStatus").value("REJECTED"));
 
-            // A REJECTED vendor is NOT approved, so service creation is still blocked.
+            // A REJECTED provider is NOT approved, so service creation is still blocked.
             // (BusinessRuleViolationException → 422, same guard as the pre-approval step above.)
             ServiceCreateRequest createRequest = new ServiceCreateRequest(
                     category.getId(),
@@ -258,8 +258,8 @@ class AdminControllerIntegrationTest {
                     1,
                     null, null, null);
 
-            mockMvc.perform(post("/api/vendor/services")
-                            .header("Authorization", "Bearer " + vendorToken)
+            mockMvc.perform(post("/api/provider/services")
+                            .header("Authorization", "Bearer " + providerToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createRequest)))
                     .andExpect(status().isUnprocessableEntity())
@@ -276,39 +276,39 @@ class AdminControllerIntegrationTest {
     class NotFoundAndListingTests {
 
         @Test
-        @DisplayName("approve a non-existent vendorId → 404")
+        @DisplayName("approve a non-existent providerId → 404")
         void approveNotFoundReturns404() throws Exception {
             // ResourceNotFoundException → GlobalExceptionHandler maps to 404 RESOURCE_NOT_FOUND.
-            // 99999 is an id no test creates, so the lookup in AdminVendorService will miss.
-            mockMvc.perform(post("/api/admin/vendors/{vendorId}/approve", 99999L)
+            // 99999 is an id no test creates, so the lookup in AdminProviderService will miss.
+            mockMvc.perform(post("/api/admin/providers/{providerId}/approve", 99999L)
                             .header("Authorization", "Bearer " + adminToken()))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         }
 
         @Test
-        @DisplayName("GET /api/admin/vendors?status=PENDING returns only pending vendors + pagination")
+        @DisplayName("GET /api/admin/providers?status=PENDING returns only pending providers + pagination")
         void listFiltersByPendingStatus() throws Exception {
             // Seed a known mix of statuses so the filter is observable, not coincidental.
-            pendingVendor("list-pending-1", "Pending One");   // PENDING
-            pendingVendor("list-pending-2", "Pending Two");   // PENDING
+            pendingProvider("list-pending-1", "Pending One");   // PENDING
+            pendingProvider("list-pending-2", "Pending Two");   // PENDING
 
-            // An APPROVED vendor: create then approve via the domain method directly (we are testing
+            // An APPROVED provider: create then approve via the domain method directly (we are testing
             // the list endpoint here, not re-testing approve).
-            Vendor approved = pendingVendor("list-approved", "Approved One");
+            Provider approved = pendingProvider("list-approved", "Approved One");
             approved.approve();
-            vendorRepository.save(approved);
+            providerRepository.save(approved);
 
-            // A REJECTED vendor, similarly.
-            Vendor rejected = pendingVendor("list-rejected", "Rejected One");
+            // A REJECTED provider, similarly.
+            Provider rejected = pendingProvider("list-rejected", "Rejected One");
             rejected.reject();
-            vendorRepository.save(rejected);
+            providerRepository.save(rejected);
 
             String token = adminToken();
 
-            // Filter by PENDING: the two pending vendors must come back, and the approved/rejected
+            // Filter by PENDING: the two pending providers must come back, and the approved/rejected
             // ones must NOT. We also assert pagination metadata for the spec's "paginated" requirement.
-            mockMvc.perform(get("/api/admin/vendors")
+            mockMvc.perform(get("/api/admin/providers")
                             .param("status", VerificationStatus.PENDING.name())
                             .header("Authorization", "Bearer " + token))
                     .andExpect(status().isOk())
@@ -322,7 +322,7 @@ class AdminControllerIntegrationTest {
                     .andExpect(jsonPath("$.totalPages").exists());
 
             // Sanity: unfiltered list returns an array (proves null-status returns all statuses).
-            mockMvc.perform(get("/api/admin/vendors")
+            mockMvc.perform(get("/api/admin/providers")
                             .header("Authorization", "Bearer " + token))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content").isArray());

@@ -8,7 +8,7 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,20 +45,20 @@ class OptimisticLockingTest {
     private BookingRepository bookingRepository;
 
     private Booking testBooking;
-    private User vendorUser;
+    private User providerUser;
     private User customer;
 
     @BeforeEach
     void setUp() {
-        // Create vendor
-        vendorUser = new User("vendor-lock@test.com", "hashed", "Vendor", UserRole.VENDOR);
-        vendorUser = entityManager.persistFlushFind(vendorUser);
+        // Create provider
+        providerUser = new User("provider-lock@test.com", "hashed", "Provider", UserRole.VENDOR);
+        providerUser = entityManager.persistFlushFind(providerUser);
 
-        Vendor vendor = new Vendor(vendorUser, "Test Vendor");
-        vendor = entityManager.persistFlushFind(vendor);
+        Provider provider = new Provider(providerUser, "Test Provider");
+        provider = entityManager.persistFlushFind(provider);
 
         // Create service
-        ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
+        ServiceEntity service = new ServiceEntity(provider, "Test Service", Money.of(10000), PricingType.FIXED, 60);
         service.activate();
         service = entityManager.persistFlushFind(service);
 
@@ -70,7 +70,7 @@ class OptimisticLockingTest {
         testBooking = new Booking(
                 service,
                 customer,
-                vendor,
+                provider,
                 LocalDate.of(2026, 6, 15),
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
@@ -123,7 +123,7 @@ class OptimisticLockingTest {
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 2);
 
             // Third update
-            testBooking.confirm(vendorUser);
+            testBooking.confirm(providerUser);
             testBooking = entityManager.persistFlushFind(testBooking);
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 3);
         }
@@ -142,7 +142,7 @@ class OptimisticLockingTest {
         void confirmShouldIncrementVersion() {
             Long initialVersion = testBooking.getVersion();
 
-            testBooking.confirm(vendorUser);
+            testBooking.confirm(providerUser);
             testBooking = entityManager.persistFlushFind(testBooking);
 
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 1);
@@ -155,7 +155,7 @@ class OptimisticLockingTest {
             Long initialVersion = testBooking.getVersion();
 
             // PENDING → CONFIRMED
-            testBooking.confirm(vendorUser);
+            testBooking.confirm(providerUser);
             testBooking = entityManager.persistFlushFind(testBooking);
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 1);
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
@@ -167,13 +167,13 @@ class OptimisticLockingTest {
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.PAID);
 
             // PAID → IN_PROGRESS
-            testBooking.start(vendorUser);
+            testBooking.start(providerUser);
             testBooking = entityManager.persistFlushFind(testBooking);
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 3);
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
 
             // IN_PROGRESS → COMPLETED
-            testBooking.complete(vendorUser);
+            testBooking.complete(providerUser);
             testBooking = entityManager.persistFlushFind(testBooking);
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 4);
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);

@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  *
  * WHY we need this:
  * The new {@code /api/admin/**} endpoints require {@code ROLE_ADMIN}. Without at least one admin
- * account, no one can ever approve a vendor, and the vendor onboarding bug would reappear in
- * practice (vendors stuck PENDING). This runner ensures an admin exists when the app starts.
+ * account, no one can ever approve a provider, and the provider onboarding bug would reappear in
+ * practice (providers stuck PENDING). This runner ensures an admin exists when the app starts.
  *
  * WHY env vars, not a Flyway migration:
  * A migration is a committed SQL file — any admin password baked into it leaks into source control

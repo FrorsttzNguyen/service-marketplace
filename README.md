@@ -4,7 +4,7 @@
 
 HandyHub is a home and local services marketplace: customers book trusted pros for cleaning, repairs, moving, gardening, and other nearby services; providers manage their services and booking pipeline; the platform handles scheduling, secure Stripe payments, reviews, and commission tracking.
 
-The repository is still named `service-marketplace`, and the Java package remains `com.hien.marketplace`. Product copy uses **Provider** / **Pro** for the seller side; the current code and database still use `Vendor` / `VENDOR` until a dedicated rename migration is done.
+The repository is still named `service-marketplace`, and the Java package remains `com.hien.marketplace`. Product copy and provider-profile code now use **Provider** / **Pro** for the seller side, while the authentication role value remains `VENDOR` for compatibility.
 
 ## Why This Project Exists
 
@@ -75,7 +75,7 @@ interfaces  ->  application  ->  domain  <-  infrastructure
 | Concept | Meaning in HandyHub |
 |---------|---------------------|
 | `User` | Account with `CUSTOMER`, `VENDOR`, or `ADMIN` role. Product copy calls `VENDOR` a provider/pro. |
-| `Vendor` | Provider profile: business name, address, verification status, rating. |
+| `Provider` | Provider profile: business name, address, verification status, rating. |
 | `Category` | Home-service category such as Home Cleaning, Plumbing, Deep Cleaning, Handyman. |
 | `ServiceEntity` | A provider's bookable service with price, city, duration, status, and category. |
 | `Booking` | Aggregate root for the customer request, schedule, service address, status, and money breakdown. |

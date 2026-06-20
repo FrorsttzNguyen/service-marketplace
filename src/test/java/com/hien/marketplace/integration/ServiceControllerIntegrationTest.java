@@ -6,10 +6,10 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
 import com.hien.marketplace.infrastructure.persistence.UserRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -55,25 +55,25 @@ class ServiceControllerIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private VendorRepository vendorRepository;
+    private ProviderRepository providerRepository;
 
     @Autowired
     private ServiceRepository serviceRepository;
 
     private ServiceEntity testService;
-    private Vendor vendor;
+    private Provider provider;
 
     @BeforeEach
     void setUp() {
-        // Create vendor
-        User vendorUser = new User("service-vendor@test.com", "hashed", "Vendor", UserRole.VENDOR);
-        vendorUser = userRepository.save(vendorUser);
+        // Create provider
+        User providerUser = new User("service-provider@test.com", "hashed", "Provider", UserRole.VENDOR);
+        providerUser = userRepository.save(providerUser);
 
-        vendor = new Vendor(vendorUser, "Test Business");
-        vendor = vendorRepository.save(vendor);
+        provider = new Provider(providerUser, "Test Business");
+        provider = providerRepository.save(provider);
 
         // Create test service
-        testService = new ServiceEntity(vendor, "Haircut", Money.of(50000), PricingType.FIXED, 60);
+        testService = new ServiceEntity(provider, "Haircut", Money.of(50000), PricingType.FIXED, 60);
         testService.activate();
         testService = serviceRepository.save(testService);
     }
@@ -101,7 +101,7 @@ class ServiceControllerIntegrationTest {
         void shouldSupportPagination() throws Exception {
             // Create more services
             for (int i = 0; i < 25; i++) {
-                ServiceEntity svc = new ServiceEntity(vendor, "Service " + i, Money.of(10000), PricingType.FIXED, 60);
+                ServiceEntity svc = new ServiceEntity(provider, "Service " + i, Money.of(10000), PricingType.FIXED, 60);
                 svc.activate();
                 serviceRepository.save(svc);
             }
@@ -141,7 +141,7 @@ class ServiceControllerIntegrationTest {
         @DisplayName("Should not return draft services")
         void shouldNotReturnDraftServices() throws Exception {
             // Create a draft service (not activated)
-            ServiceEntity draft = new ServiceEntity(vendor, "Draft Service", Money.of(10000), PricingType.FIXED, 60);
+            ServiceEntity draft = new ServiceEntity(provider, "Draft Service", Money.of(10000), PricingType.FIXED, 60);
             serviceRepository.save(draft);  // DRAFT by default
 
             mockMvc.perform(get("/api/services"))
@@ -168,7 +168,7 @@ class ServiceControllerIntegrationTest {
                     .andExpect(jsonPath("$.id").value(testService.getId()))
                     .andExpect(jsonPath("$.title").value("Haircut"))
                     .andExpect(jsonPath("$.basePrice").exists())
-                    .andExpect(jsonPath("$.vendorName").value("Test Business"));
+                    .andExpect(jsonPath("$.providerName").value("Test Business"));
         }
 
         @Test

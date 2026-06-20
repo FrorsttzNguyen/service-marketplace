@@ -42,12 +42,12 @@ import java.util.Map;
  * TTL STRATEGY (why per-cache TTL):
  * - Different data changes at different rates. A blanket TTL forces a tradeoff that's wrong for
  *   everything.
- * - serviceCatalog (listings): changes when a vendor creates/updates/deactivates a service.
- *   Vendors don't do this every second → 5 min TTL is a good freshness/load balance.
+ * - serviceCatalog (listings): changes when a provider creates/updates/deactivates a service.
+ *   Providers don't do this every second → 5 min TTL is a good freshness/load balance.
  * - serviceDetail (single service): changes even less often → 15 min TTL, lower DB load.
  * - servicesByCategory: same volatility as catalog → 5 min.
  *
- * Cache invalidation is ALSO done explicitly via @CacheEvict (see VendorServiceManagement),
+ * Cache invalidation is ALSO done explicitly via @CacheEvict (see ProviderServiceManagement),
  * so TTL is the SAFETY NET, not the only mechanism.
  */
 @Slf4j

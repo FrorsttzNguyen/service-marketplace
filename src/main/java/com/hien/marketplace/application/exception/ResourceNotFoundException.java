@@ -4,7 +4,7 @@ package com.hien.marketplace.application.exception;
  * Exception thrown when a requested resource is not found in the database.
  *
  * WHY: Domain-specific exception for 404 Not Found responses.
- * Used when: user, service, booking, order, review, vendor not found by ID.
+ * Used when: user, service, booking, order, review, provider not found by ID.
  *
  * Example: GET /api/services/999 → ResourceNotFoundException("Service", 999)
  * → 404 response with message "Service not found with id: 999"

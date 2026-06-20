@@ -18,8 +18,8 @@ import com.hien.marketplace.domain.service.ServiceStatus;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
 import com.hien.marketplace.domain.user.UserStatus;
-import com.hien.marketplace.domain.vendor.Vendor;
-import com.hien.marketplace.domain.vendor.VerificationStatus;
+import com.hien.marketplace.domain.provider.Provider;
+import com.hien.marketplace.domain.provider.VerificationStatus;
 import com.hien.marketplace.infrastructure.persistence.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -65,7 +65,7 @@ class RepositoryIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private VendorRepository vendorRepository;
+    private ProviderRepository providerRepository;
 
     @Autowired
     private ServiceRepository serviceRepository;
@@ -98,21 +98,21 @@ class RepositoryIntegrationTest {
         return entityManager.persistFlushFind(user);
     }
 
-    private Vendor persistVendor(User user, String businessName) {
-        Vendor vendor = new Vendor(user, businessName);
-        return entityManager.persistFlushFind(vendor);
+    private Provider persistProvider(User user, String businessName) {
+        Provider provider = new Provider(user, businessName);
+        return entityManager.persistFlushFind(provider);
     }
 
-    private ServiceEntity persistService(Vendor vendor, String name, Money basePrice) {
-        ServiceEntity service = new ServiceEntity(vendor, name, basePrice, PricingType.FIXED, 60);
+    private ServiceEntity persistService(Provider provider, String name, Money basePrice) {
+        ServiceEntity service = new ServiceEntity(provider, name, basePrice, PricingType.FIXED, 60);
         service.activate();
         return entityManager.persistFlushFind(service);
     }
 
-    private Booking persistBooking(ServiceEntity service, User customer, Vendor vendor,
+    private Booking persistBooking(ServiceEntity service, User customer, Provider provider,
                                      LocalDate date, LocalTime start, LocalTime end) {
         // New constructor takes (subtotal, commission) separately; commission = 0 for test simplicity
-        Booking booking = new Booking(service, customer, vendor, date, start, end,
+        Booking booking = new Booking(service, customer, provider, date, start, end,
                 Money.of(5000), Money.of(0), serviceAddress());
         return entityManager.persistFlushFind(booking);
     }
@@ -180,56 +180,56 @@ class RepositoryIntegrationTest {
     }
 
     // ================================================================
-    // Vendor Repository Tests
+    // Provider Repository Tests
     // ================================================================
 
     @Nested
-    class VendorRepositoryTests {
+    class ProviderRepositoryTests {
 
         @Test
-        void shouldPersistVendorWithComposition() {
-            User user = persistUser(uniqueEmail("vendor"), UserRole.VENDOR);
-            Vendor vendor = persistVendor(user, "Test Business");
+        void shouldPersistProviderWithComposition() {
+            User user = persistUser(uniqueEmail("provider"), UserRole.VENDOR);
+            Provider provider = persistProvider(user, "Test Business");
 
-            assertThat(vendor.getId()).isNotNull();
-            assertThat(vendor.getUser().getId()).isEqualTo(user.getId());
-            assertThat(vendor.getVerificationStatus()).isEqualTo(VerificationStatus.PENDING);
-            assertThat(vendor.getRatingAvg()).isEqualByComparingTo("0.00");
+            assertThat(provider.getId()).isNotNull();
+            assertThat(provider.getUser().getId()).isEqualTo(user.getId());
+            assertThat(provider.getVerificationStatus()).isEqualTo(VerificationStatus.PENDING);
+            assertThat(provider.getRatingAvg()).isEqualByComparingTo("0.00");
         }
 
         @Test
-        void shouldFindVendorByUserId() {
-            User user = persistUser(uniqueEmail("vendor"), UserRole.VENDOR);
-            Vendor vendor = persistVendor(user, "Test Business");
+        void shouldFindProviderByUserId() {
+            User user = persistUser(uniqueEmail("provider"), UserRole.VENDOR);
+            Provider provider = persistProvider(user, "Test Business");
 
-            Optional<Vendor> found = vendorRepository.findByUserId(user.getId());
+            Optional<Provider> found = providerRepository.findByUserId(user.getId());
 
             assertThat(found).isPresent();
             assertThat(found.get().getBusinessName()).isEqualTo("Test Business");
         }
 
         @Test
-        void shouldCheckVendorExistsByUserId() {
-            User user = persistUser(uniqueEmail("vendor"), UserRole.VENDOR);
-            persistVendor(user, "Test Business");
+        void shouldCheckProviderExistsByUserId() {
+            User user = persistUser(uniqueEmail("provider"), UserRole.VENDOR);
+            persistProvider(user, "Test Business");
 
-            assertThat(vendorRepository.existsByUserId(user.getId())).isTrue();
-            assertThat(vendorRepository.existsByUserId(999L)).isFalse();
+            assertThat(providerRepository.existsByUserId(user.getId())).isTrue();
+            assertThat(providerRepository.existsByUserId(999L)).isFalse();
         }
 
         @Test
-        void shouldFindVendorsByVerificationStatus() {
+        void shouldFindProvidersByVerificationStatus() {
             User u1 = persistUser(uniqueEmail("v1"), UserRole.VENDOR);
             User u2 = persistUser(uniqueEmail("v2"), UserRole.VENDOR);
-            Vendor approved = persistVendor(u1, "Approved Co");
+            Provider approved = persistProvider(u1, "Approved Co");
             approved.approve();
             entityManager.persistAndFlush(approved);
-            persistVendor(u2, "Pending Co");
+            persistProvider(u2, "Pending Co");
 
-            List<Vendor> approvedVendors = vendorRepository.findByVerificationStatus(VerificationStatus.APPROVED);
+            List<Provider> approvedProviders = providerRepository.findByVerificationStatus(VerificationStatus.APPROVED);
 
-            assertThat(approvedVendors).hasSize(1);
-            assertThat(approvedVendors.get(0).getBusinessName()).isEqualTo("Approved Co");
+            assertThat(approvedProviders).hasSize(1);
+            assertThat(approvedProviders.get(0).getBusinessName()).isEqualTo("Approved Co");
         }
     }
 
@@ -240,17 +240,17 @@ class RepositoryIntegrationTest {
     @Nested
     class ServiceRepositoryTests {
 
-        private Vendor vendor;
+        private Provider provider;
 
         @BeforeEach
         void setUp() {
-            User user = persistUser(uniqueEmail("svc-vendor"), UserRole.VENDOR);
-            vendor = persistVendor(user, "Test Vendor");
+            User user = persistUser(uniqueEmail("svc-provider"), UserRole.VENDOR);
+            provider = persistProvider(user, "Test Provider");
         }
 
         @Test
         void shouldPersistServiceWithEmbeddedMoney() {
-            ServiceEntity service = persistService(vendor, "Test Service", Money.of(10000));
+            ServiceEntity service = persistService(provider, "Test Service", Money.of(10000));
 
             assertThat(service.getId()).isNotNull();
             // Verify embedded Money persists correctly — 10000 cents should round-trip
@@ -259,19 +259,19 @@ class RepositoryIntegrationTest {
         }
 
         @Test
-        void shouldFindServicesByVendorId() {
-            persistService(vendor, "Service A", Money.of(5000));
-            persistService(vendor, "Service B", Money.of(8000));
+        void shouldFindServicesByProviderId() {
+            persistService(provider, "Service A", Money.of(5000));
+            persistService(provider, "Service B", Money.of(8000));
 
-            List<ServiceEntity> services = serviceRepository.findByVendorId(vendor.getId());
+            List<ServiceEntity> services = serviceRepository.findByProviderId(provider.getId());
 
             assertThat(services).hasSize(2);
         }
 
         @Test
         void shouldFindServicesByStatus() {
-            persistService(vendor, "Active Service", Money.of(5000));
-            ServiceEntity draft = new ServiceEntity(vendor, "Draft", Money.of(3000), PricingType.HOURLY, 60);
+            persistService(provider, "Active Service", Money.of(5000));
+            ServiceEntity draft = new ServiceEntity(provider, "Draft", Money.of(3000), PricingType.HOURLY, 60);
             entityManager.persistAndFlush(draft); // DRAFT by default
 
             List<ServiceEntity> activeServices = serviceRepository.findByStatus(ServiceStatus.ACTIVE);
@@ -282,7 +282,7 @@ class RepositoryIntegrationTest {
 
         @Test
         void shouldCalculatePriceWithStrategy() {
-            ServiceEntity hourlyService = new ServiceEntity(vendor, "Consultation",
+            ServiceEntity hourlyService = new ServiceEntity(provider, "Consultation",
                     Money.of(5000), PricingType.HOURLY, 120);
             entityManager.persistAndFlush(hourlyService);
 
@@ -301,19 +301,19 @@ class RepositoryIntegrationTest {
 
         private ServiceEntity service;
         private User customer;
-        private Vendor vendor;
+        private Provider provider;
 
         @BeforeEach
         void setUp() {
-            User vendorUser = persistUser(uniqueEmail("bk-vendor"), UserRole.VENDOR);
-            vendor = persistVendor(vendorUser, "Test Vendor");
-            service = persistService(vendor, "Test Service", Money.of(5000));
+            User providerUser = persistUser(uniqueEmail("bk-provider"), UserRole.VENDOR);
+            provider = persistProvider(providerUser, "Test Provider");
+            service = persistService(provider, "Test Service", Money.of(5000));
             customer = persistUser(uniqueEmail("bk-customer"), UserRole.CUSTOMER);
         }
 
         @Test
         void shouldPersistBookingWithEmbeddedTimeSlotAndMoney() {
-            Booking booking = persistBooking(service, customer, vendor,
+            Booking booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
 
             assertThat(booking.getId()).isNotNull();
@@ -326,7 +326,7 @@ class RepositoryIntegrationTest {
 
         @Test
         void shouldPersistAndReadBookingServiceAddress() {
-            Booking booking = persistBooking(service, customer, vendor,
+            Booking booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
 
             assertThat(booking.getServiceAddress()).isEqualTo(serviceAddress());
@@ -340,7 +340,7 @@ class RepositoryIntegrationTest {
             LocalDate date = LocalDate.of(2026, 6, 15);
             LocalTime start = LocalTime.of(9, 0);
             LocalTime end = LocalTime.of(10, 0);
-            persistBooking(service, customer, vendor, date, start, end);
+            persistBooking(service, customer, provider, date, start, end);
 
             // Same service + same date + same start time → should report exists
             boolean exists = bookingRepository.existsByServiceIdAndBookingDateAndTimeSlotStartTime(
@@ -360,21 +360,21 @@ class RepositoryIntegrationTest {
         }
 
         @Test
-        void shouldFindBookingsByVendorAndDate() {
+        void shouldFindBookingsByProviderAndDate() {
             LocalDate date = LocalDate.of(2026, 6, 15);
-            persistBooking(service, customer, vendor, date,
+            persistBooking(service, customer, provider, date,
                     LocalTime.of(9, 0), LocalTime.of(10, 0));
-            persistBooking(service, customer, vendor, date,
+            persistBooking(service, customer, provider, date,
                     LocalTime.of(11, 0), LocalTime.of(12, 0));
 
-            List<Booking> bookings = bookingRepository.findByVendorIdAndBookingDate(vendor.getId(), date);
+            List<Booking> bookings = bookingRepository.findByProviderIdAndBookingDate(provider.getId(), date);
 
             assertThat(bookings).hasSize(2);
         }
 
         @Test
         void shouldFindBookingsByCustomer() {
-            persistBooking(service, customer, vendor,
+            persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
 
             List<Booking> bookings = bookingRepository.findByCustomerId(customer.getId());
@@ -385,11 +385,11 @@ class RepositoryIntegrationTest {
 
         @Test
         void shouldFindBookingsByStatus() {
-            Booking booking = persistBooking(service, customer, vendor,
+            Booking booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
             // Confirm the booking — change status from PENDING to CONFIRMED
-            User vendorUser = entityManager.find(User.class, vendor.getUser().getId());
-            booking.confirm(vendorUser);
+            User providerUser = entityManager.find(User.class, provider.getUser().getId());
+            booking.confirm(providerUser);
             entityManager.persistAndFlush(booking);
 
             List<Booking> confirmed = bookingRepository.findByStatus(BookingStatus.CONFIRMED);
@@ -401,15 +401,15 @@ class RepositoryIntegrationTest {
 
         @Test
         void shouldPersistStatusHistoryOnTransition() {
-            Booking booking = persistBooking(service, customer, vendor,
+            Booking booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
-            User vendorUser = entityManager.find(User.class, vendor.getUser().getId());
+            User providerUser = entityManager.find(User.class, provider.getUser().getId());
 
             // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS
             // markAsPaid(null) simulates the Stripe webhook (changedBy=null = system action)
-            booking.confirm(vendorUser);
+            booking.confirm(providerUser);
             booking.markAsPaid(null);
-            booking.start(vendorUser);
+            booking.start(providerUser);
             booking = entityManager.persistFlushFind(booking);
 
             // 3 status history entries: PENDING→CONFIRMED + CONFIRMED→PAID + PAID→IN_PROGRESS
@@ -427,15 +427,15 @@ class RepositoryIntegrationTest {
 
         private Booking booking;
         private User customer;
-        private Vendor vendor;
+        private Provider provider;
 
         @BeforeEach
         void setUp() {
-            User vendorUser = persistUser(uniqueEmail("op-vendor"), UserRole.VENDOR);
-            vendor = persistVendor(vendorUser, "Test Vendor");
-            ServiceEntity service = persistService(vendor, "Test Service", Money.of(5000));
+            User providerUser = persistUser(uniqueEmail("op-provider"), UserRole.VENDOR);
+            provider = persistProvider(providerUser, "Test Provider");
+            ServiceEntity service = persistService(provider, "Test Service", Money.of(5000));
             customer = persistUser(uniqueEmail("op-customer"), UserRole.CUSTOMER);
-            booking = persistBooking(service, customer, vendor,
+            booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
         }
 
@@ -532,14 +532,14 @@ class RepositoryIntegrationTest {
 
         @Test
         void shouldPersistReviewWithRatingValidation() {
-            User vendorUser = persistUser(uniqueEmail("rv-vendor"), UserRole.VENDOR);
-            Vendor vendor = persistVendor(vendorUser, "Test Vendor");
-            ServiceEntity service = persistService(vendor, "Test Service", Money.of(5000));
+            User providerUser = persistUser(uniqueEmail("rv-provider"), UserRole.VENDOR);
+            Provider provider = persistProvider(providerUser, "Test Provider");
+            ServiceEntity service = persistService(provider, "Test Service", Money.of(5000));
             User customer = persistUser(uniqueEmail("rv-customer"), UserRole.CUSTOMER);
-            Booking booking = persistBooking(service, customer, vendor,
+            Booking booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
 
-            Review review = new Review(booking, customer, vendor, service, 5, "Excellent!");
+            Review review = new Review(booking, customer, provider, service, 5, "Excellent!");
             review = entityManager.persistFlushFind(review);
 
             assertThat(review.getId()).isNotNull();
@@ -549,18 +549,18 @@ class RepositoryIntegrationTest {
 
         @Test
         void shouldRejectInvalidRating() {
-            User vendorUser = persistUser(uniqueEmail("rv-vendor"), UserRole.VENDOR);
-            Vendor vendor = persistVendor(vendorUser, "Test Vendor");
-            ServiceEntity service = persistService(vendor, "Test Service", Money.of(5000));
+            User providerUser = persistUser(uniqueEmail("rv-provider"), UserRole.VENDOR);
+            Provider provider = persistProvider(providerUser, "Test Provider");
+            ServiceEntity service = persistService(provider, "Test Service", Money.of(5000));
             User customer = persistUser(uniqueEmail("rv-customer"), UserRole.CUSTOMER);
-            Booking booking = persistBooking(service, customer, vendor,
+            Booking booking = persistBooking(service, customer, provider,
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
 
-            assertThatThrownBy(() -> new Review(booking, customer, vendor, service, 0, "Bad"))
+            assertThatThrownBy(() -> new Review(booking, customer, provider, service, 0, "Bad"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Rating must be between 1 and 5");
 
-            assertThatThrownBy(() -> new Review(booking, customer, vendor, service, 6, "Too high"))
+            assertThatThrownBy(() -> new Review(booking, customer, provider, service, 6, "Too high"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Rating must be between 1 and 5");
         }

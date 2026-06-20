@@ -18,9 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Service for public service catalog operations.
  *
- * WHY: Separates public catalog operations from vendor service management.
+ * WHY: Separates public catalog operations from provider service management.
  * - Customers browse services via this service
- * - Vendors manage their services via VendorServiceManagement
+ * - Providers manage their services via ProviderServiceManagement
  *
  * CACHING STRATEGY (Phase 5):
  * - getServiceById() IS cached: it returns a concrete ServiceResponse record, which Jackson can
@@ -67,7 +67,7 @@ public class ServiceCatalogService {
      * CACHED in Redis under cache name "serviceDetail", keyed by the service id.
      * - Cache MISS → runs the query + enrichment, stores the ServiceResponse.
      * - Cache HIT → returns the cached ServiceResponse, no DB access.
-     * - Evicted by VendorServiceManagement.updateService / deactivateService (see @CacheEvict there).
+     * - Evicted by ProviderServiceManagement.updateService / deactivateService (see @CacheEvict there).
      *
      * Condition `unless`: a null result (handled by the orElseThrow above) is never cached — but
      * since the method throws rather than returning null, this is a defensive guard only.
@@ -97,14 +97,14 @@ public class ServiceCatalogService {
     }
 
     /**
-     * Enrich ServiceResponse with vendor name and category name.
+     * Enrich ServiceResponse with provider name and category name.
      *
-     * WHY: ServiceResponse needs vendorName and categoryName
-     * but ServiceEntity only has references (vendor, category).
+     * WHY: ServiceResponse needs providerName and categoryName
+     * but ServiceEntity only has references (provider, category).
      * This method extracts those names after mapping.
      *
      * N+1 FIXED: ServiceRepository methods now use @EntityGraph
-     * to eagerly fetch vendor and category in ONE query.
+     * to eagerly fetch provider and category in ONE query.
      *
      * NOTE: city and averageRating are now directly mapped from ServiceEntity
      * (denormalized fields added in V8 migration).
@@ -112,12 +112,12 @@ public class ServiceCatalogService {
     private ServiceResponse enrichServiceResponse(ServiceEntity service) {
         ServiceResponse response = serviceMapper.toResponse(service);
 
-        // Enrich with vendor name
-        if (service.getVendor() != null && service.getVendor().getUser() != null) {
+        // Enrich with provider name
+        if (service.getProvider() != null && service.getProvider().getUser() != null) {
             response = new ServiceResponse(
                     response.id(),
-                    response.vendorId(),
-                    service.getVendor().getBusinessName(),
+                    response.providerId(),
+                    service.getProvider().getBusinessName(),
                     response.categoryId(),
                     response.categoryName(),
                     response.title(),
@@ -140,8 +140,8 @@ public class ServiceCatalogService {
         if (service.getCategory() != null) {
             response = new ServiceResponse(
                     response.id(),
-                    response.vendorId(),
-                    response.vendorName(),
+                    response.providerId(),
+                    response.providerName(),
                     response.categoryId(),
                     service.getCategory().getName(),
                     response.title(),
@@ -167,8 +167,8 @@ public class ServiceCatalogService {
         int totalReviews = (int) reviewRepository.countByServiceId(service.getId());
         return new ServiceResponse(
                 response.id(),
-                response.vendorId(),
-                response.vendorName(),
+                response.providerId(),
+                response.providerName(),
                 response.categoryId(),
                 response.categoryName(),
                 response.title(),

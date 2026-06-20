@@ -10,9 +10,9 @@ import org.mapstruct.Named;
  * MapStruct mapper for Service entity → DTO conversion.
  *
  * WHY: Service has complex mappings:
- * - vendorId → vendor.id (nested object access)
+ * - providerId → provider.id (nested object access)
  * - Money value object → BigDecimal (flattening)
- * - vendorName, categoryName not in entity (require joins)
+ * - providerName, categoryName not in entity (require joins)
  *
  * Note: Creation/Update handled in service layer via domain methods
  * because ServiceEntity uses immutable-style construction (no setters for many fields).
@@ -20,14 +20,14 @@ import org.mapstruct.Named;
 @Mapper(componentModel = "spring")
 public interface ServiceMapper {
 
-    @Mapping(source = "vendor.id", target = "vendorId")
+    @Mapping(source = "provider.id", target = "providerId")
     @Mapping(source = "category.id", target = "categoryId")
     @Mapping(source = "name", target = "title")
     @Mapping(target = "basePrice", expression = "java(toDecimal(service.getBasePrice()))")
     @Mapping(source = "durationMinutes", target = "durationHours")
-    @Mapping(source = "vendor.address.street", target = "address")
+    @Mapping(source = "provider.address.street", target = "address")
     @Mapping(source = "city", target = "city")
-    @Mapping(target = "vendorName", ignore = true)
+    @Mapping(target = "providerName", ignore = true)
     @Mapping(target = "categoryName", ignore = true)
     @Mapping(target = "imageUrl", ignore = true)
     @Mapping(source = "averageRating", target = "averageRating")

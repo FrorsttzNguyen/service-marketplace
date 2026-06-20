@@ -109,7 +109,7 @@ async function request(
 
   // DELETE (and any other method that may return 204 No Content) has no body to parse.
   // `response.json()` would throw on an empty body, so for DELETE we resolve void. The
-  // caller (vendor-services deactivator) doesn't need a payload — a 2xx IS the success.
+  // caller (provider-services deactivator) doesn't need a payload — a 2xx IS the success.
   if (method === "DELETE") return undefined;
 
   return response.json();
@@ -169,7 +169,7 @@ export async function apiPut(
 
 /**
  * Perform a DELETE against the backend. Used by soft-delete/state-change endpoints
- * that the backend models as DELETE, e.g. `DELETE /api/vendor/services/{id}` (which
+ * that the backend models as DELETE, e.g. `DELETE /api/provider/services/{id}` (which
  * deactivates → INACTIVE; the row is NOT hard-deleted despite the HTTP verb).
  *
  * DELETE never carries a request body here. The request executor resolves `void`
@@ -178,7 +178,7 @@ export async function apiPut(
  *
  * Shares the exact same token-attach + 401-refresh-and-retry path as apiGet/apiPost/apiPut.
  *
- * @param path API path with a leading slash, e.g. "/api/vendor/services/42".
+ * @param path API path with a leading slash, e.g. "/api/provider/services/42".
  * @returns Resolves `undefined` on success (204 No Content has no body).
  */
 export async function apiDelete(

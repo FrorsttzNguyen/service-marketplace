@@ -22,7 +22,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         Long serviceId, LocalDate bookingDate, LocalTime startTime
     );
 
-    List<Booking> findByVendorIdAndBookingDate(Long vendorId, LocalDate bookingDate);
+    List<Booking> findByProviderIdAndBookingDate(Long providerId, LocalDate bookingDate);
 
     List<Booking> findByCustomerId(Long customerId);
 
@@ -30,7 +30,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * Find bookings for customer with eager loading of relationships.
      *
      * WHY @EntityGraph: Prevents N+1 query problem.
-     * Without EntityGraph: 1 query for bookings + N queries for service/customer/vendor.
+     * Without EntityGraph: 1 query for bookings + N queries for service/customer/provider.
      * With EntityGraph: 1 query with JOINs to fetch all relationships.
      *
      * The "booking-with-details" graph is defined in Booking entity via @NamedEntityGraph.
@@ -38,21 +38,21 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @EntityGraph(value = "booking-with-details", type = EntityGraph.EntityGraphType.LOAD)
     Page<Booking> findByCustomerId(Long customerId, Pageable pageable);
 
-    List<Booking> findByVendorId(Long vendorId);
+    List<Booking> findByProviderId(Long providerId);
 
-    @Query("select b.status as status, count(b) as count from Booking b where b.vendor.id = :vendorId group by b.status")
-    List<BookingStatusCount> countBookingsByStatusForVendor(Long vendorId);
+    @Query("select b.status as status, count(b) as count from Booking b where b.provider.id = :providerId group by b.status")
+    List<BookingStatusCount> countBookingsByStatusForProvider(Long providerId);
 
-    @Query("select count(distinct b.customer.id) from Booking b where b.vendor.id = :vendorId")
-    long countDistinctCustomersByVendorId(Long vendorId);
+    @Query("select count(distinct b.customer.id) from Booking b where b.provider.id = :providerId")
+    long countDistinctCustomersByProviderId(Long providerId);
 
     /**
-     * Find bookings for vendor with eager loading of relationships.
+     * Find bookings for provider with eager loading of relationships.
      *
      * WHY @EntityGraph: Same N+1 prevention as findByCustomerId.
      */
     @EntityGraph(value = "booking-with-details", type = EntityGraph.EntityGraphType.LOAD)
-    Page<Booking> findByVendorId(Long vendorId, Pageable pageable);
+    Page<Booking> findByProviderId(Long providerId, Pageable pageable);
 
     List<Booking> findByServiceIdAndBookingDate(Long serviceId, LocalDate bookingDate);
 

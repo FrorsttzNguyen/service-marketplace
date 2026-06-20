@@ -166,9 +166,9 @@ export default function ServiceDetailPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             {service?.title ?? "Untitled home service"}
           </h1>
-          {service?.vendorName ? (
+          {service?.providerName ? (
             <p className="mt-1.5 text-muted-foreground">
-              Pro: {service.vendorName}
+              Pro: {service.providerName}
             </p>
           ) : null}
         </div>

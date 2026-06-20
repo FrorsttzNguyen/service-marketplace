@@ -22,11 +22,11 @@ import org.springframework.web.bind.annotation.*;
  * REST controller for booking operations.
  *
  * WHY: Customers create and manage bookings.
- * Vendors view bookings for their services.
+ * Providers view bookings for their services.
  *
  * Authorization:
  * - Customers: create, view own bookings, cancel
- * - Vendors: view bookings for their services
+ * - Providers: view bookings for their services
  */
 @RestController
 @RequestMapping("/api/bookings")
@@ -79,21 +79,21 @@ public class BookingController {
     }
 
     /**
-     * Get vendor's received bookings.
+     * Get provider's received bookings.
      */
-    @GetMapping("/vendor")
+    @GetMapping("/provider")
     @Operation(
-            summary = "Get vendor bookings",
-            description = "List all bookings for the authenticated vendor's services",
+            summary = "Get provider bookings",
+            description = "List all bookings for the authenticated provider's services",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Bookings retrieved")
             }
     )
-    public ResponseEntity<Page<BookingResponse>> getVendorBookings(
+    public ResponseEntity<Page<BookingResponse>> getProviderBookings(
             @AuthenticationPrincipal JwtAuthenticationFilter.UserPrincipal principal,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        Page<BookingResponse> bookings = bookingService.getVendorBookings(principal.userId(), pageable);
+        Page<BookingResponse> bookings = bookingService.getProviderBookings(principal.userId(), pageable);
         return ResponseEntity.ok(bookings);
     }
 
@@ -119,18 +119,18 @@ public class BookingController {
     }
 
     /**
-     * Confirm booking (Vendor action).
+     * Confirm booking (Provider action).
      *
      * WHY exposed here: a booking must be CONFIRMED before an Order can be created from it
      * (Phase 4 order glue). The service method BookingService.confirmBooking already implements
-     * the vendor ownership check + optimistic-locking retry + state machine transition — this
+     * the provider ownership check + optimistic-locking retry + state machine transition — this
      * endpoint is just the REST wiring, mirroring cancelBooking's shape.
      */
     @PutMapping("/{id}/confirm")
     @Operation(
             summary = "Confirm booking",
-            description = "Vendor confirms a pending booking, transitioning it to CONFIRMED. " +
-                    "Only the vendor who owns the service may confirm. " +
+            description = "Provider confirms a pending booking, transitioning it to CONFIRMED. " +
+                    "Only the provider who owns the service may confirm. " +
                     "Required for the book → pay flow: an Order can only be created from a CONFIRMED booking.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Booking confirmed"),
@@ -147,19 +147,19 @@ public class BookingController {
     }
 
     /**
-     * Start service (Vendor action).
+     * Start service (Provider action).
      *
      * WHY exposed here: the booking lifecycle is PENDING -> CONFIRMED -> IN_PROGRESS -> COMPLETED.
-     * A review can only be left on a COMPLETED booking, so the vendor needs a way to advance a
+     * A review can only be left on a COMPLETED booking, so the provider needs a way to advance a
      * CONFIRMED booking to IN_PROGRESS. The service method BookingService.startService already
-     * implements the vendor ownership check + state machine transition — this is just REST wiring,
+     * implements the provider ownership check + state machine transition — this is just REST wiring,
      * mirroring confirmBooking's shape.
      */
     @PutMapping("/{id}/start")
     @Operation(
             summary = "Start service",
-            description = "Vendor marks a CONFIRMED booking as IN_PROGRESS when the service begins. " +
-                    "Only the vendor who owns the service may start it.",
+            description = "Provider marks a CONFIRMED booking as IN_PROGRESS when the service begins. " +
+                    "Only the provider who owns the service may start it.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Service started"),
                     @ApiResponse(responseCode = "404", description = "Booking not found"),
@@ -175,17 +175,17 @@ public class BookingController {
     }
 
     /**
-     * Complete service (Vendor action).
+     * Complete service (Provider action).
      *
      * WHY exposed here: completing a booking is the precondition for the customer to leave a review.
-     * BookingService.completeService already enforces vendor ownership + the IN_PROGRESS -> COMPLETED
+     * BookingService.completeService already enforces provider ownership + the IN_PROGRESS -> COMPLETED
      * state machine transition — this endpoint is just the REST wiring.
      */
     @PutMapping("/{id}/complete")
     @Operation(
             summary = "Complete service",
-            description = "Vendor marks an IN_PROGRESS booking as COMPLETED once the service is done. " +
-                    "Only the vendor who owns the service may complete it. " +
+            description = "Provider marks an IN_PROGRESS booking as COMPLETED once the service is done. " +
+                    "Only the provider who owns the service may complete it. " +
                     "A booking must be COMPLETED before the customer can review it.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Service completed"),

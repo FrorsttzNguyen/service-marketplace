@@ -3,7 +3,7 @@
 /**
  * TanStack Query hook for the public categories list (`GET /api/categories`).
  *
- * Why a dedicated (tiny) file: the vendor create-service form needs the same list
+ * Why a dedicated (tiny) file: the provider create-service form needs the same list
  * of categories in a `<select>`, and keeping the query in a hook (instead of fetching
  * inline in the form) means TanStack Query caches it across mounts — opening the form
  * twice doesn't refetch, and switching between Edit/New on the same page reuses the
@@ -28,7 +28,7 @@ export const categoryKeys = {
  *
  * Returns the standard query result so the form can branch on
  * isPending/isError/data. `enabled` defaults to true; pass `{ enabled: false }` if
- * you want to defer the fetch (not currently needed by the vendor form, which always
+ * you want to defer the fetch (not currently needed by the provider form, which always
  * needs categories when it's open).
  */
 export function useCategories(): UseQueryResult<Category[]> {

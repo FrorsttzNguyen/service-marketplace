@@ -3,7 +3,7 @@ package com.hien.marketplace.application.event;
 import com.hien.marketplace.domain.booking.Booking;
 
 /**
- * Domain event fired when a booking is confirmed by vendor.
+ * Domain event fired when a booking is confirmed by provider.
  *
  * WHY: Decouple booking confirmation from notification logic.
  * - BookingService publishes event
@@ -20,13 +20,13 @@ import com.hien.marketplace.domain.booking.Booking;
 public record BookingConfirmedEvent(
     Long bookingId,
     Long customerId,
-    Long vendorId,
+    Long providerId,
     Long serviceId,
     String serviceTitle,
     String customerName,
-    String vendorName,
+    String providerName,
     String customerEmail,
-    String vendorEmail
+    String providerEmail
 ) {
     /**
      * Factory method to create event from Booking entity.
@@ -38,13 +38,13 @@ public record BookingConfirmedEvent(
         return new BookingConfirmedEvent(
             booking.getId(),
             booking.getCustomer().getId(),
-            booking.getVendor().getId(),
+            booking.getProvider().getId(),
             booking.getService().getId(),
             booking.getService().getName(),
             booking.getCustomer().getFullName(),
-            booking.getVendor().getBusinessName(),
+            booking.getProvider().getBusinessName(),
             booking.getCustomer().getEmail(),
-            booking.getVendor().getUser().getEmail()
+            booking.getProvider().getUser().getEmail()
         );
     }
 }

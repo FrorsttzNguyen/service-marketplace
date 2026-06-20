@@ -14,7 +14,7 @@ import java.time.LocalTime;
 /**
  * MapStruct mapper for Booking entity → DTO conversion.
  *
- * WHY: Booking has many relationships (customer, service, vendor).
+ * WHY: Booking has many relationships (customer, service, provider).
  * We flatten these for the response DTO.
  *
  * Note: Creation handled in service layer via domain methods
@@ -25,7 +25,7 @@ public interface BookingMapper {
 
     @Mapping(source = "customer.id", target = "customerId")
     @Mapping(source = "service.id", target = "serviceId")
-    @Mapping(source = "vendor.id", target = "vendorId")
+    @Mapping(source = "provider.id", target = "providerId")
     @Mapping(target = "startTime", expression = "java(combineDateTime(booking.getBookingDate(), booking.getTimeSlot().getStartTime()))")
     @Mapping(target = "endTime", expression = "java(combineDateTime(booking.getBookingDate(), booking.getTimeSlot().getEndTime()))")
     @Mapping(target = "totalPrice", expression = "java(toDecimal(booking.getSubtotal()))")
@@ -37,7 +37,7 @@ public interface BookingMapper {
     @Mapping(target = "serviceZipCode", expression = "java(addressZipCode(booking.getServiceAddress()))")
     @Mapping(target = "customerName", ignore = true)
     @Mapping(target = "serviceTitle", ignore = true)
-    @Mapping(target = "vendorName", ignore = true)
+    @Mapping(target = "providerName", ignore = true)
     BookingResponse toResponse(Booking booking);
 
     @Named("toDecimal")

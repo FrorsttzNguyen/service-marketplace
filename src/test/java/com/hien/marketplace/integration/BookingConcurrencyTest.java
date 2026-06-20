@@ -8,7 +8,7 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.OptimisticLockException;
@@ -62,16 +62,16 @@ class BookingConcurrencyTest {
         Long bookingId;
         EntityManager setupEm = emf.createEntityManager();
         setupEm.getTransaction().begin();
-        User vendorUser = new User("vendor-" + UUID.randomUUID() + "@test.com", "hash", "Vendor", UserRole.VENDOR);
-        setupEm.persist(vendorUser);
-        Vendor vendor = new Vendor(vendorUser, "Test Vendor");
-        setupEm.persist(vendor);
-        ServiceEntity service = new ServiceEntity(vendor, "Test", Money.of(5000), PricingType.FIXED, 60);
+        User providerUser = new User("provider-" + UUID.randomUUID() + "@test.com", "hash", "Provider", UserRole.VENDOR);
+        setupEm.persist(providerUser);
+        Provider provider = new Provider(providerUser, "Test Provider");
+        setupEm.persist(provider);
+        ServiceEntity service = new ServiceEntity(provider, "Test", Money.of(5000), PricingType.FIXED, 60);
         setupEm.persist(service);
         User customer = new User("customer-" + UUID.randomUUID() + "@test.com", "hash", "Customer", UserRole.CUSTOMER);
         setupEm.persist(customer);
-        // New constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
-        Booking booking = new Booking(service, customer, vendor,
+        // New constructor: (service, customer, provider, date, startTime, endTime, subtotal, commission)
+        Booking booking = new Booking(service, customer, provider,
                 LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0),
                 Money.of(5000), Money.of(500), new Address("123 Service Street", "Test City", "70000"));
         setupEm.persist(booking);
@@ -118,20 +118,20 @@ class BookingConcurrencyTest {
     void shouldAllowSequentialUpdatesWithoutConflict() {
         // Setup: persist entities
         Long bookingId;
-        Long vendorUserId;
+        Long providerUserId;
         EntityManager setupEm = emf.createEntityManager();
         setupEm.getTransaction().begin();
-        User vendorUser = new User("vendor-" + UUID.randomUUID() + "@test.com", "hash", "Vendor", UserRole.VENDOR);
-        setupEm.persist(vendorUser);
-        vendorUserId = vendorUser.getId();
-        Vendor vendor = new Vendor(vendorUser, "Test Vendor");
-        setupEm.persist(vendor);
-        ServiceEntity service = new ServiceEntity(vendor, "Test", Money.of(5000), PricingType.FIXED, 60);
+        User providerUser = new User("provider-" + UUID.randomUUID() + "@test.com", "hash", "Provider", UserRole.VENDOR);
+        setupEm.persist(providerUser);
+        providerUserId = providerUser.getId();
+        Provider provider = new Provider(providerUser, "Test Provider");
+        setupEm.persist(provider);
+        ServiceEntity service = new ServiceEntity(provider, "Test", Money.of(5000), PricingType.FIXED, 60);
         setupEm.persist(service);
         User customer = new User("customer-" + UUID.randomUUID() + "@test.com", "hash", "Customer", UserRole.CUSTOMER);
         setupEm.persist(customer);
-        // New constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
-        Booking booking = new Booking(service, customer, vendor,
+        // New constructor: (service, customer, provider, date, startTime, endTime, subtotal, commission)
+        Booking booking = new Booking(service, customer, provider,
                 LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0),
                 Money.of(5000), Money.of(500), new Address("456 Service Street", "Test City", "70000"));
         setupEm.persist(booking);
@@ -143,7 +143,7 @@ class BookingConcurrencyTest {
         EntityManager em1 = emf.createEntityManager();
         em1.getTransaction().begin();
         Booking b1 = em1.find(Booking.class, bookingId);
-        User vUser = em1.find(User.class, vendorUserId);
+        User vUser = em1.find(User.class, providerUserId);
         assertThat(b1.getVersion()).isEqualTo(0L);
         b1.confirm(vUser);
         em1.getTransaction().commit();
@@ -165,7 +165,7 @@ class BookingConcurrencyTest {
         EntityManager em3 = emf.createEntityManager();
         em3.getTransaction().begin();
         Booking b3 = em3.find(Booking.class, bookingId);
-        User vUser3 = em3.find(User.class, vendorUserId);
+        User vUser3 = em3.find(User.class, providerUserId);
         b3.start(vUser3);
         em3.getTransaction().commit();
         assertThat(b3.getVersion()).isEqualTo(3L);

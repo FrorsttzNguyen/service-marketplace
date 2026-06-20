@@ -13,7 +13,7 @@ import java.math.BigDecimal;
  * Request DTO for creating a review.
  *
  * WHY: Customer reviews a completed booking.
- * Reviews affect vendor rating and service visibility.
+ * Reviews affect provider rating and service visibility.
  *
  * Validation:
  * - Rating: 1-5 stars (inclusive)

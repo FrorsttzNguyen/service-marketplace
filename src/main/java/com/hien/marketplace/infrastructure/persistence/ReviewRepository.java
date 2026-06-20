@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
-    List<Review> findByVendorId(Long vendorId);
+    List<Review> findByProviderId(Long providerId);
 
     List<Review> findByServiceId(Long serviceId);
 
@@ -16,5 +16,5 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     /** Number of reviews for a service — feeds ServiceResponse.totalReviews (catalog/detail). */
     long countByServiceId(Long serviceId);
 
-    long countByVendorId(Long vendorId);
+    long countByProviderId(Long providerId);
 }

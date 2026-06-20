@@ -3,7 +3,7 @@
 /**
  * Booking row — one entry in the "My bookings" list.
  *
- * Shows the service title, vendor, time window (formatted), status badge, price, and
+ * Shows the service title, provider, time window (formatted), status badge, price, and
  * quantity. Status-gated actions:
  *   - Cancel: PENDING only (the backend rejects cancel for any other status with 422).
  *     Clicking it calls the cancel mutation the parent wires up. A 422 (status changed
@@ -104,9 +104,9 @@ export function BookingCard({
           <h3 className="font-semibold text-foreground">
             {booking.serviceTitle ?? `Service #${booking.serviceId ?? "?"}`}
           </h3>
-          {booking.vendorName ? (
+          {booking.providerName ? (
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Provider: {booking.vendorName}
+              Provider: {booking.providerName}
             </p>
           ) : null}
         </div>

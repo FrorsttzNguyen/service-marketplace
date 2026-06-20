@@ -9,11 +9,11 @@ import java.util.Objects;
  * Value Object cho địa chỉ.
  *
  * @Embeddable = object này không có table riêng, mà được "nhúng" vào table của entity chứa nó.
- * Ví dụ: Vendor có Address → các field (street, city, zipCode) được lưu thẳng vào bảng vendors.
+ * Ví dụ: Provider có Address → các field (street, city, zipCode) được lưu thẳng vào bảng providers.
  *
  * Tại sao dùng thay vì 3 field riêng?
  * - Nhóm logic: street + city + zip luôn đi cùng nhau
- * - Tái sử dụng: Vendor, Customer đều có thể dùng Address
+ * - Tái sử dụng: Provider, Customer đều có thể dùng Address
  * - Type safety: không truyền nhầm "city" vào "street"
  */
 @Embeddable

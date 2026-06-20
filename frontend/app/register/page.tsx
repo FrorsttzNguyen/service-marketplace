@@ -13,7 +13,7 @@
  * On success, redirect to `?redirect=` target or the catalog.
  *
  * Visual (Phase 7): a single centered island (narrow container) with the form fields
- * and a checkbox row for "register as vendor". Inputs use the Input/Label/FieldError
+ * and a checkbox row for "register as provider". Inputs use the Input/Label/FieldError
  * primitives; the submit button is a full-width primary Button.
  */
 import { Suspense, useState, type FormEvent } from "react";
@@ -63,7 +63,7 @@ function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [registerAsVendor, setRegisterAsVendor] = useState(false);
+  const [registerAsProvider, setRegisterAsProvider] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,7 +89,7 @@ function RegisterForm() {
       email: email.trim(),
       password,
       phoneNumber: phoneNumber.trim(),
-      registerAsVendor,
+      registerAsProvider,
     })
       .then(() => {
         const redirect = searchParams.get("redirect");
@@ -167,13 +167,13 @@ function RegisterForm() {
             help="E.164 format, e.g. +14155550123."
           />
 
-          {/* Vendor opt-in checkbox. Kept as a native checkbox inside a tinted
+          {/* Provider opt-in checkbox. Kept as a native checkbox inside a tinted
               pill so it reads as a single affordance distinct from the inputs. */}
           <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-muted/60 p-3 text-sm">
             <input
               type="checkbox"
-              checked={registerAsVendor}
-              onChange={(e) => setRegisterAsVendor(e.target.checked)}
+              checked={registerAsProvider}
+              onChange={(e) => setRegisterAsProvider(e.target.checked)}
               className="h-4 w-4 rounded accent-[rgb(var(--primary))]"
             />
             <span className="font-medium text-foreground">

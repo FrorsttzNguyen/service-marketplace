@@ -8,7 +8,7 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.*;
 import com.hien.marketplace.interfaces.dto.request.BookingCreateRequest;
 import com.hien.marketplace.interfaces.dto.request.RegisterRequest;
@@ -38,11 +38,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * WHY: Test the full booking flow with JWT authentication.
  * - Create booking (Customer)
- * - View bookings (Customer/Vendor)
+ * - View bookings (Customer/Provider)
  * - Cancel booking (Customer)
  *
  * Test data setup:
- * - Create vendor user → vendor profile → service
+ * - Create provider user → provider profile → service
  * - Create customer user
  * - Both users get JWT tokens for API calls
  */
@@ -62,7 +62,7 @@ class BookingControllerIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private VendorRepository vendorRepository;
+    private ProviderRepository providerRepository;
 
     @Autowired
     private ServiceRepository serviceRepository;
@@ -74,27 +74,27 @@ class BookingControllerIntegrationTest {
     private CategoryRepository categoryRepository;
 
     // Test data
-    private User vendorUser;
-    private Vendor vendor;
+    private User providerUser;
+    private Provider provider;
     private ServiceEntity service;
     private User customerUser;
     private String customerToken;
-    private String vendorToken;
+    private String providerToken;
 
     @BeforeEach
     void setUp() throws Exception {
-        // Step 1: Create vendor user and get token
-        // IMPORTANT: registerAsVendor=true creates user with VENDOR role AND Vendor profile
-        // This is needed for SecurityConfig role checks on /api/bookings/vendor
-        vendorUser = registerUser("vendor-booking@test.com", "Vendor Booking", true);
-        vendorToken = loginAndGetToken("vendor-booking@test.com", "Password123");
+        // Step 1: Create provider user and get token
+        // IMPORTANT: registerAsProvider=true creates user with VENDOR role AND Provider profile
+        // This is needed for SecurityConfig role checks on /api/bookings/provider
+        providerUser = registerUser("provider-booking@test.com", "Provider Booking", true);
+        providerToken = loginAndGetToken("provider-booking@test.com", "Password123");
 
-        // Step 2: Get the vendor profile that was created during registration
-        vendor = vendorRepository.findByUserId(vendorUser.getId())
-                .orElseThrow(() -> new RuntimeException("Vendor profile not found after registration"));
+        // Step 2: Get the provider profile that was created during registration
+        provider = providerRepository.findByUserId(providerUser.getId())
+                .orElseThrow(() -> new RuntimeException("Provider profile not found after registration"));
 
         // Step 3: Create a service for booking
-        service = new ServiceEntity(vendor, "Haircut", Money.of(10000), PricingType.FIXED, 60);
+        service = new ServiceEntity(provider, "Haircut", Money.of(10000), PricingType.FIXED, 60);
         service.activate();
         service = serviceRepository.save(service);
 
@@ -136,7 +136,7 @@ class BookingControllerIntegrationTest {
                     .andExpect(jsonPath("$.id").exists())
                     .andExpect(jsonPath("$.customerId").value(customerUser.getId()))
                     .andExpect(jsonPath("$.serviceId").value(service.getId()))
-                    .andExpect(jsonPath("$.vendorId").value(vendor.getId()))
+                    .andExpect(jsonPath("$.providerId").value(provider.getId()))
                     .andExpect(jsonPath("$.serviceStreet").value("123 Service Street"))
                     .andExpect(jsonPath("$.serviceCity").value("Ho Chi Minh City"))
                     .andExpect(jsonPath("$.serviceZipCode").value("70000"))
@@ -398,26 +398,26 @@ class BookingControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("Should get vendor's bookings")
-        void shouldGetVendorBookings() throws Exception {
+        @DisplayName("Should get provider's bookings")
+        void shouldGetProviderBookings() throws Exception {
             // Create a booking first (by customer)
             createTestBooking();
 
-            // Vendor views their bookings
-            // Fixed: getVendorBookings now correctly uses userId and looks up vendorId
-            mockMvc.perform(get("/api/bookings/vendor")
-                            .header("Authorization", "Bearer " + vendorToken))
+            // Provider views their bookings
+            // Fixed: getProviderBookings now correctly uses userId and looks up providerId
+            mockMvc.perform(get("/api/bookings/provider")
+                            .header("Authorization", "Bearer " + providerToken))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content").isArray())
-                    .andExpect(jsonPath("$.content[0].vendorId").value(vendor.getId()));
+                    .andExpect(jsonPath("$.content[0].providerId").value(provider.getId()));
         }
 
         @Test
-        @DisplayName("Customer cannot access vendor bookings endpoint")
-        void customerCannotAccessVendorBookings() throws Exception {
-            // SecurityConfig requires VENDOR role for GET /api/bookings/vendor
+        @DisplayName("Customer cannot access provider bookings endpoint")
+        void customerCannotAccessProviderBookings() throws Exception {
+            // SecurityConfig requires VENDOR role for GET /api/bookings/provider
             // CUSTOMER token should get 403 Forbidden
-            mockMvc.perform(get("/api/bookings/vendor")
+            mockMvc.perform(get("/api/bookings/provider")
                             .header("Authorization", "Bearer " + customerToken))
                     .andExpect(status().isForbidden());
         }
@@ -457,9 +457,9 @@ class BookingControllerIntegrationTest {
         void shouldRejectCancellationByNonOwner() throws Exception {
             Long bookingId = createTestBooking();
 
-            // Vendor tries to cancel customer's booking
+            // Provider tries to cancel customer's booking
             mockMvc.perform(put("/api/bookings/{id}/cancel", bookingId)
-                            .header("Authorization", "Bearer " + vendorToken))
+                            .header("Authorization", "Bearer " + providerToken))
                     .andExpect(status().isUnprocessableEntity())  // 422
                     .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"));
         }
@@ -482,23 +482,23 @@ class BookingControllerIntegrationTest {
     class ConfirmBookingTests {
 
         @Test
-        @DisplayName("Vendor confirming their own PENDING booking → 200 CONFIRMED")
+        @DisplayName("Provider confirming their own PENDING booking → 200 CONFIRMED")
         void shouldConfirmOwnBooking() throws Exception {
-            Long bookingId = createTestBooking(); // PENDING, on the vendor's service
+            Long bookingId = createTestBooking(); // PENDING, on the provider's service
 
             mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
-                            .header("Authorization", "Bearer " + vendorToken))
+                            .header("Authorization", "Bearer " + providerToken))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(bookingId))
                     .andExpect(jsonPath("$.status").value("CONFIRMED"));
         }
 
         @Test
-        @DisplayName("Customer confirming a booking → rejected (only the service's vendor may confirm)")
+        @DisplayName("Customer confirming a booking → rejected (only the service's provider may confirm)")
         void shouldRejectConfirmByCustomer() throws Exception {
             Long bookingId = createTestBooking();
 
-            // A customer is not the booking's vendor → 422 BUSINESS_RULE_VIOLATION
+            // A customer is not the booking's provider → 422 BUSINESS_RULE_VIOLATION
             mockMvc.perform(put("/api/bookings/{id}/confirm", bookingId)
                             .header("Authorization", "Bearer " + customerToken))
                     .andExpect(status().isUnprocessableEntity())
@@ -509,7 +509,7 @@ class BookingControllerIntegrationTest {
         @DisplayName("Confirming a non-existent booking → 404")
         void shouldRejectConfirmOfNonExistentBooking() throws Exception {
             mockMvc.perform(put("/api/bookings/{id}/confirm", 99999L)
-                            .header("Authorization", "Bearer " + vendorToken))
+                            .header("Authorization", "Bearer " + providerToken))
                     .andExpect(status().isNotFound());
         }
     }
@@ -520,15 +520,15 @@ class BookingControllerIntegrationTest {
 
     /**
      * Register a user and return the User entity.
-     * If registerAsVendor is true, a Vendor profile is also created.
+     * If registerAsProvider is true, a Provider profile is also created.
      */
-    private User registerUser(String email, String fullName, boolean registerAsVendor) throws Exception {
+    private User registerUser(String email, String fullName, boolean registerAsProvider) throws Exception {
         RegisterRequest request = new RegisterRequest(
                 fullName,
                 email,
                 "Password123",
                 "+84123456789",
-                registerAsVendor
+                registerAsProvider
         );
 
         mockMvc.perform(post("/api/auth/register")

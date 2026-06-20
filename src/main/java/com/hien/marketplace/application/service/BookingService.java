@@ -16,11 +16,11 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
 import com.hien.marketplace.domain.user.User;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
 import com.hien.marketplace.infrastructure.persistence.UserRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import com.hien.marketplace.interfaces.dto.request.BookingCreateRequest;
 import com.hien.marketplace.interfaces.dto.response.BookingResponse;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +59,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final ServiceRepository serviceRepository;
     private final UserRepository userRepository;
-    private final VendorRepository vendorRepository;
+    private final ProviderRepository providerRepository;
     private final BookingMapper bookingMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final CommissionProperties commissionProperties;
@@ -118,7 +118,7 @@ public class BookingService {
         Booking booking = new Booking(
                 service,
                 customer,
-                service.getVendor(),
+                service.getProvider(),
                 bookingDate,
                 startTime,
                 endTime,
@@ -188,21 +188,21 @@ public class BookingService {
     }
 
     /**
-     * Get bookings for vendor.
+     * Get bookings for provider.
      *
-     * WHY: Vendor sees all bookings for their services.
-     * Uses userId (from JWT) and looks up Vendor profile.
+     * WHY: Provider sees all bookings for their services.
+     * Uses userId (from JWT) and looks up Provider profile.
      */
     @Transactional(readOnly = true)
-    public Page<BookingResponse> getVendorBookings(Long userId, Pageable pageable) {
-        // Lookup vendor by userId
-        Vendor vendor = vendorRepository.findByUserId(userId)
+    public Page<BookingResponse> getProviderBookings(Long userId, Pageable pageable) {
+        // Lookup provider by userId
+        Provider provider = providerRepository.findByUserId(userId)
                 .orElseThrow(() -> new BusinessRuleViolationException(
-                        "Vendor profile",
-                        "Vendor profile not found. Please complete vendor registration."
+                        "Provider profile",
+                        "Provider profile not found. Please complete provider registration."
                 ));
 
-        return bookingRepository.findByVendorId(vendor.getId(), pageable)
+        return bookingRepository.findByProviderId(provider.getId(), pageable)
                 .map(this::enrichBookingResponse);
     }
 
@@ -240,30 +240,30 @@ public class BookingService {
     }
 
     /**
-     * Confirm booking (Vendor action).
+     * Confirm booking (Provider action).
      *
-     * WHY: Vendor confirms a pending booking, changing status to CONFIRMED.
+     * WHY: Provider confirms a pending booking, changing status to CONFIRMED.
      * Uses optimistic locking with retry to handle concurrent updates.
      *
      * Optimistic Locking Scenario:
-     * 1. Vendor A and Vendor B both try to confirm same booking simultaneously
+     * 1. Provider A and Provider B both try to confirm same booking simultaneously
      * 2. Both read booking with version=1
-     * 3. Vendor A saves first → version becomes 2
-     * 4. Vendor B tries to save → fails because version mismatch (expected 1, found 2)
-     * 5. Retry: Vendor B re-reads booking with version=2, retries confirm
+     * 3. Provider A saves first → version becomes 2
+     * 4. Provider B tries to save → fails because version mismatch (expected 1, found 2)
+     * 5. Retry: Provider B re-reads booking with version=2, retries confirm
      *
-     * @param userId the vendor's user ID (from JWT)
+     * @param userId the provider's user ID (from JWT)
      * @param bookingId the booking to confirm
      * @return updated booking response
-     * @throws BusinessRuleViolationException if booking doesn't belong to vendor
+     * @throws BusinessRuleViolationException if booking doesn't belong to provider
      */
     @Transactional
     public BookingResponse confirmBooking(Long userId, Long bookingId) {
-        // Get vendor from userId
-        Vendor vendor = vendorRepository.findByUserId(userId)
+        // Get provider from userId
+        Provider provider = providerRepository.findByUserId(userId)
                 .orElseThrow(() -> new BusinessRuleViolationException(
-                        "Vendor profile",
-                        "Vendor profile not found"
+                        "Provider profile",
+                        "Provider profile not found"
                 ));
 
         // Retry loop for optimistic locking
@@ -273,8 +273,8 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                         .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
-                // Authorization: only vendor who owns the service can confirm
-                if (!booking.getVendor().getId().equals(vendor.getId())) {
+                // Authorization: only provider who owns the service can confirm
+                if (!booking.getProvider().getId().equals(provider.getId())) {
                     throw new BusinessRuleViolationException(
                             "Booking ownership",
                             "You can only confirm bookings for your own services"
@@ -282,9 +282,9 @@ public class BookingService {
                 }
 
                 // Domain method handles state machine validation
-                User vendorUser = userRepository.findById(userId)
+                User providerUser = userRepository.findById(userId)
                         .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-                booking.confirm(vendorUser);
+                booking.confirm(providerUser);
 
                 booking = bookingRepository.save(booking);
 
@@ -329,62 +329,62 @@ public class BookingService {
     }
 
     /**
-     * Start service (Vendor action).
+     * Start service (Provider action).
      *
-     * WHY: Vendor marks a confirmed booking as IN_PROGRESS when service starts.
+     * WHY: Provider marks a confirmed booking as IN_PROGRESS when service starts.
      */
     @Transactional
     public BookingResponse startService(Long userId, Long bookingId) {
-        Vendor vendor = vendorRepository.findByUserId(userId)
+        Provider provider = providerRepository.findByUserId(userId)
                 .orElseThrow(() -> new BusinessRuleViolationException(
-                        "Vendor profile",
-                        "Vendor profile not found"
+                        "Provider profile",
+                        "Provider profile not found"
                 ));
 
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
-        if (!booking.getVendor().getId().equals(vendor.getId())) {
+        if (!booking.getProvider().getId().equals(provider.getId())) {
             throw new BusinessRuleViolationException(
                     "Booking ownership",
                     "You can only start services for your own bookings"
             );
         }
 
-        User vendorUser = userRepository.findById(userId)
+        User providerUser = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        booking.start(vendorUser);
+        booking.start(providerUser);
 
         booking = bookingRepository.save(booking);
         return enrichBookingResponse(booking);
     }
 
     /**
-     * Complete service (Vendor action).
+     * Complete service (Provider action).
      *
-     * WHY: Vendor marks an IN_PROGRESS booking as COMPLETED after service is done.
+     * WHY: Provider marks an IN_PROGRESS booking as COMPLETED after service is done.
      */
     @Transactional
     public BookingResponse completeService(Long userId, Long bookingId) {
-        Vendor vendor = vendorRepository.findByUserId(userId)
+        Provider provider = providerRepository.findByUserId(userId)
                 .orElseThrow(() -> new BusinessRuleViolationException(
-                        "Vendor profile",
-                        "Vendor profile not found"
+                        "Provider profile",
+                        "Provider profile not found"
                 ));
 
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
-        if (!booking.getVendor().getId().equals(vendor.getId())) {
+        if (!booking.getProvider().getId().equals(provider.getId())) {
             throw new BusinessRuleViolationException(
                     "Booking ownership",
                     "You can only complete services for your own bookings"
             );
         }
 
-        User vendorUser = userRepository.findById(userId)
+        User providerUser = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        booking.complete(vendorUser);
+        booking.complete(providerUser);
 
         booking = bookingRepository.save(booking);
         return enrichBookingResponse(booking);
@@ -423,8 +423,8 @@ public class BookingService {
                     booking.getCustomer().getFullName(),
                     response.serviceId(),
                     response.serviceTitle(),
-                    response.vendorId(),
-                    response.vendorName(),
+                    response.providerId(),
+                    response.providerName(),
                     response.serviceStreet(),
                     response.serviceCity(),
                     response.serviceZipCode(),
@@ -442,10 +442,10 @@ public class BookingService {
             );
         }
 
-        // Enrich with service title and vendor name
+        // Enrich with service title and provider name
         if (booking.getService() != null) {
-            String vendorName = booking.getService().getVendor() != null
-                    ? booking.getService().getVendor().getBusinessName()
+            String providerName = booking.getService().getProvider() != null
+                    ? booking.getService().getProvider().getBusinessName()
                     : null;
 
             response = new BookingResponse(
@@ -454,8 +454,8 @@ public class BookingService {
                     response.customerName(),
                     response.serviceId(),
                     booking.getService().getName(),
-                    response.vendorId(),
-                    vendorName,
+                    response.providerId(),
+                    providerName,
                     response.serviceStreet(),
                     response.serviceCity(),
                     response.serviceZipCode(),

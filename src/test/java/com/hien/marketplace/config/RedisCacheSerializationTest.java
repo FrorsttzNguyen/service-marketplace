@@ -31,7 +31,7 @@ class RedisCacheSerializationTest {
         GenericJackson2JsonRedisSerializer serializer = RedisConfig.cacheJsonSerializer();
 
         ServiceResponse original = new ServiceResponse(
-                1L, 1L, "Vendor Biz", 2L, "Cleaning", "Deep Home Cleaning", "Thorough clean",
+                1L, 1L, "Provider Biz", 2L, "Cleaning", "Deep Home Cleaning", "Thorough clean",
                 PricingType.FIXED, new BigDecimal("100.00"), 2, "1 Main St", "Metropolis", null,
                 ServiceStatus.ACTIVE, new BigDecimal("5.0"), 1, 0,
                 LocalDateTime.of(2026, 6, 18, 10, 30, 0));

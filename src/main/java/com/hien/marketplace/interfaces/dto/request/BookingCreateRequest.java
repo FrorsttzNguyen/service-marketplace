@@ -42,6 +42,6 @@ public record BookingCreateRequest(
     String zipCode,
 
     @Size(max = 1000, message = "Notes must not exceed 1000 characters")
-    String notes  // Optional: customer notes for vendor
+    String notes  // Optional: customer notes for provider
 ) {
 }

@@ -10,11 +10,11 @@ import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
-import com.hien.marketplace.domain.vendor.Vendor;
+import com.hien.marketplace.domain.provider.Provider;
 import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.ReviewRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
-import com.hien.marketplace.infrastructure.persistence.VendorRepository;
+import com.hien.marketplace.infrastructure.persistence.ProviderRepository;
 import com.hien.marketplace.interfaces.dto.request.ReviewCreateRequest;
 import com.hien.marketplace.interfaces.dto.response.ReviewResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,19 +63,19 @@ class ReviewServiceTest {
     private ServiceRepository serviceRepository;
 
     @Mock
-    private VendorRepository vendorRepository;
+    private ProviderRepository providerRepository;
 
     private ReviewService reviewService;
 
     private static final Long CUSTOMER_ID = 1L;
     private static final Long BOOKING_ID = 10L;
     private static final Long SERVICE_ID = 20L;
-    private static final Long VENDOR_ID = 30L;
+    private static final Long PROVIDER_ID = 30L;
     private static final Long REVIEW_ID = 100L;
 
     private User customer;
-    private User vendorUser;
-    private Vendor vendor;
+    private User providerUser;
+    private Provider provider;
     private ServiceEntity service;
     private Booking completedBooking;
     private Booking pendingBooking;
@@ -83,32 +83,32 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() {
         reviewService = new ReviewService(reviewRepository, bookingRepository,
-                serviceRepository, vendorRepository);
+                serviceRepository, providerRepository);
 
         customer = spy(new User("customer@example.com", "hashed", "Customer", UserRole.CUSTOMER));
         when(customer.getId()).thenReturn(CUSTOMER_ID);
 
-        vendorUser = new User("vendor@example.com", "hashed", "Vendor", UserRole.VENDOR);
-        vendor = spy(new Vendor(vendorUser, "Vendor Biz"));
-        when(vendor.getId()).thenReturn(VENDOR_ID);
+        providerUser = new User("provider@example.com", "hashed", "Provider", UserRole.VENDOR);
+        provider = spy(new Provider(providerUser, "Provider Biz"));
+        when(provider.getId()).thenReturn(PROVIDER_ID);
 
-        service = spy(new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60));
+        service = spy(new ServiceEntity(provider, "Test Service", Money.of(10000), PricingType.FIXED, 60));
         when(service.getId()).thenReturn(SERVICE_ID);
 
         // A booking driven all the way to COMPLETED.
         // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
-        Booking completed = new Booking(service, customer, vendor, LocalDate.now(),
+        Booking completed = new Booking(service, customer, provider, LocalDate.now(),
                 LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000), Money.of(1000),
                 new Address("123 Service Street", "Test City", "70000"));
-        completed.confirm(vendorUser);
+        completed.confirm(providerUser);
         completed.markAsPaid(null);  // Stripe webhook step (changedBy null = system)
-        completed.start(vendorUser);
-        completed.complete(vendorUser);
+        completed.start(providerUser);
+        completed.complete(providerUser);
         completedBooking = spy(completed);
         when(completedBooking.getId()).thenReturn(BOOKING_ID);
 
         // A still-PENDING booking for the status-gate test.
-        Booking pending = new Booking(service, customer, vendor, LocalDate.now(),
+        Booking pending = new Booking(service, customer, provider, LocalDate.now(),
                 LocalTime.of(12, 0), LocalTime.of(13, 0), Money.of(10000), Money.of(1000),
                 new Address("456 Service Street", "Test City", "70000"));
         pendingBooking = spy(pending);
@@ -122,7 +122,7 @@ class ReviewServiceTest {
     class CreateReview {
 
         @Test
-        @DisplayName("happy path: COMPLETED booking → review saved + service/vendor ratings recomputed")
+        @DisplayName("happy path: COMPLETED booking → review saved + service/provider ratings recomputed")
         void shouldCreateReviewAndRecomputeRatings() {
             ReviewCreateRequest request = new ReviewCreateRequest(BOOKING_ID, 4, "Great service");
 
@@ -138,7 +138,7 @@ class ReviewServiceTest {
             // After save, the aggregate recompute re-reads the reviews (includes the new one).
             when(reviewRepository.findByServiceId(SERVICE_ID))
                     .thenReturn(List.of(reviewWithRating(4), reviewWithRating(5))); // avg 4.5
-            when(reviewRepository.findByVendorId(VENDOR_ID))
+            when(reviewRepository.findByProviderId(PROVIDER_ID))
                     .thenReturn(List.of(reviewWithRating(4), reviewWithRating(5)));
 
             ReviewResponse response = reviewService.createReview(CUSTOMER_ID, request);
@@ -150,15 +150,15 @@ class ReviewServiceTest {
 
             // Denormalized averages updated HALF_UP to 2 decimals.
             assertThat(service.getAverageRating()).isEqualByComparingTo(new BigDecimal("4.50"));
-            assertThat(vendor.getRatingAvg()).isEqualByComparingTo(new BigDecimal("4.50"));
+            assertThat(provider.getRatingAvg()).isEqualByComparingTo(new BigDecimal("4.50"));
             verify(serviceRepository).save(service);
-            verify(vendorRepository).save(vendor);
+            verify(providerRepository).save(provider);
 
             // Response is enriched with names.
             assertThat(response.id()).isEqualTo(REVIEW_ID);
             assertThat(response.serviceTitle()).isEqualTo("Test Service");
             assertThat(response.customerName()).isEqualTo("Customer");
-            assertThat(response.vendorName()).isEqualTo("Vendor Biz");
+            assertThat(response.providerName()).isEqualTo("Provider Biz");
         }
 
         @Test
@@ -214,7 +214,7 @@ class ReviewServiceTest {
     // === read paths =========================================================
 
     @Nested
-    @DisplayName("getServiceReviews / getVendorReviews")
+    @DisplayName("getServiceReviews / getProviderReviews")
     class ReadPaths {
 
         @Test
@@ -232,11 +232,11 @@ class ReviewServiceTest {
         }
 
         @Test
-        @DisplayName("empty list when a vendor has no reviews")
-        void shouldReturnEmptyForVendorWithNoReviews() {
-            when(reviewRepository.findByVendorId(VENDOR_ID)).thenReturn(List.of());
+        @DisplayName("empty list when a provider has no reviews")
+        void shouldReturnEmptyForProviderWithNoReviews() {
+            when(reviewRepository.findByProviderId(PROVIDER_ID)).thenReturn(List.of());
 
-            assertThat(reviewService.getVendorReviews(VENDOR_ID)).isEmpty();
+            assertThat(reviewService.getProviderReviews(PROVIDER_ID)).isEmpty();
         }
     }
 
@@ -244,12 +244,12 @@ class ReviewServiceTest {
 
     /** A review on the shared completed booking with the given rating (created now). */
     private Review reviewWithRating(int rating) {
-        return new Review(completedBooking, customer, vendor, service, rating, "ok");
+        return new Review(completedBooking, customer, provider, service, rating, "ok");
     }
 
     /** A review with an explicit createdAt, for ordering assertions. */
     private Review reviewWithRatingAndDate(int rating, java.time.LocalDateTime createdAt) {
-        Review review = spy(new Review(completedBooking, customer, vendor, service, rating, "ok"));
+        Review review = spy(new Review(completedBooking, customer, provider, service, rating, "ok"));
         when(review.getCreatedAt()).thenReturn(createdAt);
         return review;
     }

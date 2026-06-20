@@ -10,11 +10,11 @@ import java.time.LocalDateTime;
  *
  * Một User có thể đóng nhiều vai trò (thông qua UserRole):
  * - CUSTOMER: đặt dịch vụ
- * - VENDOR: cung cấp dịch vụ (tạo Vendor profile riêng)
+ * - VENDOR: cung cấp dịch vụ (tạo Provider profile riêng)
  * - ADMIN: quản lý hệ thống
  *
- * Composition: Vendor HAS-A User (không phải extends User).
- * Nếu dùng inheritance, user không thể vừa là customer vừa là vendor.
+ * Composition: Provider HAS-A User (không phải extends User).
+ * Nếu dùng inheritance, user không thể vừa là customer vừa là provider.
  */
 @Entity
 @Table(name = "users")

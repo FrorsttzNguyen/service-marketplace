@@ -21,7 +21,7 @@ export {
   Badge,
   BookingStatusBadge,
   ServiceStatusBadge,
-  VendorStatusBadge,
+  ProviderStatusBadge,
   type BadgeTone,
 } from "./badge";
 export { Container, PageHeader } from "./container";

@@ -66,7 +66,7 @@ class AuthControllerIntegrationTest {
                     "test-customer@example.com",
                     "Password123",
                     "+84123456789",
-                    false  // Not registering as vendor
+                    false  // Not registering as provider
             );
 
             MvcResult result = mockMvc.perform(post("/api/auth/register")
@@ -90,14 +90,14 @@ class AuthControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("Should register new vendor with registerAsVendor=true")
-        void shouldRegisterVendorSuccessfully() throws Exception {
+        @DisplayName("Should register new provider with registerAsProvider=true")
+        void shouldRegisterProviderSuccessfully() throws Exception {
             RegisterRequest request = new RegisterRequest(
-                    "Vendor User",
-                    "test-vendor@example.com",
+                    "Provider User",
+                    "test-provider@example.com",
                     "Password123",
                     "+84987654321",
-                    true  // Registering as vendor
+                    true  // Registering as provider
             );
 
             MvcResult result = mockMvc.perform(post("/api/auth/register")
@@ -107,16 +107,16 @@ class AuthControllerIntegrationTest {
                     .andExpect(jsonPath("$.role").value("VENDOR"))
                     .andReturn();
 
-            // Verify vendor profile was created (check by trying to access vendor endpoints)
+            // Verify provider profile was created (check by trying to access provider endpoints)
             AuthResponse response = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     AuthResponse.class
             );
 
-            // Vendor can now access /api/bookings/vendor endpoint
-            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/bookings/vendor")
+            // Provider can now access /api/bookings/provider endpoint
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/bookings/provider")
                             .header("Authorization", "Bearer " + response.accessToken()))
-                    .andExpect(status().isOk());  // Not 422 (vendor profile not found)
+                    .andExpect(status().isOk());  // Not 422 (provider profile not found)
         }
 
         @Test
