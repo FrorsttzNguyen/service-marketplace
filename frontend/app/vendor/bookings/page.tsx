@@ -156,7 +156,7 @@ function VendorBookingsContent() {
     <Container width="default">
       <PageHeader
         title="Bookings"
-        subtitle="Requests customers have made on your services. Advance them through confirm → start → complete."
+        subtitle="Requests customers have made on your home services. Advance them through confirm → start → complete."
       />
 
       {isPending ? (
@@ -175,7 +175,7 @@ function VendorBookingsContent() {
 
           {bookings.length === 0 ? (
             <Card padded className="py-10 text-center text-muted-foreground">
-              No bookings yet. When a customer books one of your services, it&apos;ll
+              No bookings yet. When a customer books one of your home services, it&apos;ll
               appear here.
             </Card>
           ) : (

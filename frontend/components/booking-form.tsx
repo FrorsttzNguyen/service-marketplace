@@ -66,7 +66,7 @@ export function BookingForm({ serviceId }: BookingFormProps) {
     const redirect = `/services/${serviceId}`;
     return (
       <Card padded>
-        <h2 className="text-lg font-semibold text-foreground">Book this service</h2>
+        <h2 className="text-lg font-semibold text-foreground">Book this home service</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           You need an account to book.{" "}
           <Link
@@ -177,7 +177,7 @@ export function BookingForm({ serviceId }: BookingFormProps) {
 
   return (
     <Card padded>
-      <h2 className="text-lg font-semibold text-foreground">Book this service</h2>
+      <h2 className="text-lg font-semibold text-foreground">Book this home service</h2>
 
       {submitError ? (
         <div
@@ -231,7 +231,7 @@ export function BookingForm({ serviceId }: BookingFormProps) {
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div>
-            <Label htmlFor="street">Street</Label>
+            <Label htmlFor="street">Service street</Label>
             <Input
               id="street"
               value={street}
@@ -242,7 +242,7 @@ export function BookingForm({ serviceId }: BookingFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="city">City</Label>
+            <Label htmlFor="city">Service city</Label>
             <Input
               id="city"
               value={city}

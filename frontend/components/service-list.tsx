@@ -24,14 +24,14 @@ export function ServiceList({ page }: { page: ServicePage }) {
   return (
     <section>
       <p className="mb-4 text-sm text-muted-foreground">
-        {total} service{total === 1 ? "" : "s"} available
+        {total} home service{total === 1 ? "" : "s"} available
       </p>
       {services.length === 0 ? (
         <p
           className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-muted-foreground shadow-island"
           data-testid="empty-state"
         >
-          No services match this filter. Try clearing the category filter or
+          No home services match this filter. Try clearing the category filter or
           check back soon.
         </p>
       ) : (

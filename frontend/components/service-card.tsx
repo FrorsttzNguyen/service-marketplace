@@ -59,7 +59,7 @@ export function ServiceCard({ service }: { service: Service }) {
     >
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-semibold leading-tight tracking-tight text-foreground transition-colors group-hover:text-primary">
-          {service.title ?? "Untitled service"}
+          {service.title ?? "Untitled home service"}
         </h3>
         {price ? (
           <span className="shrink-0 rounded-pill bg-accent-soft px-2.5 py-1 text-sm font-semibold text-primary">
@@ -70,7 +70,7 @@ export function ServiceCard({ service }: { service: Service }) {
 
       {service.vendorName ? (
         <p className="mt-1.5 text-sm text-muted-foreground">
-          by {service.vendorName}
+          Pro: {service.vendorName}
         </p>
       ) : null}
 

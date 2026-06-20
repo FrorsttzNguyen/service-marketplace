@@ -15,7 +15,7 @@ import type { Metadata } from "next";
  * export if desired (currently they rely on the default title template).
  */
 export const metadata: Metadata = {
-  title: "Vendor",
+  title: "Provider",
   robots: { index: false, follow: false },
 };
 

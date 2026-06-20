@@ -81,7 +81,7 @@ function BookingsContent() {
     <Container width="default">
       <PageHeader
         title="My bookings"
-        subtitle="Services you've requested."
+        subtitle="Home services you've requested."
       />
 
       {isPending ? (
@@ -109,7 +109,7 @@ function BookingsContent() {
                   className: "mt-4",
                 })}
               >
-                Browse services →
+                Browse home services →
               </Link>
             </Card>
           ) : (

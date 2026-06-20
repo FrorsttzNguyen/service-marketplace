@@ -79,7 +79,7 @@ export function Header() {
             aria-hidden="true"
             className="inline-block h-2.5 w-2.5 rounded-pill bg-primary shadow-island"
           />
-          Service Marketplace
+          HandyHub
         </Link>
 
         {/* While boot-rehydrating, render no auth controls to avoid a logged-out flicker. */}

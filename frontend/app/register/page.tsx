@@ -177,7 +177,7 @@ function RegisterForm() {
               className="h-4 w-4 rounded accent-[rgb(var(--primary))]"
             />
             <span className="font-medium text-foreground">
-              Register as a service provider (vendor)
+              Register as a service provider
             </span>
           </label>
 

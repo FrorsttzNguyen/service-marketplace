@@ -106,7 +106,7 @@ export function BookingCard({
           </h3>
           {booking.vendorName ? (
             <p className="mt-0.5 text-sm text-muted-foreground">
-              by {booking.vendorName}
+              Provider: {booking.vendorName}
             </p>
           ) : null}
         </div>

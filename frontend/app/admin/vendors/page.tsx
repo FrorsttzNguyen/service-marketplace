@@ -119,7 +119,7 @@ function AdminVendorsContent() {
         setActionErrorMsg(
           err instanceof ApiError
             ? err.message
-            : `Couldn't ${failureVerb} this vendor.`,
+            : `Couldn't ${failureVerb} this provider.`,
         );
       },
     });
@@ -128,12 +128,12 @@ function AdminVendorsContent() {
   function handleApprove(vendorId: number) {
     // Confirm for the destructive/reversible pair — approve is low-risk but reject
     // blocks the vendor from selling. A simple window.confirm matches the bookings page.
-    if (!window.confirm("Approve this vendor?")) return;
+    if (!window.confirm("Approve this provider?")) return;
     runAction(vendorId, approveMutation, "approve");
   }
 
   function handleReject(vendorId: number) {
-    if (!window.confirm("Reject this vendor? They won't be able to sell.")) {
+    if (!window.confirm("Reject this provider? They won't be able to offer services.")) {
       return;
     }
     runAction(vendorId, rejectMutation, "reject");
@@ -151,8 +151,8 @@ function AdminVendorsContent() {
   return (
     <Container width="default">
       <PageHeader
-        title="Vendor approvals"
-        subtitle="Review vendors applying to sell on the marketplace."
+        title="Provider approvals"
+        subtitle="Review providers applying to offer home services."
       />
 
       {/*
@@ -164,7 +164,7 @@ function AdminVendorsContent() {
       <div
         className="mb-6 flex flex-wrap gap-2"
         role="group"
-        aria-label="Filter vendors by status"
+        aria-label="Filter providers by status"
       >
         {STATUS_FILTERS.map((filter) => {
           const active = status === filter.value;
@@ -193,7 +193,7 @@ function AdminVendorsContent() {
         <ErrorState
           error={error}
           onRetry={() => refetch()}
-          title="Couldn't load vendors."
+          title="Couldn't load providers."
         />
       ) : (
         <>
@@ -203,12 +203,12 @@ function AdminVendorsContent() {
 
           {vendors.length === 0 ? (
             <Card padded className="py-10 text-center text-muted-foreground">
-              No vendors{status ? ` with status ${status}` : ""}.
+              No providers{status ? ` with status ${status}` : ""}.
             </Card>
           ) : (
             <>
               <p className="mb-4 text-sm text-muted-foreground">
-                {total} vendor{total === 1 ? "" : "s"}
+                {total} provider{total === 1 ? "" : "s"}
               </p>
               <ul className="space-y-4">
                 {vendors.map((vendor) => (
@@ -301,7 +301,7 @@ function VendorRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-foreground">
-            {vendor.businessName || `Vendor #${vendor.vendorId ?? "?"}`}
+            {vendor.businessName || `Provider #${vendor.vendorId ?? "?"}`}
           </h3>
           {vendor.email ? (
             <p className="mt-0.5 text-sm text-muted-foreground">{vendor.email}</p>
@@ -312,7 +312,7 @@ function VendorRow({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <MetaCell label="Applied">{formatDate(vendor.createdAt)}</MetaCell>
-        <MetaCell label="Vendor ID">{vendor.vendorId ?? "—"}</MetaCell>
+        <MetaCell label="Provider ID">{vendor.vendorId ?? "—"}</MetaCell>
         <MetaCell label="User ID">{vendor.userId ?? "—"}</MetaCell>
       </dl>
 

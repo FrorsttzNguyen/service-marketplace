@@ -44,7 +44,7 @@ function VendorDashboardContent() {
       <Container width="wide">
         <PageHeader
           title="Dashboard"
-          subtitle="A snapshot of your services, bookings, ratings, and earnings."
+          subtitle="Track your home services, bookings, ratings, and earnings."
         />
         <CatalogSkeleton />
       </Container>
@@ -56,7 +56,7 @@ function VendorDashboardContent() {
       <Container width="wide">
         <PageHeader
           title="Dashboard"
-          subtitle="A snapshot of your services, bookings, ratings, and earnings."
+          subtitle="Track your home services, bookings, ratings, and earnings."
         />
         <ErrorState
           error={statsQuery.error ?? earningsQuery.error}
@@ -74,7 +74,7 @@ function VendorDashboardContent() {
     <Container width="wide">
       <PageHeader
         title="Dashboard"
-        subtitle="A snapshot of your services, bookings, ratings, and earnings."
+        subtitle="Track your home services, bookings, ratings, and earnings."
       />
 
       <section className="mb-8">
@@ -83,7 +83,7 @@ function VendorDashboardContent() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-xl font-semibold tracking-tight">Business stats</h2>
+        <h2 className="mb-4 text-xl font-semibold tracking-tight">Provider stats</h2>
         <StatsGrid stats={statsQuery.data ?? {}} />
       </section>
     </Container>
@@ -100,17 +100,17 @@ function EarningsGrid({ earnings }: { earnings: VendorEarnings }) {
       <MetricCard
         label="Total earnings"
         value={formatMoney(earnings.totalEarnings)}
-        hint="Paid + fulfilled order subtotals."
+        hint="Paid + completed booking subtotals."
       />
       <MetricCard
         label="Pending payouts"
         value={formatMoney(earnings.pendingPayouts)}
-        hint="Paid orders not fulfilled yet."
+        hint="Paid bookings not completed yet."
       />
       <MetricCard
         label="Paid out"
         value={formatMoney(earnings.paidOut)}
-        hint="Fulfilled order subtotals."
+        hint="Completed booking subtotals."
       />
 
       <Card className="lg:col-span-3">
