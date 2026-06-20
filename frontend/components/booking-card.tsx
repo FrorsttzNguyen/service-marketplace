@@ -9,7 +9,7 @@
  *     Clicking it calls the cancel mutation the parent wires up. A 422 (status changed
  *     under us) surfaces the server message and the parent refetches.
  *   - Pay now: CONFIRMED only. A booking must be CONFIRMED before an order can be
- *     created from it (the backend rejects POST /api/orders with 422 otherwise). The
+ *     required before payment (the backend rejects POST /api/payments with 422 otherwise). The
  *     button is a plain link to /checkout/<bookingId> — the checkout page handles the
  *     order → payment → Stripe flow.
  *   - Leave a review: COMPLETED only. Renders the inline <ReviewForm>, which POSTs to
@@ -89,7 +89,7 @@ export function BookingCard({
 }: BookingCardProps) {
   const status: BookingStatus = booking.status ?? "PENDING";
   const canCancel = status === "PENDING" && onCancel !== undefined;
-  // Pay-now is gated to CONFIRMED: only confirmed bookings can seed an order. The
+  // Pay-now is gated to CONFIRMED: only confirmed bookings can be paid directly. The
   // checkout page will also enforce this server-side (422), but gating here avoids a
   // pointless navigation for PENDING/COMPLETED/CANCELLED rows.
   const canPay = status === "CONFIRMED" && booking.id !== undefined;

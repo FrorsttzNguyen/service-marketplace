@@ -45,7 +45,7 @@ import static org.mockito.Mockito.*;
  * and the denormalized rating recompute — lives here. Mocking the repositories lets us assert each
  * branch precisely without a DB.
  *
- * MOCKING mirrors OrderServiceTest: domain objects are spied so we can stub getId() (entities have no
+ * MOCKING mirrors PaymentServiceTest: domain objects are spied so we can stub getId() (entities have no
  * id setter; JPA sets it). LENIENT settings allow the shared @BeforeEach stubs to go unused per test.
  */
 @ExtendWith(MockitoExtension.class)
@@ -94,10 +94,12 @@ class ReviewServiceTest {
         service = spy(new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60));
         when(service.getId()).thenReturn(SERVICE_ID);
 
-        // A booking driven all the way to COMPLETED (PENDING → CONFIRMED → IN_PROGRESS → COMPLETED).
+        // A booking driven all the way to COMPLETED.
+        // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
         Booking completed = new Booking(service, customer, vendor, LocalDate.now(),
-                LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000));
+                LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000), Money.of(1000));
         completed.confirm(vendorUser);
+        completed.markAsPaid(null);  // Stripe webhook step (changedBy null = system)
         completed.start(vendorUser);
         completed.complete(vendorUser);
         completedBooking = spy(completed);
@@ -105,7 +107,7 @@ class ReviewServiceTest {
 
         // A still-PENDING booking for the status-gate test.
         Booking pending = new Booking(service, customer, vendor, LocalDate.now(),
-                LocalTime.of(12, 0), LocalTime.of(13, 0), Money.of(10000));
+                LocalTime.of(12, 0), LocalTime.of(13, 0), Money.of(10000), Money.of(1000));
         pendingBooking = spy(pending);
         when(pendingBooking.getId()).thenReturn(BOOKING_ID);
     }

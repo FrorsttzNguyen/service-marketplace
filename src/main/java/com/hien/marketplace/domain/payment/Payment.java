@@ -1,7 +1,7 @@
 package com.hien.marketplace.domain.payment;
 
+import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -33,8 +33,8 @@ public class Payment {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", nullable = false)
-    private Order order;
+    @JoinColumn(name = "booking_id", nullable = false)
+    private Booking booking;
 
     @Column(name = "stripe_payment_intent_id", unique = true, length = 255)
     private String stripePaymentIntentId;
@@ -73,8 +73,8 @@ public class Payment {
     protected Payment() {
     }
 
-    public Payment(Order order, Money amount) {
-        this.order = order;
+    public Payment(Booking booking, Money amount) {
+        this.booking = booking;
         this.amount = amount;
         this.status = PaymentStatus.PENDING;
         this.createdAt = LocalDateTime.now();
@@ -134,7 +134,7 @@ public class Payment {
 
     // Getters
     public Long getId() { return id; }
-    public Order getOrder() { return order; }
+    public Booking getBooking() { return booking; }
     public String getStripePaymentIntentId() { return stripePaymentIntentId; }
     public PaymentStatus getStatus() { return status; }
     public String getPaymentMethod() { return paymentMethod; }

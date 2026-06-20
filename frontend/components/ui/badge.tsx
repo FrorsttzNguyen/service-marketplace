@@ -75,6 +75,7 @@ import type { VendorVerificationStatus } from "@/lib/api/admin";
 const BOOKING_TONE: Record<BookingStatus, BadgeTone> = {
   PENDING: "warning",
   CONFIRMED: "info",
+  PAID: "primary",
   IN_PROGRESS: "info",
   COMPLETED: "success",
   CANCELLED: "neutral",

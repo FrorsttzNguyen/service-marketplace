@@ -56,27 +56,27 @@ public class StripeClient {
      * CRITICAL: Call this OUTSIDE @Transactional.
      *
      * IDEMPOTENCY:
-     * - Uses orderId as idempotency key
+     * - Uses bookingId as idempotency key
      * - If network timeout occurs and request is retried, Stripe returns the SAME PaymentIntent
-     * - Prevents duplicate PaymentIntents for the same order
+     * - Prevents duplicate PaymentIntents for the same booking
      * - Stripe keeps idempotency keys for 24 hours
      *
      * @param amount Payment amount (Money value object)
-     * @param orderId Order ID for metadata AND idempotency key
+     * @param bookingId Booking ID for metadata AND idempotency key
      * @return Stripe PaymentIntent with client_secret for frontend
      * @throws StripeException if Stripe API call fails
      */
-    public PaymentIntent createPaymentIntent(Money amount, Long orderId) throws StripeException {
-        log.info("Creating PaymentIntent for order {}: amount={} cents", orderId, amount.getAmountCents());
+    public PaymentIntent createPaymentIntent(Money amount, Long bookingId) throws StripeException {
+        log.info("Creating PaymentIntent for booking {}: amount={} cents", bookingId, amount.getAmountCents());
 
-        // Use orderId as idempotency key to prevent duplicate PaymentIntents
-        // Format: "order_{orderId}" makes it easy to identify in Stripe dashboard
-        String idempotencyKey = "order_" + orderId;
+        // Use bookingId as idempotency key to prevent duplicate PaymentIntents
+        // Format: "booking_{bookingId}" makes it easy to identify in Stripe dashboard
+        String idempotencyKey = "booking_" + bookingId;
 
         PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                 .setAmount(amount.getAmountCents())
                 .setCurrency("usd")
-                .putMetadata("order_id", orderId.toString())
+                .putMetadata("booking_id", bookingId.toString())
                 .putMetadata("idempotency_key", idempotencyKey)
                 // Automatic payment methods allow Stripe to use all enabled methods
                 .setAutomaticPaymentMethods(

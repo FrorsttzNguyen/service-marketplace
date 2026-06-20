@@ -1,7 +1,7 @@
 package com.hien.marketplace.application.dto;
 
+import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.payment.PaymentStatus;
 
 /**
@@ -22,7 +22,7 @@ import com.hien.marketplace.domain.payment.PaymentStatus;
  * DATA CAPTURED:
  * - Payment ID, Stripe ID, and status (for Stripe API call and validation)
  * - Payment amount (for validation and refund calculation)
- * - Order ID, status, customer ID (for authorization and business rules)
+ * - Booking ID, status, customer ID (for authorization and business rules)
  * - Existing refund amounts (for over-refund validation)
  *
  * USED BY:
@@ -34,8 +34,8 @@ public record RefundContext(
     String stripePaymentIntentId,
     PaymentStatus paymentStatus,
     Money paymentAmount,
-    Long orderId,
-    OrderStatus orderStatus,
+    Long bookingId,
+    BookingStatus bookingStatus,
     Long customerId,
     Money alreadyRefunded
 ) {
@@ -47,7 +47,7 @@ public record RefundContext(
     }
 
     /**
-     * Check if a user owns this payment's order.
+     * Check if a user owns this payment's booking.
      */
     public boolean isOwnedBy(Long userId) {
         return customerId.equals(userId);
@@ -56,10 +56,10 @@ public record RefundContext(
     /**
      * Check if payment is in a refundable state.
      * REQUIREMENTS:
-     * - Order must be PAID (order is paid)
+     * - Booking must be PAID (the booking is paid)
      * - Payment must be SUCCEEDED (money was actually received)
      */
     public boolean isRefundable() {
-        return orderStatus == OrderStatus.PAID && paymentStatus == PaymentStatus.SUCCEEDED;
+        return bookingStatus == BookingStatus.PAID && paymentStatus == PaymentStatus.SUCCEEDED;
     }
 }

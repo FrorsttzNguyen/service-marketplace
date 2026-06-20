@@ -4,8 +4,6 @@ import com.hien.marketplace.application.exception.BusinessRuleViolationException
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
-import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.service.ServiceStatus;
@@ -13,7 +11,6 @@ import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
 import com.hien.marketplace.domain.vendor.Vendor;
 import com.hien.marketplace.infrastructure.persistence.BookingRepository;
-import com.hien.marketplace.infrastructure.persistence.OrderRepository;
 import com.hien.marketplace.infrastructure.persistence.ReviewRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
 import com.hien.marketplace.infrastructure.persistence.VendorRepository;
@@ -44,9 +41,15 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for VendorDashboardService — vendor analytics and earnings rules.
  *
+ * After Order→Booking merge: getEarnings iterates bookingRepository.findByVendorId
+ * and uses booking.getSubtotal() (not order.getSubtotal()).
+ * - PAID / IN_PROGRESS → pending payout
+ * - COMPLETED          → paid out
+ * - anything else (PENDING/CONFIRMED/CANCELLED/REFUNDED) → excluded
+ *
  * WHY test with mocks: dashboard data comes from several repositories, but the important
  * behavior is the aggregation contract: missing statuses become zero and vendor earnings
- * use Order.subtotal only (commission is the platform's cut).
+ * use Booking.subtotal only (commission is the platform's cut).
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -64,9 +67,6 @@ class VendorDashboardServiceTest {
     @Mock
     private ReviewRepository reviewRepository;
 
-    @Mock
-    private OrderRepository orderRepository;
-
     private VendorDashboardService vendorDashboardService;
 
     private static final Long USER_ID = 1L;
@@ -75,16 +75,15 @@ class VendorDashboardServiceTest {
     private User customer;
     private User vendorUser;
     private Vendor vendor;
-    private Booking confirmedBooking;
 
     @BeforeEach
     void setUp() {
+        // VendorDashboardService no longer depends on OrderRepository (removed after merge)
         vendorDashboardService = new VendorDashboardService(
                 vendorRepository,
                 serviceRepository,
                 bookingRepository,
-                reviewRepository,
-                orderRepository
+                reviewRepository
         );
 
         customer = new User("customer@example.com", "hashed", "Customer", UserRole.CUSTOMER);
@@ -92,11 +91,6 @@ class VendorDashboardServiceTest {
         vendor = spy(new Vendor(vendorUser, "Vendor Biz"));
         when(vendor.getId()).thenReturn(VENDOR_ID);
         vendor.updateRating(new BigDecimal("4.50"));
-
-        ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
-        confirmedBooking = new Booking(service, customer, vendor, LocalDate.now(),
-                LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000));
-        confirmedBooking.confirm(vendorUser);
 
         when(vendorRepository.findByUserId(USER_ID)).thenReturn(Optional.of(vendor));
     }
@@ -129,37 +123,56 @@ class VendorDashboardServiceTest {
         assertThat(response.averageRating()).isEqualByComparingTo(new BigDecimal("4.50"));
         assertThat(response.totalReviews()).isEqualTo(9);
         assertThat(response.totalCustomers()).isEqualTo(6);
+        // New BookingStatus enum has 7 values: PENDING, CONFIRMED, PAID, IN_PROGRESS, COMPLETED, CANCELLED, REFUNDED
+        // Missing statuses (not in DB) default to 0
         assertThat(response.bookingsByStatus()).containsExactly(
                 org.assertj.core.api.Assertions.entry("PENDING", 2),
                 org.assertj.core.api.Assertions.entry("CONFIRMED", 3),
+                org.assertj.core.api.Assertions.entry("PAID", 0),
                 org.assertj.core.api.Assertions.entry("IN_PROGRESS", 0),
                 org.assertj.core.api.Assertions.entry("COMPLETED", 5),
-                org.assertj.core.api.Assertions.entry("CANCELLED", 1)
+                org.assertj.core.api.Assertions.entry("CANCELLED", 1),
+                org.assertj.core.api.Assertions.entry("REFUNDED", 0)
         );
     }
 
     @Test
-    @DisplayName("earnings: PAID/FULFILLED subtotal only, split payouts, exclude unpaid/refunded/cancelled, group by yyyy-MM")
-    void shouldCalculateEarningsFromPaidAndFulfilledSubtotalsOnly() {
-        Order paidJanuary = order(OrderStatus.PAID, 10_000, 1_000, LocalDateTime.of(2026, 1, 15, 9, 0));
-        Order fulfilledJanuary = order(OrderStatus.FULFILLED, 20_000, 2_000, LocalDateTime.of(2026, 1, 20, 9, 0));
-        Order fulfilledFebruary = order(OrderStatus.FULFILLED, 5_555, 555, LocalDateTime.of(2026, 2, 1, 9, 0));
-        Order created = order(OrderStatus.CREATED, 99_999, 9_999, LocalDateTime.of(2026, 1, 1, 9, 0));
-        Order pending = order(OrderStatus.PENDING_PAYMENT, 88_888, 8_888, LocalDateTime.of(2026, 1, 2, 9, 0));
-        Order cancelled = order(OrderStatus.CANCELLED, 77_777, 7_777, LocalDateTime.of(2026, 1, 3, 9, 0));
-        Order refunded = order(OrderStatus.REFUNDED, 66_666, 6_666, LocalDateTime.of(2026, 1, 4, 9, 0));
-        when(orderRepository.findByVendorId(VENDOR_ID)).thenReturn(List.of(
+    @DisplayName("earnings: PAID/IN_PROGRESS subtotal = pending payout; COMPLETED subtotal = paid out; others excluded; grouped by yyyy-MM")
+    void shouldCalculateEarningsFromBookingSubtotalsOnly() {
+        // After merge: earnings come from Booking.subtotal (not Order.subtotal).
+        // PAID      → pending payout   (like old Order.PAID)
+        // IN_PROGRESS → pending payout (money received, service in flight)
+        // COMPLETED → paid out         (like old Order.FULFILLED)
+        // PENDING/CONFIRMED/CANCELLED/REFUNDED → excluded
+        Booking paidJanuary = bookingWithStatus(BookingStatus.PAID, 10_000, 1_000,
+                LocalDateTime.of(2026, 1, 15, 9, 0));
+        Booking completedJanuary = bookingWithStatus(BookingStatus.COMPLETED, 20_000, 2_000,
+                LocalDateTime.of(2026, 1, 20, 9, 0));
+        Booking completedFebruary = bookingWithStatus(BookingStatus.COMPLETED, 5_555, 555,
+                LocalDateTime.of(2026, 2, 1, 9, 0));
+        Booking pendingBooking = bookingWithStatus(BookingStatus.PENDING, 99_999, 9_999,
+                LocalDateTime.of(2026, 1, 1, 9, 0));
+        Booking confirmedBooking = bookingWithStatus(BookingStatus.CONFIRMED, 88_888, 8_888,
+                LocalDateTime.of(2026, 1, 2, 9, 0));
+        Booking cancelledBooking = bookingWithStatus(BookingStatus.CANCELLED, 77_777, 7_777,
+                LocalDateTime.of(2026, 1, 3, 9, 0));
+        Booking refundedBooking = bookingWithStatus(BookingStatus.REFUNDED, 66_666, 6_666,
+                LocalDateTime.of(2026, 1, 4, 9, 0));
+        when(bookingRepository.findByVendorId(VENDOR_ID)).thenReturn(List.of(
                 paidJanuary,
-                fulfilledJanuary,
-                fulfilledFebruary,
-                created,
-                pending,
-                cancelled,
-                refunded
+                completedJanuary,
+                completedFebruary,
+                pendingBooking,
+                confirmedBooking,
+                cancelledBooking,
+                refundedBooking
         ));
 
         VendorEarningsResponse response = vendorDashboardService.getEarnings(USER_ID);
 
+        // paidJanuary subtotal = 10000c = $100.00 → pending payout
+        // completedJanuary subtotal = 20000c = $200.00 → paid out
+        // completedFebruary subtotal = 5555c = $55.55 → paid out
         assertThat(response.pendingPayouts()).isEqualByComparingTo(new BigDecimal("100.00"));
         assertThat(response.paidOut()).isEqualByComparingTo(new BigDecimal("255.55"));
         assertThat(response.totalEarnings()).isEqualByComparingTo(new BigDecimal("355.55"));
@@ -190,26 +203,25 @@ class VendorDashboardServiceTest {
         return row;
     }
 
-    private Order order(OrderStatus status, long subtotalCents, long commissionCents, LocalDateTime createdAt) {
-        Order order = new Order(customer, confirmedBooking, Money.of(subtotalCents), Money.of(commissionCents));
-        if (status == OrderStatus.PENDING_PAYMENT) {
-            order.markAsPendingPayment();
-        } else if (status == OrderStatus.PAID) {
-            order.markAsPendingPayment();
-            order.markAsPaid();
-        } else if (status == OrderStatus.FULFILLED) {
-            order.markAsPendingPayment();
-            order.markAsPaid();
-            order.fulfill();
-        } else if (status == OrderStatus.CANCELLED) {
-            order.cancel();
-        } else if (status == OrderStatus.REFUNDED) {
-            order.markAsPendingPayment();
-            order.markAsPaid();
-            order.refund();
-        }
-
-        Order spied = spy(order);
+    /**
+     * Build a spy Booking in the desired status. Uses status-stub approach because the real state
+     * machine doesn't allow arbitrary jumps. We stub getStatus() on the spy to return the target.
+     *
+     * @param status       desired booking status (for getEarnings filtering)
+     * @param subtotalCents subtotal the vendor earns (platform takes commission)
+     * @param commissionCents platform commission
+     * @param createdAt    determines which yyyy-MM bucket this booking falls in
+     */
+    private Booking bookingWithStatus(BookingStatus status, long subtotalCents, long commissionCents,
+                                       LocalDateTime createdAt) {
+        ServiceEntity service = new ServiceEntity(vendor, "Test Service",
+                Money.of(subtotalCents), PricingType.FIXED, 60);
+        Booking booking = new Booking(service, customer, vendor,
+                LocalDate.now(), LocalTime.of(9, 0), LocalTime.of(10, 0),
+                Money.of(subtotalCents), Money.of(commissionCents));
+        Booking spied = spy(booking);
+        // Stub status and timestamps — real state machine would reject arbitrary jumps
+        when(spied.getStatus()).thenReturn(status);
         when(spied.getCreatedAt()).thenReturn(createdAt);
         return spied;
     }

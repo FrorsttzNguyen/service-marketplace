@@ -2,15 +2,18 @@ package com.hien.marketplace.infrastructure.persistence;
 
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
@@ -68,6 +71,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByServiceIdAndBookingDateAndStatusNot(
         Long serviceId, LocalDate bookingDate, BookingStatus status
     );
+
+    /**
+     * Find booking by ID with a pessimistic write lock.
+     *
+     * Used during payment creation (PaymentTransactionService) to prevent concurrent
+     * modifications. The lock is held until the transaction commits — combined with the
+     * DB unique constraint on payments.booking_id, this catches duplicate-payment races.
+     * Replaces the old OrderRepository.findByIdForUpdate after the Order→Booking merge.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Booking b where b.id = :bookingId")
+    Optional<Booking> findByIdForUpdate(Long bookingId);
 
     interface BookingStatusCount {
         BookingStatus getStatus();

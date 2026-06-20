@@ -2,9 +2,8 @@ package com.hien.marketplace.application.service;
 
 import com.hien.marketplace.application.exception.*;
 import com.hien.marketplace.domain.booking.Booking;
+import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
-import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.payment.Payment;
 import com.hien.marketplace.domain.payment.PaymentStatus;
 import com.hien.marketplace.domain.payment.events.PaymentFailedEvent;
@@ -14,7 +13,7 @@ import com.hien.marketplace.domain.service.ServiceEntity;
 import com.hien.marketplace.domain.user.User;
 import com.hien.marketplace.domain.user.UserRole;
 import com.hien.marketplace.domain.vendor.Vendor;
-import com.hien.marketplace.infrastructure.persistence.OrderRepository;
+import com.hien.marketplace.infrastructure.persistence.BookingRepository;
 import com.hien.marketplace.infrastructure.persistence.PaymentRepository;
 import com.hien.marketplace.infrastructure.stripe.StripeClient;
 import com.stripe.exception.StripeException;
@@ -40,22 +39,19 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests cho PaymentService.
+ * Unit tests cho PaymentService (after Order→Booking merge).
  *
  * WHY test service:
- * - Service chứa business logic phức tạp
+ * - Service contains complex business logic
  * - Authorization checks
  * - Stripe API integration
  * - Transaction boundaries
  *
- * MOCKING:
- * - StripeClient: External API calls
- * - PaymentRepository: Database operations
- * - OrderRepository: Database operations
- * - ApplicationEventPublisher: Event publishing
+ * After the merge: Payment references Booking directly (no Order).
+ * createPayment(userId, bookingId, method) — takes bookingId, not orderId.
+ * PaymentTransactionService.createPaymentWithBookingUpdate (was ...WithOrderUpdate).
  *
  * @MockitoSettings(strictness = Strictness.LENIENT) allows unused stubs
- * (needed because @BeforeEach sets up all mocks, but not all tests use all stubs)
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -65,7 +61,7 @@ class PaymentServiceTest {
     private PaymentRepository paymentRepository;
 
     @Mock
-    private OrderRepository orderRepository;
+    private BookingRepository bookingRepository;
 
     @Mock
     private StripeClient stripeClient;
@@ -81,7 +77,6 @@ class PaymentServiceTest {
 
     private User customer;
     private Booking booking;
-    private Order order;
     private Payment payment;
 
     @BeforeEach
@@ -100,17 +95,14 @@ class PaymentServiceTest {
         // Create service
         ServiceEntity service = new ServiceEntity(vendor, "Test Service", Money.of(10000), PricingType.FIXED, 60);
 
-        // Create booking
-        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0), Money.of(10000));
+        // Create booking — new constructor takes subtotal + commission separately
+        booking = new Booking(service, customer, vendor, LocalDate.now(), LocalTime.of(10, 0), LocalTime.of(11, 0),
+                Money.of(10000), Money.of(1000));
         booking = spy(booking);
         when(booking.getId()).thenReturn(1L);
 
-        // Create order
-        order = new Order(customer, booking, Money.of(10000), Money.of(1000));
-        order = spy(order);
-        when(order.getId()).thenReturn(1L);
-
-        payment = new Payment(order, Money.of(11000));
+        // Payment now references Booking directly (not Order)
+        payment = new Payment(booking, Money.of(11000));
         payment = spy(payment);
         when(payment.getId()).thenReturn(1L);
     }
@@ -122,20 +114,21 @@ class PaymentServiceTest {
     class CreatePayment {
 
         @Test
-        void shouldSucceedForValidOrder() throws StripeException {
-            // Setup
-            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
-            when(paymentRepository.existsByOrderId(1L)).thenReturn(false);
+        void shouldSucceedForConfirmedBooking() throws StripeException {
+            // Booking must be CONFIRMED for payment to proceed
+            booking.confirm(booking.getVendor().getUser());
+            when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+            when(paymentRepository.existsByBookingId(1L)).thenReturn(false);
 
             PaymentIntent mockIntent = mock(PaymentIntent.class);
             when(mockIntent.getId()).thenReturn("pi_test123");
             when(mockIntent.getClientSecret()).thenReturn("cs_test123_secret");
             when(stripeClient.createPaymentIntent(any(Money.class), eq(1L))).thenReturn(mockIntent);
 
-            Payment savedPayment = new Payment(order, Money.of(11000));
+            Payment savedPayment = new Payment(booking, Money.of(11000));
             savedPayment = spy(savedPayment);
             when(savedPayment.getId()).thenReturn(1L);
-            when(paymentTransactionService.createPaymentWithOrderUpdate(anyLong(), anyLong(), anyString(), anyString()))
+            when(paymentTransactionService.createPaymentWithBookingUpdate(anyLong(), anyLong(), anyString(), anyString()))
                     .thenReturn(savedPayment);
 
             // Execute
@@ -144,41 +137,42 @@ class PaymentServiceTest {
             // Verify
             assertThat(clientSecret).isEqualTo("cs_test123_secret");
             verify(stripeClient).createPaymentIntent(any(Money.class), eq(1L));
-            verify(paymentTransactionService).createPaymentWithOrderUpdate(eq(1L), eq(1L), eq("pi_test123"), eq("card"));
+            verify(paymentTransactionService).createPaymentWithBookingUpdate(eq(1L), eq(1L), eq("pi_test123"), eq("card"));
         }
 
         @Test
-        void shouldThrowWhenOrderNotFound() {
-            when(orderRepository.findById(1L)).thenReturn(Optional.empty());
+        void shouldThrowWhenBookingNotFound() {
+            when(bookingRepository.findById(1L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> paymentService.createPayment(1L, 1L, "card"))
                     .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessageContaining("Order not found");
+                    .hasMessageContaining("Booking not found");
         }
 
         @Test
-        void shouldThrowWhenNotOrderOwner() {
-            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        void shouldThrowWhenNotBookingOwner() {
+            when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
             assertThatThrownBy(() -> paymentService.createPayment(2L, 1L, "card"))
                     .isInstanceOf(BusinessRuleViolationException.class)
-                    .hasMessageContaining("You can only pay for your own orders");
+                    .hasMessageContaining("You can only pay for your own bookings");
         }
 
         @Test
-        void shouldThrowWhenOrderNotCreatedStatus() {
-            order.markAsPendingPayment();
-            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        void shouldThrowWhenBookingNotConfirmedStatus() {
+            // Booking is still PENDING — not eligible for payment
+            when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
             assertThatThrownBy(() -> paymentService.createPayment(1L, 1L, "card"))
                     .isInstanceOf(BusinessRuleViolationException.class)
-                    .hasMessageContaining("Order is not eligible for payment");
+                    .hasMessageContaining("Booking is not eligible for payment");
         }
 
         @Test
         void shouldThrowWhenPaymentAlreadyExists() {
-            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
-            when(paymentRepository.existsByOrderId(1L)).thenReturn(true);
+            booking.confirm(booking.getVendor().getUser());
+            when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+            when(paymentRepository.existsByBookingId(1L)).thenReturn(true);
 
             assertThatThrownBy(() -> paymentService.createPayment(1L, 1L, "card"))
                     .isInstanceOf(DuplicateResourceException.class)
@@ -187,8 +181,9 @@ class PaymentServiceTest {
 
         @Test
         void shouldThrowWhenStripeApiFails() throws StripeException {
-            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
-            when(paymentRepository.existsByOrderId(1L)).thenReturn(false);
+            booking.confirm(booking.getVendor().getUser());
+            when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
+            when(paymentRepository.existsByBookingId(1L)).thenReturn(false);
 
             StripeException stripeException = mock(StripeException.class);
             when(stripeException.getMessage()).thenReturn("API error");
@@ -209,22 +204,23 @@ class PaymentServiceTest {
 
         @Test
         void shouldSucceedForProcessingPayment() {
-            // Setup - order must be in PENDING_PAYMENT status (created by createPayment)
-            order.markAsPendingPayment();
+            // Booking must be CONFIRMED so it can be marked PAID by the webhook
+            booking.confirm(booking.getVendor().getUser());
             // Payment in PROCESSING status
             payment.markAsProcessing();
             payment.setStripePaymentIntentId("pi_test123");
             when(paymentRepository.findByStripePaymentIntentId("pi_test123"))
                     .thenReturn(Optional.of(payment));
             when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
-            when(orderRepository.save(any(Order.class))).thenReturn(order);
+            when(bookingRepository.save(any(Booking.class))).thenReturn(booking);
 
             // Execute
             paymentService.handlePaymentSucceeded("pi_test123");
 
             // Verify
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCEEDED);
-            assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+            // Booking should now be PAID (webhook updated it)
+            assertThat(booking.getStatus()).isEqualTo(BookingStatus.PAID);
             verify(eventPublisher).publishEvent(any(PaymentSucceededEvent.class));
         }
 
@@ -241,14 +237,6 @@ class PaymentServiceTest {
         /**
          * INTENTIONAL BEHAVIOR: When payment_intent.succeeded arrives but no local Payment exists,
          * we throw ResourceNotFoundException to trigger Stripe retry.
-         *
-         * WHY THIS IS CORRECT:
-         * - Cross-environment webhooks (test hitting prod, or vice versa)
-         * - Stale data scenarios
-         * - By throwing, Stripe retries and our monitoring can alert
-         *
-         * Alternative would be to silently acknowledge (200 OK) and log warning,
-         * but that could hide real issues.
          */
         @Test
         @DisplayName("handlePaymentSucceeded throws when Payment not found - triggers Stripe retry (intentional)")
@@ -346,12 +334,12 @@ class PaymentServiceTest {
     class Authorization {
 
         @Test
-        void createPaymentRequiresOrderOwnership() {
-            when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        void createPaymentRequiresBookingOwnership() {
+            when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
             assertThatThrownBy(() -> paymentService.createPayment(999L, 1L, "card"))
                     .isInstanceOf(BusinessRuleViolationException.class)
-                    .hasMessageContaining("You can only pay for your own orders");
+                    .hasMessageContaining("You can only pay for your own bookings");
         }
 
         @Test

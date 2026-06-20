@@ -1,14 +1,12 @@
 package com.hien.marketplace.application.service;
 
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
+import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.common.Money;
-import com.hien.marketplace.domain.order.Order;
-import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.service.ServiceStatus;
 import com.hien.marketplace.domain.vendor.Vendor;
 import com.hien.marketplace.infrastructure.persistence.BookingRepository;
-import com.hien.marketplace.infrastructure.persistence.OrderRepository;
 import com.hien.marketplace.infrastructure.persistence.ReviewRepository;
 import com.hien.marketplace.infrastructure.persistence.ServiceRepository;
 import com.hien.marketplace.infrastructure.persistence.VendorRepository;
@@ -41,7 +39,6 @@ public class VendorDashboardService {
     private final ServiceRepository serviceRepository;
     private final BookingRepository bookingRepository;
     private final ReviewRepository reviewRepository;
-    private final OrderRepository orderRepository;
 
     @Transactional(readOnly = true)
     public VendorStatsResponse getStats(Long userId) {
@@ -85,20 +82,27 @@ public class VendorDashboardService {
         long pendingPayoutCents = 0L;
         Map<String, Long> earningsByMonthCents = new LinkedHashMap<>();
 
-        for (Order order : orderRepository.findByVendorId(vendor.getId())) {
-            OrderStatus status = order.getStatus();
-            if (status != OrderStatus.PAID && status != OrderStatus.FULFILLED) {
+        // After the Order→Booking merge, earnings are read straight off bookings.
+        // Vendor earns the SUBTOTAL (the platform keeps the commission).
+        //   PAID / IN_PROGRESS → money received but service not yet delivered → pending payout
+        //   COMPLETED          → service delivered → paid out
+        //   anything else (PENDING/CONFIRMED/CANCELLED/REFUNDED) → not counted
+        for (Booking booking : bookingRepository.findByVendorId(vendor.getId())) {
+            BookingStatus status = booking.getStatus();
+            if (status != BookingStatus.PAID
+                    && status != BookingStatus.IN_PROGRESS
+                    && status != BookingStatus.COMPLETED) {
                 continue;
             }
 
-            long subtotalCents = order.getSubtotal().getAmountCents();
-            if (status == OrderStatus.FULFILLED) {
+            long subtotalCents = booking.getSubtotal().getAmountCents();
+            if (status == BookingStatus.COMPLETED) {
                 paidOutCents += subtotalCents;
             } else {
                 pendingPayoutCents += subtotalCents;
             }
 
-            String month = YearMonth.from(order.getCreatedAt()).format(MONTH_FORMATTER);
+            String month = YearMonth.from(booking.getCreatedAt()).format(MONTH_FORMATTER);
             earningsByMonthCents.merge(month, subtotalCents, Long::sum);
         }
 

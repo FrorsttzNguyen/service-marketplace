@@ -7,6 +7,10 @@ import static org.assertj.core.api.Assertions.*;
 /**
  * Unit tests cho BookingStatus state machine.
  * State Machine = business rule cốt lõi: chuyển đổi sai = bug nghiêm trọng.
+ *
+ * New lifecycle (after Order→Booking merge):
+ *   PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
+ * A booking must be PAID (via Stripe webhook) before starting.
  */
 class BookingStatusTest {
 
@@ -23,8 +27,8 @@ class BookingStatusTest {
     }
 
     @Test
-    void confirmedCanTransitionToInProgress() {
-        assertThat(BookingStatus.CONFIRMED.canTransitionTo(BookingStatus.IN_PROGRESS)).isTrue();
+    void confirmedCanTransitionToPaid() {
+        assertThat(BookingStatus.CONFIRMED.canTransitionTo(BookingStatus.PAID)).isTrue();
     }
 
     @Test
@@ -33,11 +37,32 @@ class BookingStatusTest {
     }
 
     @Test
+    void paidCanTransitionToInProgress() {
+        assertThat(BookingStatus.PAID.canTransitionTo(BookingStatus.IN_PROGRESS)).isTrue();
+    }
+
+    @Test
+    void paidCanTransitionToCancelled() {
+        assertThat(BookingStatus.PAID.canTransitionTo(BookingStatus.CANCELLED)).isTrue();
+    }
+
+    @Test
+    void paidCanTransitionToRefunded() {
+        assertThat(BookingStatus.PAID.canTransitionTo(BookingStatus.REFUNDED)).isTrue();
+    }
+
+    @Test
     void inProgressCanTransitionToCompleted() {
         assertThat(BookingStatus.IN_PROGRESS.canTransitionTo(BookingStatus.COMPLETED)).isTrue();
     }
 
     // === Invalid transitions ===
+
+    @Test
+    void confirmedCannotTransitionToInProgressDirectly() {
+        // Must go through PAID first — CONFIRMED → IN_PROGRESS is no longer valid.
+        assertThat(BookingStatus.CONFIRMED.canTransitionTo(BookingStatus.IN_PROGRESS)).isFalse();
+    }
 
     @Test
     void completedCannotTransitionToAnything() {
@@ -56,8 +81,16 @@ class BookingStatusTest {
     }
 
     @Test
+    void refundedCannotTransitionToAnything() {
+        // REFUNDED is a terminal state
+        assertThat(BookingStatus.REFUNDED.canTransitionTo(BookingStatus.PENDING)).isFalse();
+        assertThat(BookingStatus.REFUNDED.canTransitionTo(BookingStatus.PAID)).isFalse();
+        assertThat(BookingStatus.REFUNDED.canTransitionTo(BookingStatus.COMPLETED)).isFalse();
+    }
+
+    @Test
     void pendingCannotTransitionToCompleted() {
-        // Không thể bỏ qua CONFIRMED và IN_PROGRESS
+        // Không thể bỏ qua CONFIRMED, PAID, và IN_PROGRESS
         assertThat(BookingStatus.PENDING.canTransitionTo(BookingStatus.COMPLETED)).isFalse();
     }
 

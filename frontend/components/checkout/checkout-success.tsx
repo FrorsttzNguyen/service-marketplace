@@ -9,7 +9,7 @@
  *     flipped the page to this view, and it's reliable: Stripe confirmed + captured
  *     the card. The user's card was charged.
  *   - The SECONDARY signal is the BACKEND's payment status, polled via
- *     GET /api/payments/order/{orderId}. The backend flips PENDING → SUCCEEDED only
+ *     GET /api/payments/booking/{bookingId}. The backend flips PENDING → SUCCEEDED only
  *     when the Stripe webhook lands. On the deployed app that's near-instant; in LOCAL
  *     DEV the webhook is NOT delivered unless Stripe CLI is forwarding, so the backend
  *     status may lag behind or never catch up.
@@ -22,6 +22,8 @@
  * Visual (Phase 7): the success card is a green-tinted island; the backend status uses
  * the Badge primitive with tone variants instead of the inline color map. Links are
  * styled via buttonClasses so they read as clear CTAs.
+ *
+ * NOTE: The secondary signal is polled via GET /api/payments/booking/{bookingId}.
  */
 import Link from "next/link";
 import type { PaymentIntent } from "@stripe/stripe-js";
@@ -33,8 +35,8 @@ import { buttonClasses } from "@/components/ui/button";
 interface CheckoutSuccessProps {
   /** The confirmed PaymentIntent from the Stripe client. Source of the amount. */
   paymentIntent: PaymentIntent;
-  /** Order id, shown as a reference. */
-  orderId: number | undefined;
+  /** Booking id, shown as a reference. */
+  bookingId: number | undefined;
   /** Latest backend payment row, if the poller has one yet. May be undefined/erroring. */
   backendPayment?: Payment;
   /** True while the status query is still fetching (for the "checking…" affordance). */
@@ -86,7 +88,7 @@ function backendStatusTone(status: PaymentStatus | undefined): BadgeTone {
 
 export function CheckoutSuccess({
   paymentIntent,
-  orderId,
+  bookingId,
   backendPayment,
   isPolling,
 }: CheckoutSuccessProps) {
@@ -133,10 +135,10 @@ export function CheckoutSuccess({
           </div>
 
           <dl className="mt-4 space-y-1 text-sm text-success/90">
-            {orderId !== undefined ? (
+            {bookingId !== undefined ? (
               <div className="flex justify-between gap-4">
-                <dt className="opacity-70">Order</dt>
-                <dd className="font-medium">#{orderId}</dd>
+                <dt className="opacity-70">Booking</dt>
+                <dd className="font-medium">#{bookingId}</dd>
               </div>
             ) : null}
             <div className="flex justify-between gap-4">

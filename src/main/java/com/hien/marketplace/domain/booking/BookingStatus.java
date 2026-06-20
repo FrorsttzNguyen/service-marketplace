@@ -21,19 +21,26 @@ import java.util.Set;
  */
 public enum BookingStatus {
     PENDING,        // Customer vừa đặt, chờ vendor xác nhận
-    CONFIRMED,      // Vendor đã xác nhận
+    CONFIRMED,      // Vendor đã xác nhận — giờ là trạng thái "payable"
+    PAID,           // Thanh toán thành công (webhook Stripe) — gộp từ Order.PAID cũ
     IN_PROGRESS,    // Đang thực hiện dịch vụ
-    COMPLETED,      // Hoàn thành
-    CANCELLED;      // Đã hủy
+    COMPLETED,      // Hoàn thành (nguồn sự thật duy nhất cho "xong" — thay cho Order.FULFILLED)
+    CANCELLED,      // Đã hủy
+    REFUNDED;       // Đã hoàn tiền — gộp từ Order.REFUNDED cũ
 
     // Map định nghĩa các chuyển đổi hợp lệ.
     // Key = trạng thái hiện tại, Value = set các trạng thái có thể chuyển đến.
-    // Ví dụ: PENDING có thể chuyển sang CONFIRMED hoặc CANCELLED
+    //
+    // Vòng đời gộp (Đường 1): đặt → vendor nhận → trả tiền → làm dịch vụ → xong.
+    //   PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
+    // "Đang trả tiền" KHÔNG phải một state ở đây — Booking vẫn CONFIRMED, còn Payment có
+    // lifecycle riêng (PENDING/PROCESSING) cho giao dịch Stripe. Đó không phải trùng lặp.
     private static final Map<BookingStatus, Set<BookingStatus>> TRANSITIONS = Map.of(
         PENDING, Set.of(CONFIRMED, CANCELLED),
-        CONFIRMED, Set.of(IN_PROGRESS, CANCELLED),
+        CONFIRMED, Set.of(PAID, CANCELLED),
+        PAID, Set.of(IN_PROGRESS, CANCELLED, REFUNDED),
         IN_PROGRESS, Set.of(COMPLETED)
-        // COMPLETED và CANCELLED không có entry = không thể chuyển đi đâu nữa (terminal states)
+        // COMPLETED, CANCELLED, REFUNDED không có entry = terminal states.
     );
 
     /**

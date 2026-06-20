@@ -65,7 +65,7 @@ class OptimisticLockingTest {
         customer = new User("customer-lock@test.com", "hashed", "Customer", UserRole.CUSTOMER);
         customer = entityManager.persistFlushFind(customer);
 
-        // Create booking
+        // Create booking — new constructor: (service, customer, vendor, date, startTime, endTime, subtotal, commission)
         testBooking = new Booking(
                 service,
                 customer,
@@ -73,7 +73,8 @@ class OptimisticLockingTest {
                 LocalDate.of(2026, 6, 15),
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
-                Money.of(10000)
+                Money.of(10000),
+                Money.of(1000)
         );
         testBooking = entityManager.persistFlushFind(testBooking);
     }
@@ -157,16 +158,22 @@ class OptimisticLockingTest {
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 1);
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
 
-            // CONFIRMED → IN_PROGRESS
-            testBooking.start(vendorUser);
+            // CONFIRMED → PAID (new step: Stripe webhook, changedBy null = system)
+            testBooking.markAsPaid(null);
             testBooking = entityManager.persistFlushFind(testBooking);
             assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 2);
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.PAID);
+
+            // PAID → IN_PROGRESS
+            testBooking.start(vendorUser);
+            testBooking = entityManager.persistFlushFind(testBooking);
+            assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 3);
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
 
             // IN_PROGRESS → COMPLETED
             testBooking.complete(vendorUser);
             testBooking = entityManager.persistFlushFind(testBooking);
-            assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 3);
+            assertThat(testBooking.getVersion()).isEqualTo(initialVersion + 4);
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
         }
     }

@@ -6,8 +6,6 @@ import com.hien.marketplace.domain.category.Category;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.notification.Notification;
 import com.hien.marketplace.domain.notification.NotificationType;
-import com.hien.marketplace.domain.order.Order;
-import com.hien.marketplace.domain.order.OrderStatus;
 import com.hien.marketplace.domain.payment.Payment;
 import com.hien.marketplace.domain.payment.PaymentStatus;
 import com.hien.marketplace.domain.payment.Refund;
@@ -75,9 +73,6 @@ class RepositoryIntegrationTest {
     private BookingRepository bookingRepository;
 
     @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
     private PaymentRepository paymentRepository;
 
     @Autowired
@@ -115,7 +110,8 @@ class RepositoryIntegrationTest {
 
     private Booking persistBooking(ServiceEntity service, User customer, Vendor vendor,
                                      LocalDate date, LocalTime start, LocalTime end) {
-        Booking booking = new Booking(service, customer, vendor, date, start, end, Money.of(5000));
+        // New constructor takes (subtotal, commission) separately; commission = 0 for test simplicity
+        Booking booking = new Booking(service, customer, vendor, date, start, end, Money.of(5000), Money.of(0));
         return entityManager.persistFlushFind(booking);
     }
 
@@ -317,7 +313,8 @@ class RepositoryIntegrationTest {
             assertThat(booking.getId()).isNotNull();
             assertThat(booking.getStartTime()).isEqualTo(LocalTime.of(9, 0));
             assertThat(booking.getEndTime()).isEqualTo(LocalTime.of(10, 0));
-            assertThat(booking.getTotalPrice()).isEqualTo(Money.of(5000));
+            // getTotal() = subtotal + commission = 5000 + 0 (no commission in test) = 5000
+            assertThat(booking.getTotal()).isEqualTo(Money.of(5000));
             assertThat(booking.getStatus()).isEqualTo(BookingStatus.PENDING);
         }
 
@@ -391,22 +388,25 @@ class RepositoryIntegrationTest {
                     LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
             User vendorUser = entityManager.find(User.class, vendor.getUser().getId());
 
+            // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS
+            // markAsPaid(null) simulates the Stripe webhook (changedBy=null = system action)
             booking.confirm(vendorUser);
+            booking.markAsPaid(null);
             booking.start(vendorUser);
             booking = entityManager.persistFlushFind(booking);
 
-            // 2 status history entries: PENDING→CONFIRMED + CONFIRMED→IN_PROGRESS
-            assertThat(booking.getStatusHistory()).hasSize(2);
+            // 3 status history entries: PENDING→CONFIRMED + CONFIRMED→PAID + PAID→IN_PROGRESS
+            assertThat(booking.getStatusHistory()).hasSize(3);
             assertThat(booking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
         }
     }
 
     // ================================================================
-    // Order + Payment Repository Tests
+    // Payment Repository Tests (after Order→Booking merge)
     // ================================================================
 
     @Nested
-    class OrderPaymentRepositoryTests {
+    class PaymentRepositoryTests {
 
         private Booking booking;
         private User customer;
@@ -423,62 +423,33 @@ class RepositoryIntegrationTest {
         }
 
         @Test
-        void shouldPersistOrderWithEmbeddedMoney() {
-            Order order = new Order(customer, booking, Money.of(5000), Money.of(500));
-            order = entityManager.persistFlushFind(order);
-
-            assertThat(order.getId()).isNotNull();
-            assertThat(order.getStatus()).isEqualTo(OrderStatus.CREATED);
-            // subtotal + commission = total: 5000 + 500 = 5500
-            assertThat(order.getTotal()).isEqualTo(Money.of(5500));
-        }
-
-        @Test
-        void shouldFindOrderByBookingId() {
-            Order order = new Order(customer, booking, Money.of(5000), Money.of(500));
-            entityManager.persistAndFlush(order);
-
-            Optional<Order> found = orderRepository.findByBookingId(booking.getId());
-
-            assertThat(found).isPresent();
-            assertThat(found.get().getTotal()).isEqualTo(Money.of(5500));
-        }
-
-        @Test
         void shouldPersistPaymentWithStripeId() {
-            Order order = new Order(customer, booking, Money.of(5000), Money.of(500));
-            entityManager.persistAndFlush(order);
-
-            Payment payment = new Payment(order, Money.of(5500));
+            // Payment now references Booking directly (Order removed after merge)
+            Payment payment = new Payment(booking, Money.of(5000));
             payment.setStripePaymentIntentId("pi_test_123");
             payment = entityManager.persistFlushFind(payment);
 
             assertThat(payment.getId()).isNotNull();
             assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
             assertThat(payment.getStripePaymentIntentId()).isEqualTo("pi_test_123");
+            assertThat(payment.getBooking().getId()).isEqualTo(booking.getId());
         }
 
         @Test
         void shouldFindPaymentByStripeId() {
-            Order order = new Order(customer, booking, Money.of(5000), Money.of(500));
-            entityManager.persistAndFlush(order);
-
-            Payment payment = new Payment(order, Money.of(5500));
+            Payment payment = new Payment(booking, Money.of(5000));
             payment.setStripePaymentIntentId("pi_test_unique");
             entityManager.persistAndFlush(payment);
 
             Optional<Payment> found = paymentRepository.findByStripePaymentIntentId("pi_test_unique");
 
             assertThat(found).isPresent();
-            assertThat(found.get().getAmount()).isEqualTo(Money.of(5500));
+            assertThat(found.get().getAmount()).isEqualTo(Money.of(5000));
         }
 
         @Test
         void shouldCheckPaymentExistsByStripeId() {
-            Order order = new Order(customer, booking, Money.of(5000), Money.of(500));
-            entityManager.persistAndFlush(order);
-
-            Payment payment = new Payment(order, Money.of(5500));
+            Payment payment = new Payment(booking, Money.of(5000));
             payment.setStripePaymentIntentId("pi_test_exists");
             entityManager.persistAndFlush(payment);
 
@@ -487,11 +458,19 @@ class RepositoryIntegrationTest {
         }
 
         @Test
-        void shouldPersistRefundCascadeFromPayment() {
-            Order order = new Order(customer, booking, Money.of(5000), Money.of(500));
-            entityManager.persistAndFlush(order);
+        void shouldFindPaymentByBookingId() {
+            Payment payment = new Payment(booking, Money.of(5000));
+            entityManager.persistAndFlush(payment);
 
-            Payment payment = new Payment(order, Money.of(5500));
+            Optional<Payment> found = paymentRepository.findByBookingId(booking.getId());
+
+            assertThat(found).isPresent();
+            assertThat(found.get().getAmount()).isEqualTo(Money.of(5000));
+        }
+
+        @Test
+        void shouldPersistRefundCascadeFromPayment() {
+            Payment payment = new Payment(booking, Money.of(5000));
             entityManager.persistAndFlush(payment);
 
             // Refund linked to payment — CascadeType.ALL means saving payment saves refund too

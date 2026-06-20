@@ -7,7 +7,7 @@
  * access token (and does the 401 single-flight refresh), so these wrappers don't
  * touch tokens directly.
  *
- * SCOPE NOTE: orders are intentionally NOT here. `POST /api/orders` belongs to Slice 4
+ * SCOPE NOTE: payments are intentionally NOT here. `POST /api/payments` belongs to Slice 4
  * (payment); this slice is bookings only.
  */
 import { apiGet, apiPost, apiPut } from "./client";

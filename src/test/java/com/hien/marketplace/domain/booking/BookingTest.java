@@ -16,6 +16,10 @@ import static org.assertj.core.api.Assertions.*;
 /**
  * Unit tests cho Booking entity state machine.
  * BookingStatusTest kiểm tra enum rules; class này kiểm tra entity dùng current status thật.
+ *
+ * New state machine (after Order→Booking merge):
+ *   PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
+ * A booking must be PAID before it can move to IN_PROGRESS.
  */
 class BookingTest {
 
@@ -27,7 +31,10 @@ class BookingTest {
         assertThat(booking.getStartTime()).isEqualTo(LocalTime.of(9, 0));
         assertThat(booking.getEndTime()).isEqualTo(LocalTime.of(10, 0));
         assertThat(booking.getTimeSlot().toMinutes()).isEqualTo(60);
-        assertThat(booking.getTotalPrice()).isEqualTo(Money.of(5000));
+        // getTotal() = subtotal + commission = 5000 + 500 = 5500
+        assertThat(booking.getTotal()).isEqualTo(Money.of(5500));
+        assertThat(booking.getSubtotal()).isEqualTo(Money.of(5000));
+        assertThat(booking.getCommission()).isEqualTo(Money.of(500));
     }
 
     @Test
@@ -48,7 +55,9 @@ class BookingTest {
         Booking booking = newBooking();
         User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
 
+        // New lifecycle: PENDING → CONFIRMED → PAID → IN_PROGRESS → COMPLETED
         booking.confirm(vendorUser);
+        booking.markAsPaid(null);  // payment webhook step (changedBy null = system)
         booking.start(vendorUser);
         booking.complete(vendorUser);
 
@@ -56,6 +65,7 @@ class BookingTest {
         assertThat(booking.getStatusHistory()).extracting(BookingStatusHistory::getToStatus)
                 .containsExactly(
                         BookingStatus.CONFIRMED,
+                        BookingStatus.PAID,
                         BookingStatus.IN_PROGRESS,
                         BookingStatus.COMPLETED
                 );
@@ -96,6 +106,18 @@ class BookingTest {
     }
 
     @Test
+    void shouldRejectStartingConfirmedBookingWithoutPayment() {
+        // CONFIRMED → IN_PROGRESS is no longer a valid transition; must go through PAID first.
+        Booking booking = newBooking();
+        User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
+        booking.confirm(vendorUser);
+
+        assertThatThrownBy(() -> booking.start(vendorUser))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot transition booking from CONFIRMED to IN_PROGRESS");
+    }
+
+    @Test
     void shouldRejectCompletingConfirmedBooking() {
         Booking booking = newBooking();
         User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
@@ -122,6 +144,7 @@ class BookingTest {
         Booking booking = newBooking();
         User vendorUser = newUser("vendor-owner@email.com", UserRole.VENDOR);
         booking.confirm(vendorUser);
+        booking.markAsPaid(null);
         booking.start(vendorUser);
         booking.complete(vendorUser);
 
@@ -143,7 +166,8 @@ class BookingTest {
                 LocalDate.of(2026, 6, 11),
                 LocalTime.of(10, 0),
                 LocalTime.of(9, 0),
-                Money.of(5000)
+                Money.of(5000),
+                Money.of(500)
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Start time must be before end time");
     }
@@ -158,7 +182,8 @@ class BookingTest {
                 LocalDate.of(2026, 6, 11),
                 LocalTime.of(9, 0),
                 LocalTime.of(10, 0),
-                Money.of(5000)
+                Money.of(5000),
+                Money.of(500)
         );
     }
 

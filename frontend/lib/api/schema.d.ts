@@ -58,7 +58,7 @@ export interface paths {
         get?: never;
         /**
          * Confirm booking
-         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book → pay flow: an Order can only be created from a CONFIRMED booking.
+         * @description Vendor confirms a pending booking, transitioning it to CONFIRMED. Only the vendor who owns the service may confirm. Required for the book → pay flow: payment can only be created for a CONFIRMED booking.
          */
         put: operations["confirmBooking"];
         post?: never;
@@ -223,29 +223,9 @@ export interface paths {
         put?: never;
         /**
          * Create payment
-         * @description Create a payment for an order. Returns clientSecret for Stripe.js.
+         * @description Create a payment for a booking. Returns clientSecret for Stripe.js.
          */
         post: operations["createPayment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create order
-         * @description Create an order from a confirmed booking. Idempotent on bookingId: if a payable order already exists for the booking, it is returned instead of duplicated. An order is a prerequisite for creating a payment.
-         */
-        post: operations["createOrder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -559,7 +539,7 @@ export interface paths {
         };
         /**
          * Get payment by ID
-         * @description Retrieve payment details. Only order owner can access.
+         * @description Retrieve payment details. Only booking owner can access.
          */
         get: operations["getPayment"];
         put?: never;
@@ -570,7 +550,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/payments/order/{orderId}": {
+    "/api/payments/booking/{bookingId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -578,30 +558,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get payment by order ID
-         * @description Retrieve payment for a specific order. Only order owner can access.
+         * Get payment by booking ID
+         * @description Retrieve payment for a specific booking. Only booking owner can access.
          */
-        get: operations["getPaymentByOrder"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/orders/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get order
-         * @description Get order details. Only the order's customer may view it.
-         */
-        get: operations["getOrder"];
+        get: operations["getPaymentByBooking"];
         put?: never;
         post?: never;
         delete?: never;
@@ -766,10 +726,12 @@ export interface components {
             /** Format: date-time */
             endTime?: string;
             /** @enum {string} */
-            status?: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+            status?: "PENDING" | "CONFIRMED" | "PAID" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
             /** Format: int32 */
             quantity?: number;
             totalPrice?: number;
+            commission?: number;
+            total?: number;
             currency?: string;
             notes?: string;
             /** Format: date-time */
@@ -838,7 +800,7 @@ export interface components {
         };
         PaymentCreateRequest: {
             /** Format: int64 */
-            orderId: number;
+            bookingId: number;
             paymentMethod: string;
         };
         PaymentResponse: {
@@ -849,36 +811,12 @@ export interface components {
             /** @enum {string} */
             status?: "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED";
             /** Format: int64 */
-            orderId?: number;
+            bookingId?: number;
             amount?: number;
             currency?: string;
             paymentMethod?: string;
             /** Format: date-time */
             createdAt?: string;
-        };
-        CreateOrderRequest: {
-            /** Format: int64 */
-            bookingId: number;
-        };
-        OrderResponse: {
-            /** Format: int64 */
-            id?: number;
-            /** Format: int64 */
-            bookingId?: number;
-            /** Format: int64 */
-            customerId?: number;
-            /** Format: int64 */
-            vendorId?: number;
-            totalAmount?: number;
-            currency?: string;
-            /** @enum {string} */
-            status?: "CREATED" | "PENDING_PAYMENT" | "PAID" | "FULFILLED" | "CANCELLED" | "REFUNDED";
-            paymentMethod?: string;
-            paymentId?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
         };
         BookingCreateRequest: {
             /** Format: int64 */
@@ -1596,7 +1534,7 @@ export interface operations {
                     "*/*": components["schemas"]["PaymentResponse"];
                 };
             };
-            /** @description Order not found */
+            /** @description Booking not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1605,7 +1543,7 @@ export interface operations {
                     "*/*": components["schemas"]["PaymentResponse"];
                 };
             };
-            /** @description Payment already exists for this order */
+            /** @description Payment already exists for this booking */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1614,55 +1552,13 @@ export interface operations {
                     "*/*": components["schemas"]["PaymentResponse"];
                 };
             };
-            /** @description Order not eligible for payment */
+            /** @description Booking not eligible for payment */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "*/*": components["schemas"]["PaymentResponse"];
-                };
-            };
-        };
-    };
-    createOrder: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateOrderRequest"];
-            };
-        };
-        responses: {
-            /** @description Order created (or existing payable order returned) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Booking not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Booking not confirmed, an order already exists and is no longer payable, or caller is not the booking's customer */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OrderResponse"];
                 };
             };
         };
@@ -2275,13 +2171,13 @@ export interface operations {
             };
         };
     };
-    getPaymentByOrder: {
+    getPaymentByBooking: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Order ID */
-                orderId: number;
+                /** @description Booking ID */
+                bookingId: number;
             };
             cookie?: never;
         };
@@ -2305,53 +2201,13 @@ export interface operations {
                     "*/*": components["schemas"]["PaymentResponse"];
                 };
             };
-            /** @description No payment for this order */
+            /** @description No payment for this booking */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "*/*": components["schemas"]["PaymentResponse"];
-                };
-            };
-        };
-    };
-    getOrder: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Order found */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Order not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Caller is not the order's customer */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OrderResponse"];
                 };
             };
         };
