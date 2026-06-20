@@ -1,6 +1,7 @@
 package com.hien.marketplace.application.mapper;
 
 import com.hien.marketplace.domain.booking.Booking;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.interfaces.dto.response.BookingResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -31,6 +32,9 @@ public interface BookingMapper {
     @Mapping(target = "commission", expression = "java(toDecimal(booking.getCommission()))")
     @Mapping(target = "total", expression = "java(toDecimal(booking.getTotal()))")
     @Mapping(target = "currency", constant = "VND")
+    @Mapping(target = "serviceStreet", expression = "java(addressStreet(booking.getServiceAddress()))")
+    @Mapping(target = "serviceCity", expression = "java(addressCity(booking.getServiceAddress()))")
+    @Mapping(target = "serviceZipCode", expression = "java(addressZipCode(booking.getServiceAddress()))")
     @Mapping(target = "customerName", ignore = true)
     @Mapping(target = "serviceTitle", ignore = true)
     @Mapping(target = "vendorName", ignore = true)
@@ -46,5 +50,17 @@ public interface BookingMapper {
     default LocalDateTime combineDateTime(LocalDate date, LocalTime time) {
         if (date == null || time == null) return null;
         return LocalDateTime.of(date, time);
+    }
+
+    default String addressStreet(Address address) {
+        return address == null ? null : address.getStreet();
+    }
+
+    default String addressCity(Address address) {
+        return address == null ? null : address.getCity();
+    }
+
+    default String addressZipCode(Address address) {
+        return address == null ? null : address.getZipCode();
     }
 }

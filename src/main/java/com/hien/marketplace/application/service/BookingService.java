@@ -9,6 +9,7 @@ import com.hien.marketplace.application.mapper.BookingMapper;
 import com.hien.marketplace.config.CommissionProperties;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.common.TimeSlot;
 import com.hien.marketplace.domain.service.PricingType;
@@ -109,6 +110,9 @@ public class BookingService {
         // breakdown from the start (commission used to be computed later at order creation).
         Money subtotal = calculateTotalPrice(service, request.quantity());
         Money commission = subtotal.multiply(commissionProperties.getRate());
+        // Service address belongs to the Booking because each visit can happen at a
+        // different customer location even when the customer books the same service again.
+        Address serviceAddress = new Address(request.street(), request.city(), request.zipCode());
 
         // Step 5: Create Booking
         Booking booking = new Booking(
@@ -119,7 +123,8 @@ public class BookingService {
                 startTime,
                 endTime,
                 subtotal,
-                commission
+                commission,
+                serviceAddress
         );
 
         // Set notes if provided
@@ -420,6 +425,9 @@ public class BookingService {
                     response.serviceTitle(),
                     response.vendorId(),
                     response.vendorName(),
+                    response.serviceStreet(),
+                    response.serviceCity(),
+                    response.serviceZipCode(),
                     response.startTime(),
                     response.endTime(),
                     response.status(),
@@ -448,6 +456,9 @@ public class BookingService {
                     booking.getService().getName(),
                     response.vendorId(),
                     vendorName,
+                    response.serviceStreet(),
+                    response.serviceCity(),
+                    response.serviceZipCode(),
                     response.startTime(),
                     response.endTime(),
                     response.status(),

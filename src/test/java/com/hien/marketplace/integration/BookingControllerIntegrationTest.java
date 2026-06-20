@@ -122,6 +122,9 @@ class BookingControllerIntegrationTest {
                     startTime,
                     endTime,
                     1,
+                    "123 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     "Please be on time"
             );
 
@@ -134,6 +137,9 @@ class BookingControllerIntegrationTest {
                     .andExpect(jsonPath("$.customerId").value(customerUser.getId()))
                     .andExpect(jsonPath("$.serviceId").value(service.getId()))
                     .andExpect(jsonPath("$.vendorId").value(vendor.getId()))
+                    .andExpect(jsonPath("$.serviceStreet").value("123 Service Street"))
+                    .andExpect(jsonPath("$.serviceCity").value("Ho Chi Minh City"))
+                    .andExpect(jsonPath("$.serviceZipCode").value("70000"))
                     .andExpect(jsonPath("$.status").value("PENDING"))
                     // Note: notes field not set in Phase 2 BookingService - will be fixed in Phase 3
                     // .andExpect(jsonPath("$.notes").value("Please be on time"))
@@ -159,6 +165,9 @@ class BookingControllerIntegrationTest {
                     startTime,
                     endTime,
                     1,
+                    "123 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     null
             );
 
@@ -179,6 +188,9 @@ class BookingControllerIntegrationTest {
                     startTime,
                     endTime,
                     1,
+                    "123 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     null
             );
 
@@ -200,6 +212,9 @@ class BookingControllerIntegrationTest {
                     startTime,
                     endTime,
                     1,
+                    "123 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     null
             );
 
@@ -225,6 +240,49 @@ class BookingControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should reject booking without required service address fields")
+        void shouldRejectBookingWithoutServiceAddressFields() throws Exception {
+            LocalDateTime startTime = LocalDateTime.now().plusDays(1).withHour(9).withMinute(0);
+            LocalDateTime endTime = startTime.plusHours(1);
+
+            BookingCreateRequest missingStreet = new BookingCreateRequest(
+                    service.getId(),
+                    startTime,
+                    endTime,
+                    1,
+                    " ",
+                    "Ho Chi Minh City",
+                    "70000",
+                    null
+            );
+
+            mockMvc.perform(post("/api/bookings")
+                            .header("Authorization", "Bearer " + customerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(missingStreet)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+            BookingCreateRequest missingCity = new BookingCreateRequest(
+                    service.getId(),
+                    startTime.plusHours(2),
+                    endTime.plusHours(2),
+                    1,
+                    "123 Service Street",
+                    "",
+                    "70000",
+                    null
+            );
+
+            mockMvc.perform(post("/api/bookings")
+                            .header("Authorization", "Bearer " + customerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(missingCity)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        }
+
+        @Test
         @DisplayName("Should reject overlapping booking (double-booking prevention)")
         void shouldRejectOverlappingBooking() throws Exception {
             // Create first booking
@@ -236,6 +294,9 @@ class BookingControllerIntegrationTest {
                     startTime,
                     endTime,
                     1,
+                    "123 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     "First booking"
             );
 
@@ -254,6 +315,9 @@ class BookingControllerIntegrationTest {
                     overlapStart,
                     overlapEnd,
                     1,
+                    "456 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     "Overlapping booking"
             );
 
@@ -277,6 +341,9 @@ class BookingControllerIntegrationTest {
                     startTime,
                     endTime,
                     1,
+                    "123 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     null
             );
 
@@ -295,6 +362,9 @@ class BookingControllerIntegrationTest {
                     adjStart,
                     adjEnd,
                     1,
+                    "456 Service Street",
+                    "Ho Chi Minh City",
+                    "70000",
                     null
             );
 
@@ -501,6 +571,9 @@ class BookingControllerIntegrationTest {
                 startTime,
                 endTime,
                 1,
+                "123 Service Street",
+                "Ho Chi Minh City",
+                "70000",
                 null
         );
 

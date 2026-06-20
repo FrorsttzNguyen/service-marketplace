@@ -42,6 +42,8 @@ interface FieldErrors {
   startTime?: string;
   endTime?: string;
   quantity?: string;
+  street?: string;
+  city?: string;
 }
 
 export function BookingForm({ serviceId }: BookingFormProps) {
@@ -52,6 +54,9 @@ export function BookingForm({ serviceId }: BookingFormProps) {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [quantity, setQuantity] = useState("1");
+  const [street, setStreet] = useState("");
+  const [city, setCity] = useState("");
+  const [zipCode, setZipCode] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<unknown>(null);
@@ -116,6 +121,14 @@ export function BookingForm({ serviceId }: BookingFormProps) {
       next.quantity = "Quantity must be a whole number ≥ 1.";
     }
 
+    if (!street.trim()) {
+      next.street = "Street is required.";
+    }
+
+    if (!city.trim()) {
+      next.city = "City is required.";
+    }
+
     return next;
   }
 
@@ -134,6 +147,9 @@ export function BookingForm({ serviceId }: BookingFormProps) {
       startTime: new Date(startTime).toISOString(),
       endTime: new Date(endTime).toISOString(),
       quantity: Number(quantity),
+      street: street.trim(),
+      city: city.trim(),
+      zipCode: zipCode.trim() ? zipCode.trim() : undefined,
       notes: notes.trim() ? notes.trim() : undefined,
     };
 
@@ -211,6 +227,41 @@ export function BookingForm({ serviceId }: BookingFormProps) {
             aria-invalid={!!errors.quantity}
           />
           <FieldError>{errors.quantity}</FieldError>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div>
+            <Label htmlFor="street">Street</Label>
+            <Input
+              id="street"
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              aria-invalid={!!errors.street}
+            />
+            <FieldError>{errors.street}</FieldError>
+          </div>
+
+          <div>
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              aria-invalid={!!errors.city}
+            />
+            <FieldError>{errors.city}</FieldError>
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="zipCode" hint="(optional)">
+            Zip code
+          </Label>
+          <Input
+            id="zipCode"
+            value={zipCode}
+            onChange={(e) => setZipCode(e.target.value)}
+          />
         </div>
 
         <div>

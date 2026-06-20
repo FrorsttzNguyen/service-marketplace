@@ -3,6 +3,7 @@ package com.hien.marketplace.integration;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
 import com.hien.marketplace.domain.category.Category;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.notification.Notification;
 import com.hien.marketplace.domain.notification.NotificationType;
@@ -111,8 +112,13 @@ class RepositoryIntegrationTest {
     private Booking persistBooking(ServiceEntity service, User customer, Vendor vendor,
                                      LocalDate date, LocalTime start, LocalTime end) {
         // New constructor takes (subtotal, commission) separately; commission = 0 for test simplicity
-        Booking booking = new Booking(service, customer, vendor, date, start, end, Money.of(5000), Money.of(0));
+        Booking booking = new Booking(service, customer, vendor, date, start, end,
+                Money.of(5000), Money.of(0), serviceAddress());
         return entityManager.persistFlushFind(booking);
+    }
+
+    private Address serviceAddress() {
+        return new Address("123 Service Street", "Ho Chi Minh City", "70000");
     }
 
     // ================================================================
@@ -316,6 +322,17 @@ class RepositoryIntegrationTest {
             // getTotal() = subtotal + commission = 5000 + 0 (no commission in test) = 5000
             assertThat(booking.getTotal()).isEqualTo(Money.of(5000));
             assertThat(booking.getStatus()).isEqualTo(BookingStatus.PENDING);
+        }
+
+        @Test
+        void shouldPersistAndReadBookingServiceAddress() {
+            Booking booking = persistBooking(service, customer, vendor,
+                    LocalDate.of(2026, 6, 15), LocalTime.of(9, 0), LocalTime.of(10, 0));
+
+            assertThat(booking.getServiceAddress()).isEqualTo(serviceAddress());
+            assertThat(booking.getServiceAddress().getStreet()).isEqualTo("123 Service Street");
+            assertThat(booking.getServiceAddress().getCity()).isEqualTo("Ho Chi Minh City");
+            assertThat(booking.getServiceAddress().getZipCode()).isEqualTo("70000");
         }
 
         @Test

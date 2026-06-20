@@ -3,6 +3,7 @@ package com.hien.marketplace.application.service;
 import com.hien.marketplace.application.exception.BusinessRuleViolationException;
 import com.hien.marketplace.domain.booking.Booking;
 import com.hien.marketplace.domain.booking.BookingStatus;
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.service.PricingType;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -218,7 +219,8 @@ class VendorDashboardServiceTest {
                 Money.of(subtotalCents), PricingType.FIXED, 60);
         Booking booking = new Booking(service, customer, vendor,
                 LocalDate.now(), LocalTime.of(9, 0), LocalTime.of(10, 0),
-                Money.of(subtotalCents), Money.of(commissionCents));
+                Money.of(subtotalCents), Money.of(commissionCents),
+                new Address("123 Service Street", "Test City", "70000"));
         Booking spied = spy(booking);
         // Stub status and timestamps — real state machine would reject arbitrary jumps
         when(spied.getStatus()).thenReturn(status);

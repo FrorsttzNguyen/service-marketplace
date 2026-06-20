@@ -239,6 +239,19 @@ function formatPrice(
   }
 }
 
+/** Join nullable address fields from BookingResponse into one readable service location. */
+function formatServiceAddress(booking: Booking): string | null {
+  const parts = [
+    booking.serviceStreet,
+    booking.serviceCity,
+    booking.serviceZipCode,
+  ]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 /** Small dt/dd pair used in the meta grid. */
 function MetaCell({
   label,
@@ -316,6 +329,7 @@ function VendorBookingRow({
   onComplete,
 }: VendorBookingRowProps) {
   const status: BookingStatus = booking.status ?? "PENDING";
+  const serviceAddress = formatServiceAddress(booking);
   const action = actionForStatus(
     status,
     booking.id,
@@ -353,6 +367,13 @@ function VendorBookingRow({
           {formatPrice(booking.totalPrice, booking.currency)}
         </MetaCell>
       </dl>
+
+      {serviceAddress ? (
+        <p className="mt-4 rounded-2xl bg-muted/70 p-3 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Service address:</span>{" "}
+          {serviceAddress}
+        </p>
+      ) : null}
 
       {booking.notes ? (
         <p className="mt-4 rounded-2xl bg-muted/70 p-3 text-sm text-muted-foreground">

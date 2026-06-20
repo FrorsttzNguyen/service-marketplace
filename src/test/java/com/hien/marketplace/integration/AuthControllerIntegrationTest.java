@@ -417,7 +417,9 @@ class AuthControllerIntegrationTest {
                             .header("Authorization", "Bearer " + authResponse.accessToken())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"serviceId\":1,\"startTime\":\"" + futureDate
-                                    + "T09:00:00\",\"endTime\":\"" + futureDate + "T10:00:00\"}"))
+                                    + "T09:00:00\",\"endTime\":\"" + futureDate
+                                    + "T10:00:00\",\"street\":\"123 Service Street\","
+                                    + "\"city\":\"Ho Chi Minh City\",\"zipCode\":\"70000\"}"))
                     // 404 because service doesn't exist, but auth passed (not 401)
                     .andExpect(status().isNotFound());  // Not 401 Unauthorized
         }

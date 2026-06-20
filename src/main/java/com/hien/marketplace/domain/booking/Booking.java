@@ -1,5 +1,6 @@
 package com.hien.marketplace.domain.booking;
 
+import com.hien.marketplace.domain.common.Address;
 import com.hien.marketplace.domain.common.Money;
 import com.hien.marketplace.domain.common.TimeSlot;
 import com.hien.marketplace.domain.service.ServiceEntity;
@@ -85,6 +86,15 @@ public class Booking {
     @AttributeOverride(name = "amountCents", column = @Column(name = "total_cents", nullable = false))
     private Money total;
 
+    // Address của nơi pro tới làm dịch vụ. Cột nullable để booking cũ vẫn đọc được sau migration.
+    @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "street", column = @Column(name = "service_street")),
+        @AttributeOverride(name = "city", column = @Column(name = "service_city")),
+        @AttributeOverride(name = "zipCode", column = @Column(name = "service_zip_code"))
+    })
+    private Address serviceAddress;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -108,7 +118,7 @@ public class Booking {
 
     public Booking(ServiceEntity service, User customer, Vendor vendor,
                     LocalDate bookingDate, LocalTime startTime, LocalTime endTime,
-                    Money subtotal, Money commission) {
+                    Money subtotal, Money commission, Address serviceAddress) {
         this.service = service;
         this.customer = customer;
         this.vendor = vendor;
@@ -117,6 +127,7 @@ public class Booking {
         this.subtotal = subtotal;
         this.commission = commission;
         this.total = subtotal.add(commission);   // tổng tiền khách trả = subtotal + commission
+        this.serviceAddress = serviceAddress;
         this.status = BookingStatus.PENDING;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -183,6 +194,7 @@ public class Booking {
     public Money getSubtotal() { return subtotal; }
     public Money getCommission() { return commission; }
     public Money getTotal() { return total; }
+    public Address getServiceAddress() { return serviceAddress; }
     public String getNotes() { return notes; }
     public Long getVersion() { return version; }
     public LocalDateTime getCreatedAt() { return createdAt; }
